@@ -6,6 +6,7 @@ import {
   Champ,
   ChoixMultiple,
   ChoixUnique,
+  DateFr,
   Paragraphe,
   Texte,
 } from "@/components/champs";
@@ -178,11 +179,7 @@ export default function ParcoursSeance({
           )}
 
           <Champ label="Date de la séance" requis>
-            <Texte
-              type="date"
-              valeur={s.date_seance}
-              onChange={(v) => maj("date_seance", v)}
-            />
+            <DateFr valeur={s.date_seance} onChange={(v) => maj("date_seance", v)} />
           </Champ>
           <Champ
             label="Type de venue"
@@ -327,11 +324,7 @@ export default function ParcoursSeance({
             />
           </Champ>
           <Champ label="Date du prochain rendez-vous">
-            <Texte
-              type="date"
-              valeur={s.prochain_rdv}
-              onChange={(v) => maj("prochain_rdv", v)}
-            />
+            <DateFr valeur={s.prochain_rdv} onChange={(v) => maj("prochain_rdv", v)} />
           </Champ>
         </>
       )}

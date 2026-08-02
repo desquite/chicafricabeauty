@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Champ, Paragraphe, Texte } from "@/components/champs";
+import { Champ, DateFr, HeureFr, Paragraphe, Texte } from "@/components/champs";
 import type { Cliente, SoinCatalogue } from "@/lib/types";
 import { changerStatut, enregistrerRdv } from "./actions";
 
@@ -148,10 +148,10 @@ export default function Agenda({
 
           <div className="grid gap-4 sm:grid-cols-3">
             <Champ label="Date" requis>
-              <Texte type="date" valeur={saisie.date_rdv} onChange={(v) => maj("date_rdv", v)} />
+              <DateFr valeur={saisie.date_rdv} onChange={(v) => maj("date_rdv", v)} />
             </Champ>
             <Champ label="Heure">
-              <Texte type="time" valeur={saisie.heure_rdv} onChange={(v) => maj("heure_rdv", v)} />
+              <HeureFr valeur={saisie.heure_rdv} onChange={(v) => maj("heure_rdv", v)} />
             </Champ>
             <Champ label="Durée (min)">
               <Texte

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Champ, OuiNon, Texte } from "@/components/champs";
+import { Champ, DateFr, OuiNon, Texte } from "@/components/champs";
 import { Signature } from "@/components/signature";
 import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/client";
@@ -127,9 +127,9 @@ export default function Parcours() {
               <Texte valeur={identite.prenoms} onChange={(v) => majIdentite("prenoms", v)} />
             </Champ>
             <Champ label="Date de naissance" requis>
-              <Texte
-                type="date"
+              <DateFr
                 valeur={identite.date_naissance}
+                max={new Date().toISOString().slice(0, 10)}
                 onChange={(v) => majIdentite("date_naissance", v)}
               />
             </Champ>

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 export function Champ({
   label,
@@ -71,6 +71,177 @@ export function Paragraphe({
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-xl border border-brand-200 bg-white p-4 text-lg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
     />
+  );
+}
+
+/* ------------------------------------------------------------------ dates
+ * Un <input type="date"> affiche son format selon la langue du NAVIGATEUR,
+ * pas celle de la page : sur un poste en anglais il montre mm/dd/yyyy, et
+ * l'attribut lang="fr" n'y change rien (vérifié). Pour une saisie faite par
+ * une cliente ivoirienne, c'est une source d'erreur directe : 03/04 se lit
+ * 3 avril ou 4 mars selon qui regarde.
+ *
+ * D'où ces deux champs maîtrisés, au format français quel que soit le poste,
+ * doublés du sélecteur natif via showPicker() pour garder le calendrier.
+ * ------------------------------------------------------------------------ */
+
+function isoVersFr(iso: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+  const [a, m, j] = iso.split("-");
+  return `${j}/${m}/${a}`;
+}
+
+function frVersIso(chiffres: string): string | null {
+  if (chiffres.length !== 8) return null;
+  const j = Number(chiffres.slice(0, 2));
+  const m = Number(chiffres.slice(2, 4));
+  const a = Number(chiffres.slice(4, 8));
+  if (a < 1900 || a > 2100 || m < 1 || m > 12 || j < 1) return null;
+  // Le passage par Date rejette les dates inexistantes comme le 31/02.
+  const d = new Date(Date.UTC(a, m - 1, j));
+  if (d.getUTCDate() !== j || d.getUTCMonth() !== m - 1) return null;
+  return `${a}-${String(m).padStart(2, "0")}-${String(j).padStart(2, "0")}`;
+}
+
+const styleAvecBouton =
+  "h-touch w-full rounded-xl border border-brand-200 bg-white pl-4 pr-14 text-lg " +
+  "outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200";
+
+function BoutonSelecteur({
+  cible,
+  label,
+  children,
+}: {
+  cible: React.RefObject<HTMLInputElement | null>;
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={() => {
+        // showPicker lève une exception si le navigateur ne le gère pas ou si
+        // l'appel n'est pas issu d'une action utilisateur.
+        try {
+          cible.current?.showPicker();
+        } catch {
+          cible.current?.focus();
+        }
+      }}
+      className="absolute top-1/2 right-2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-brand-500 hover:bg-brand-50"
+    >
+      {children}
+    </button>
+  );
+}
+
+export function DateFr({
+  valeur,
+  onChange,
+  max,
+}: {
+  /** Date ISO (AAAA-MM-JJ) ou chaîne vide. */
+  valeur: string;
+  onChange: (iso: string) => void;
+  max?: string;
+}) {
+  const natif = useRef<HTMLInputElement>(null);
+  // Affichage initialisé depuis la valeur reçue, puis piloté par la saisie et
+  // par le sélecteur natif. Pas de synchronisation continue : réécrire le
+  // texte à chaque rendu effacerait une date en cours de frappe dès qu'elle
+  // devient momentanément incomplète.
+  const [texte, setTexte] = useState(() => isoVersFr(valeur));
+
+  const saisir = (brut: string) => {
+    const c = brut.replace(/\D/g, "").slice(0, 8);
+    const parties = [c.slice(0, 2), c.slice(2, 4), c.slice(4, 8)].filter(Boolean);
+    setTexte(parties.join("/"));
+    onChange(frVersIso(c) ?? "");
+  };
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        inputMode="numeric"
+        value={texte}
+        placeholder="JJ/MM/AAAA"
+        onChange={(e) => saisir(e.target.value)}
+        className={styleAvecBouton}
+      />
+      <input
+        ref={natif}
+        type="date"
+        max={max}
+        value={valeur}
+        onChange={(e) => {
+          setTexte(isoVersFr(e.target.value));
+          onChange(e.target.value);
+        }}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="pointer-events-none absolute right-4 bottom-0 h-px w-px opacity-0"
+      />
+      <BoutonSelecteur cible={natif} label="Ouvrir le calendrier">
+        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M8 2v3M16 2v3M3.5 9h17M5 5h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2" strokeLinecap="round" />
+        </svg>
+      </BoutonSelecteur>
+    </div>
+  );
+}
+
+export function HeureFr({
+  valeur,
+  onChange,
+}: {
+  /** Heure sur 24 h (HH:MM) ou chaîne vide. */
+  valeur: string;
+  onChange: (heure: string) => void;
+}) {
+  const natif = useRef<HTMLInputElement>(null);
+  const [texte, setTexte] = useState(valeur);
+
+  const saisir = (brut: string) => {
+    const c = brut.replace(/\D/g, "").slice(0, 4);
+    const affiche = c.length > 2 ? `${c.slice(0, 2)}:${c.slice(2)}` : c;
+    setTexte(affiche);
+    if (c.length !== 4) return onChange("");
+    const h = Number(c.slice(0, 2));
+    const m = Number(c.slice(2, 4));
+    onChange(h < 24 && m < 60 ? `${c.slice(0, 2)}:${c.slice(2, 4)}` : "");
+  };
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        inputMode="numeric"
+        value={texte}
+        placeholder="HH:MM"
+        onChange={(e) => saisir(e.target.value)}
+        className={styleAvecBouton}
+      />
+      <input
+        ref={natif}
+        type="time"
+        value={valeur}
+        onChange={(e) => {
+          setTexte(e.target.value);
+          onChange(e.target.value);
+        }}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="pointer-events-none absolute right-4 bottom-0 h-px w-px opacity-0"
+      />
+      <BoutonSelecteur cible={natif} label="Ouvrir le sélecteur d'heure">
+        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 2" strokeLinecap="round" />
+        </svg>
+      </BoutonSelecteur>
+    </div>
   );
 }
 
