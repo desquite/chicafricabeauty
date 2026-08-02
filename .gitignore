@@ -34,6 +34,9 @@ yarn-error.log*
 .env*
 !.env.local.example
 
+# chaîne de connexion Postgres utilisée par scripts/migrate.mjs
+.db-url.txt
+
 # vercel
 .vercel
 
