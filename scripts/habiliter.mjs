@@ -4,6 +4,7 @@
  * Un compte Auth seul ne donne aucun acces : il faut une ligne profiles
  * active. Ce script cree ou met a jour cette ligne.
  *
+ *   node scripts/habiliter.mjs                                   liste les comptes
  *   node scripts/habiliter.mjs email@exemple.com "Nom Prenom" gerante
  *   node scripts/habiliter.mjs email@exemple.com "Nom Prenom"    -> estheticienne
  *
@@ -18,13 +19,13 @@ import pg from "pg";
 
 const [email, nom, role = "estheticienne"] = process.argv.slice(2);
 
-if (!email || !nom) {
+if (email && !nom) {
   console.error(
     'Usage : node scripts/habiliter.mjs <email> "<nom>" [gerante|estheticienne]',
   );
   process.exit(1);
 }
-if (!["gerante", "estheticienne"].includes(role)) {
+if (nom && !["gerante", "estheticienne"].includes(role)) {
   console.error(`Role inconnu : ${role}. Attendu gerante ou estheticienne.`);
   process.exit(1);
 }
@@ -37,6 +38,31 @@ const client = new pg.Client({
   ssl: { rejectUnauthorized: false },
 });
 await client.connect();
+
+// Sans argument : etat des comptes Auth et de leur habilitation.
+if (!email) {
+  const { rows } = await client.query(
+    `select u.email,
+            u.email_confirmed_at is not null as confirme,
+            p.nom, p.role, p.actif
+     from auth.users u
+     left join profiles p on p.id = u.id
+     order by u.created_at`,
+  );
+  if (rows.length === 0) {
+    console.log("Aucun compte Auth. En creer depuis Authentication > Add user.");
+  }
+  for (const u of rows) {
+    const habilitation = u.nom
+      ? `${u.nom} (${u.role}${u.actif ? "" : ", inactif"})`
+      : "NON HABILITE";
+    console.log(
+      `${u.email.padEnd(34)} confirme=${String(u.confirme).padEnd(5)} ${habilitation}`,
+    );
+  }
+  await client.end();
+  process.exit(0);
+}
 
 const { rows } = await client.query(
   `insert into profiles (id, nom, role, actif)
