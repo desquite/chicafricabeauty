@@ -14,7 +14,7 @@ export default async function PageNouvelleSeance({
   const { cliente } = await searchParams;
   const supabase = await createClient();
 
-  const [{ data: clientes }, { data: soins }] = await Promise.all([
+  const [{ data: clientes }, { data: soins }, { data: dejaVenues }] = await Promise.all([
     supabase
       .from("clientes")
       .select("id, nom, prenoms, telephone")
@@ -27,7 +27,12 @@ export default async function PageNouvelleSeance({
       .eq("actif", true)
       .order("ordre")
       .returns<SoinCatalogue[]>(),
+    // Clientes ayant déjà au moins une séance : pour elles, « Première
+    // séance » n'a plus de sens et ne doit pas être proposé.
+    supabase.from("seances").select("cliente_id").returns<{ cliente_id: string }[]>(),
   ]);
+
+  const avecSeance = [...new Set((dejaVenues ?? []).map((s) => s.cliente_id))];
 
   let alertesCliente: string[] = [];
   if (cliente) {
@@ -45,6 +50,7 @@ export default async function PageNouvelleSeance({
       soins={soins ?? []}
       clienteInitiale={cliente ?? null}
       alertesCliente={alertesCliente}
+      avecSeance={avecSeance}
     />
   );
 }

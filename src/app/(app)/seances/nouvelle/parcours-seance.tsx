@@ -30,12 +30,16 @@ export default function ParcoursSeance({
   soins,
   clienteInitiale,
   alertesCliente,
+  avecSeance,
 }: {
   clientes: Pick<Cliente, "id" | "nom" | "prenoms" | "telephone">[];
   soins: SoinCatalogue[];
   clienteInitiale: string | null;
   alertesCliente: string[];
+  /** Clientes ayant déjà au moins une séance enregistrée. */
+  avecSeance: string[];
 }) {
+  const dejaVenue = new Set(avecSeance);
   const router = useRouter();
   const [etape, setEtape] = useState(0);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -45,7 +49,8 @@ export default function ParcoursSeance({
   const [s, setS] = useState<SaisieSeance>({
     cliente_id: clienteInitiale ?? "",
     date_seance: new Date().toISOString().slice(0, 10),
-    type_venue: "suivi",
+    type_venue:
+      clienteInitiale && !dejaVenue.has(clienteInitiale) ? "premiere_seance" : "suivi",
     type_peau: null,
     etat_peau: null,
     observations_peau: [],
@@ -67,6 +72,27 @@ export default function ParcoursSeance({
 
   const maj = <K extends keyof SaisieSeance>(cle: K, v: SaisieSeance[K]) =>
     setS((p) => ({ ...p, [cle]: v }));
+
+  /**
+   * Le choix de la cliente détermine le type de venue : une cliente déjà
+   * venue ne peut pas faire une première séance, et une nouvelle cliente ne
+   * peut pas être en suivi. Le champ est donc dérivé, pas saisi.
+   */
+  const choisirCliente = (id: string) =>
+    setS((p) => ({
+      ...p,
+      cliente_id: id,
+      type_venue: dejaVenue.has(id) ? "suivi" : "premiere_seance",
+      evolution: dejaVenue.has(id) ? p.evolution : "premiere_seance",
+    }));
+
+  const connue = s.cliente_id !== "" && dejaVenue.has(s.cliente_id);
+  const optionsVenue = connue
+    ? TYPE_VENUE.filter((o) => o.valeur !== "premiere_seance")
+    : TYPE_VENUE;
+  const optionsEvolution = connue
+    ? EVOLUTION.filter((o) => o.valeur !== "premiere_seance")
+    : EVOLUTION;
 
   const peutAvancer = [
     s.cliente_id !== "" && s.date_seance !== "",
@@ -131,7 +157,7 @@ export default function ParcoursSeance({
                     key={c.id}
                     type="button"
                     aria-pressed={s.cliente_id === c.id}
-                    onClick={() => maj("cliente_id", c.id)}
+                    onClick={() => choisirCliente(c.id)}
                     className={`flex h-touch w-full items-center justify-between rounded-xl border-2 px-4 text-left ${
                       s.cliente_id === c.id
                         ? "border-brand-600 bg-brand-50"
@@ -158,9 +184,17 @@ export default function ParcoursSeance({
               onChange={(v) => maj("date_seance", v)}
             />
           </Champ>
-          <Champ label="Type de venue" requis>
+          <Champ
+            label="Type de venue"
+            aide={
+              connue
+                ? "Cette cliente a déjà un historique : la séance est forcément un suivi."
+                : undefined
+            }
+            requis
+          >
             <ChoixUnique
-              options={TYPE_VENUE}
+              options={optionsVenue}
               valeur={s.type_venue as "premiere_seance" | "suivi"}
               onChange={(v) => maj("type_venue", v)}
             />
@@ -244,9 +278,14 @@ export default function ParcoursSeance({
               onChange={(v) => maj("reactions", [...v])}
             />
           </Champ>
-          <Champ label="Évolution depuis la séance précédente" requis>
+          <Champ
+            label={
+              connue ? "Évolution depuis la séance précédente" : "Évolution"
+            }
+            requis
+          >
             <ChoixUnique
-              options={EVOLUTION}
+              options={optionsEvolution}
               valeur={s.evolution as (typeof EVOLUTION)[number]["valeur"] | null}
               onChange={(v) => maj("evolution", v)}
             />
