@@ -17,6 +17,23 @@ as $fn$
   select exists (select 1 from profiles where id = auth.uid() and actif);
 $fn$;
 
+-- Meme role que est_staff_actif pour les droits reserves a la gerante.
+-- Indispensable en security definer : une policy sur profiles qui
+-- interrogerait profiles directement provoquerait une recursion infinie
+-- (42P17). Le security definer contourne la RLS, ce qui casse la boucle.
+create or replace function est_gerante()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $fn$
+  select exists (
+    select 1 from profiles
+    where id = auth.uid() and role = 'gerante' and actif
+  );
+$fn$;
+
 create or replace function touch_updated_at()
 returns trigger
 language plpgsql
@@ -56,8 +73,7 @@ create policy profiles_self_update on profiles
 drop policy if exists profiles_gerante_all on profiles;
 create policy profiles_gerante_all on profiles
   for all to authenticated
-  using (exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'gerante' and p.actif))
-  with check (exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'gerante' and p.actif));
+  using (est_gerante()) with check (est_gerante());
 
 -- Donnees metier : tout le personnel actif, en lecture comme en ecriture.
 drop policy if exists clientes_staff on clientes;

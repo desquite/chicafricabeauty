@@ -32,7 +32,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr" className="h-full antialiased">
+    // Les extensions de navigateur posent leurs propres attributs sur <html>
+    // avant que React ne s'hydrate, ce qui declenche un avertissement
+    // d'hydratation sans rapport avec l'application.
+    <html lang="fr" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

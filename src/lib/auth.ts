@@ -29,11 +29,21 @@ export async function requireProfil(): Promise<Profil> {
 
   if (!user) redirect("/connexion");
 
-  const { data: profil } = await supabase
+  const { data: profil, error } = await supabase
     .from("profiles")
     .select("id, nom, role, actif")
     .eq("id", user.id)
     .maybeSingle();
+
+  // Une erreur de lecture n'est pas un defaut d'habilitation : la confondre
+  // avec l'absence de profil masque les vrais problemes. Une recursion de
+  // policy RLS (42P17) s'est deja presentee ici et se lisait comme un
+  // "compte non habilite" parfaitement trompeur.
+  if (error) {
+    throw new Error(
+      `Lecture du profil impossible (${error.code}) : ${error.message}`,
+    );
+  }
 
   if (!profil || !profil.actif) redirect("/non-habilite");
 

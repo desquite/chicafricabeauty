@@ -7,27 +7,6 @@
 -- francais sont dans le README.
 -- ============================================================================
 
--- Remise a plat des objets issus de la migration partielle du 2 aout 2026,
--- quaucune application na jamais alimentes.
-drop view if exists anamneses_courantes;
-drop table if exists photos cascade;
-drop table if exists seance_soins cascade;
-drop table if exists seances cascade;
-drop table if exists consentements cascade;
-drop table if exists anamneses cascade;
-drop table if exists clientes cascade;
-drop table if exists soins_catalogue cascade;
-drop table if exists profiles cascade;
-
-drop type if exists role_staff;
-drop type if exists type_venue;
-drop type if exists type_peau;
-drop type if exists etat_peau;
-drop type if exists type_consentement;
-drop type if exists nature_consentement;
-drop type if exists moment_photo;
-drop type if exists evolution_peau;
-
 create extension if not exists "pgcrypto";
 
 -- Personnel de linstitut. pin_hash sert a identifier qui saisit sur la
