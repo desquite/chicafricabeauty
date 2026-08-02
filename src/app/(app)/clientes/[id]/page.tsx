@@ -75,16 +75,39 @@ export default async function PageFicheCliente({
         ← Toutes les clientes
       </Link>
 
-      <header className="mb-6">
-        <h1 className="text-3xl font-semibold text-brand-800">
-          {cliente.nom_complet}
-        </h1>
-        <p className="mt-1 text-brand-400">
-          {cliente.telephone}
-          {ans !== null && ` · ${ans} ans`}
-          {cliente.profession && ` · ${cliente.profession}`}
-        </p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-semibold text-brand-800">
+            {cliente.nom_complet}
+            {!cliente.actif && (
+              <span className="ml-3 rounded-full bg-brand-100 px-3 py-1 align-middle text-sm font-medium text-brand-500">
+                Archivée
+              </span>
+            )}
+          </h1>
+          <p className="mt-1 text-brand-400">
+            {cliente.telephone}
+            {ans !== null && ` · ${ans} ans`}
+            {cliente.profession && ` · ${cliente.profession}`}
+            {cliente.email && ` · ${cliente.email}`}
+          </p>
+        </div>
+        <Link
+          href={`/fiche/${cliente.id}/identite`}
+          className="flex h-11 shrink-0 items-center rounded-lg border border-brand-200 bg-white px-4 text-sm font-medium text-brand-700 hover:bg-brand-50"
+        >
+          Modifier
+        </Link>
       </header>
+
+      {cliente.notes && (
+        <section className="mb-6 rounded-2xl border border-brand-100 bg-white p-5">
+          <h2 className="mb-1 text-sm font-semibold tracking-wide text-brand-400 uppercase">
+            Notes internes
+          </h2>
+          <p className="whitespace-pre-line text-brand-800">{cliente.notes}</p>
+        </section>
+      )}
 
       {/* Les contre-indications passent avant tout le reste : c'est la seule
           information qu'il serait grave de manquer avant un soin. */}

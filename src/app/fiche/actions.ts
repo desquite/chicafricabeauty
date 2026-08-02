@@ -133,6 +133,82 @@ export async function enregistrerNouvelleFiche(payload: {
   return { ok: true, id: cliente.id };
 }
 
+export type IdentiteModifiable = Identite & { notes: string };
+
+/**
+ * Correction des informations personnelles.
+ *
+ * Contrairement a l'anamnese, l'identite est bien modifiee sur place : une
+ * faute de frappe dans un nom n'a pas d'historique a conserver. Les donnees
+ * de sante, elles, restent en append-only.
+ */
+export async function modifierCliente(
+  clienteId: string,
+  identite: IdentiteModifiable,
+): Promise<Resultat> {
+  await requireProfil();
+  const supabase = await createClient();
+
+  if (!identite.nom_complet.trim() || !identite.telephone.trim()) {
+    return { ok: false, erreur: "Le nom et le téléphone sont obligatoires." };
+  }
+
+  const { error } = await supabase
+    .from("clientes")
+    .update({
+      nom_complet: identite.nom_complet.trim(),
+      date_naissance: vide(identite.date_naissance),
+      profession: vide(identite.profession),
+      telephone: identite.telephone.trim(),
+      email: vide(identite.email),
+      notes: vide(identite.notes),
+    })
+    .eq("id", clienteId);
+
+  if (error) {
+    if (error.code === "23505") {
+      const { data: existante } = await supabase
+        .from("clientes")
+        .select("nom_complet")
+        .eq("telephone", identite.telephone.trim())
+        .maybeSingle();
+      return {
+        ok: false,
+        erreur: existante
+          ? `Ce téléphone est déjà celui de ${existante.nom_complet}.`
+          : "Ce numéro de téléphone est déjà enregistré.",
+      };
+    }
+    return { ok: false, erreur: error.message };
+  }
+
+  revalidatePath("/clientes");
+  revalidatePath(`/clientes/${clienteId}`);
+  return { ok: true, id: clienteId };
+}
+
+/**
+ * Archivage. Une cliente ayant un historique ne peut pas etre supprimee
+ * (cle etrangere en on delete restrict) : elle sort des listes et des
+ * selecteurs, mais ses seances passees restent lisibles.
+ */
+export async function changerArchivage(
+  clienteId: string,
+  actif: boolean,
+): Promise<Resultat> {
+  await requireProfil();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("clientes")
+    .update({ actif })
+    .eq("id", clienteId);
+  if (error) return { ok: false, erreur: error.message };
+
+  revalidatePath("/clientes");
+  revalidatePath(`/clientes/${clienteId}`);
+  return { ok: true, id: clienteId };
+}
+
 /** Nouvelle anamnese pour une cliente existante : l'ancienne n'est pas ecrasee. */
 export async function enregistrerNouvelleAnamnese(
   clienteId: string,
