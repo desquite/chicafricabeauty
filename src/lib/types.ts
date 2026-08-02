@@ -138,6 +138,15 @@ export const TYPE_VENUE = [
   { valeur: "suivi", libelle: "Séance de suivi" },
 ] as const;
 
+/** Correspondance délai recommandé -> jours, utilisée par le récap et les stats. */
+export const JOURS_PAR_DELAI: Record<string, number> = {
+  "1_semaine": 7,
+  "2_semaines": 14,
+  "3_semaines": 21,
+  "1_mois": 30,
+  plus_1_mois: 45,
+};
+
 export const DELAIS = [
   { valeur: "1_semaine", libelle: "1 semaine" },
   { valeur: "2_semaines", libelle: "2 semaines" },

@@ -1,4 +1,5 @@
 import "server-only";
+import { JOURS_PAR_DELAI } from "@/lib/types";
 
 export type RdvDuJour = {
   heure_rdv: string | null;
@@ -100,14 +101,6 @@ export function calculerRelances(
   clientesAvecRdv: Set<string>,
   aujourdhui: Date,
 ): ARelancer[] {
-  const joursParDelai: Record<string, number> = {
-    "1_semaine": 7,
-    "2_semaines": 14,
-    "3_semaines": 21,
-    "1_mois": 30,
-    plus_1_mois: 45,
-  };
-
   const relances: ARelancer[] = [];
   const vues = new Set<string>();
 
@@ -117,7 +110,7 @@ export function calculerRelances(
     if (clientesAvecRdv.has(s.cliente_id)) continue;
     if (!s.delai_recommande) continue;
 
-    const attendu = joursParDelai[s.delai_recommande];
+    const attendu = JOURS_PAR_DELAI[s.delai_recommande];
     if (!attendu) continue;
 
     const jours = Math.floor(

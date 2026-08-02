@@ -9,6 +9,7 @@ const ENTREES = [
   { href: "/rendez-vous", libelle: "Rendez-vous", icone: "M8 2v3M16 2v3M3.5 9h17M5 5h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2" },
   { href: "/seances", libelle: "Séances", icone: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" },
   { href: "/catalogue", libelle: "Catalogue", icone: "M4 6h16M4 12h16M4 18h10" },
+  { href: "/statistiques", libelle: "Statistiques", icone: "M4 20V10M10 20V4M16 20v-7M22 20H2" },
 ];
 
 function Icone({ d }: { d: string }) {
@@ -38,7 +39,7 @@ export function NavigationTablette({
 
   if (variante === "basse") {
     return (
-      <nav className="no-print grid grid-cols-5 border-t border-brand-100 bg-white md:hidden">
+      <nav className="no-print grid grid-cols-6 border-t border-brand-100 bg-white md:hidden">
         {ENTREES.map((e) => (
           <Link
             key={e.href}
