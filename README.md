@@ -69,6 +69,8 @@ l'accès : c'est volontaire, un compte Auth ne vaut pas habilitation.
 | `seances` | Une ligne par venue : diagnostic, soin, observations, suite |
 | `seance_soins` | Liaison séance ↔ soins réalisés |
 | `photos` | Avant / après, bucket privé |
+| `rendez_vous` | Agenda, avec statut prévu / honoré / annulé / absente |
+| `notifications_envoyees` | Journal des envois, empêche les doublons |
 
 Deux partis pris à connaître avant de modifier le schéma :
 
@@ -84,6 +86,32 @@ Données de santé. La RLS est active dès la première migration, sans phase
 « ouverte le temps du développement ». Toutes les politiques passent par
 `est_staff_actif()` : aucune donnée n'est lisible sans session d'un membre
 actif du personnel. Les clientes n'ont pas de compte.
+
+## Récapitulatif quotidien
+
+Un cron Vercel appelle `/api/cron/recapitulatif` à 7 h et envoie aux gérantes,
+par WhatsApp, les rendez-vous du jour, les contre-indications à vérifier et
+les clientes à relancer.
+
+**Rien n'est jamais envoyé aux clientes.** Les destinataires sont les lignes
+de `profiles` ayant un `telephone` et `notifications_whatsapp` à vrai.
+
+Abidjan est en UTC+0 toute l'année, et les crons Vercel sont en UTC : l'heure
+du fichier `vercel.json` est donc directement l'heure locale.
+
+Renseigner le téléphone des gérantes :
+
+```sql
+update profiles set telephone = '+2250700000000' where nom = 'Blanche ASSI';
+```
+
+Variables à définir dans Vercel, en plus des deux variables Supabase
+publiques : `SUPABASE_SERVICE_ROLE_KEY`, `WASENDER_API_KEY`,
+`WASENDER_SESSION_ID`, `CRON_SECRET`.
+
+Le cron a un effet de bord utile : cet appel quotidien touche la base et
+empêche le projet Supabase du plan gratuit de se mettre en pause. Il ne
+dispense pas de passer en Pro, mais il limite le risque.
 
 ## Avancement
 

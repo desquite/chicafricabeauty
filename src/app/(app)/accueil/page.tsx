@@ -22,9 +22,10 @@ export default async function PageAccueil() {
       .eq("date_seance", aujourdhui)
       .then((r) => (r.error ? null : (r.count ?? 0))),
     supabase
-      .from("seances")
+      .from("rendez_vous")
       .select("*", { count: "exact", head: true })
-      .gte("prochain_rdv", aujourdhui)
+      .gte("date_rdv", aujourdhui)
+      .eq("statut", "prevu")
       .then((r) => (r.error ? null : (r.count ?? 0))),
   ]);
 
@@ -64,7 +65,7 @@ export default async function PageAccueil() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Carte titre="Clientes" valeur={clientes} href="/clientes" />
         <Carte titre="Séances aujourd'hui" valeur={seancesDuJour} href="/seances" />
-        <Carte titre="Rendez-vous à venir" valeur={rdvAVenir} href="/seances" />
+        <Carte titre="Rendez-vous à venir" valeur={rdvAVenir} href="/rendez-vous" />
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
