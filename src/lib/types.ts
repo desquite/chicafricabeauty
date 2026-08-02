@@ -44,6 +44,108 @@ export type Consentement = {
   recueilli_par: string | null;
 };
 
+export type SoinCatalogue = {
+  id: string;
+  libelle: string;
+  categorie: string | null;
+  duree_std: number | null;
+  prix: number | null;
+  actif: boolean;
+  ordre: number;
+};
+
+export type Seance = {
+  id: string;
+  cliente_id: string;
+  praticienne_id: string | null;
+  date_seance: string;
+  type_venue: "premiere_seance" | "suivi";
+  type_peau: "normale" | "seche" | "grasse" | "mixte" | null;
+  etat_peau: "deshydratee" | "sensible" | "mature" | "asphyxiee" | null;
+  observations_peau: string[] | null;
+  zones: string[] | null;
+  produits_utilises: string | null;
+  appareil: string | null;
+  duree_min: number | null;
+  reactions: string[] | null;
+  evolution:
+    | "premiere_seance"
+    | "nette_amelioration"
+    | "legere_amelioration"
+    | "stable"
+    | "degradation"
+    | null;
+  observations: string | null;
+  incident: string | null;
+  programme: string | null;
+  conseils: string | null;
+  produits_conseilles: string | null;
+  delai_recommande: string | null;
+  prochain_rdv: string | null;
+  cloturee: boolean;
+  created_at: string;
+};
+
+export const TYPE_PEAU = [
+  { valeur: "normale", libelle: "Normale" },
+  { valeur: "seche", libelle: "Sèche (manque de gras)" },
+  { valeur: "grasse", libelle: "Grasse (excès de sébum)" },
+  { valeur: "mixte", libelle: "Mixte" },
+] as const;
+
+export const ETAT_PEAU = [
+  { valeur: "deshydratee", libelle: "Déshydratée (ridules)" },
+  { valeur: "sensible", libelle: "Sensible / Rougeurs" },
+  { valeur: "mature", libelle: "Mature / Atonie" },
+  { valeur: "asphyxiee", libelle: "Asphyxiée / Terne" },
+] as const;
+
+export const OBSERVATIONS_PEAU = [
+  { valeur: "cicatrices", libelle: "Cicatrices" },
+  { valeur: "taches", libelle: "Taches pigmentaires" },
+  { valeur: "pores", libelle: "Pores dilatés" },
+  { valeur: "age", libelle: "Signes de l'âge marqués" },
+  { valeur: "comedons", libelle: "Comédons / Kystes" },
+] as const;
+
+export const ZONES = [
+  { valeur: "visage", libelle: "Visage" },
+  { valeur: "cou", libelle: "Cou & décolleté" },
+  { valeur: "dos", libelle: "Dos" },
+  { valeur: "mains", libelle: "Mains" },
+  { valeur: "corps", libelle: "Corps" },
+] as const;
+
+export const REACTIONS = [
+  { valeur: "aucune", libelle: "Aucune réaction" },
+  { valeur: "legere_rougeur", libelle: "Légère rougeur" },
+  { valeur: "rougeur_marquee", libelle: "Rougeur marquée" },
+  { valeur: "picotements", libelle: "Picotements" },
+  { valeur: "chaleur", libelle: "Sensation de chaleur" },
+  { valeur: "douleur", libelle: "Sensibilité / Douleur" },
+] as const;
+
+export const EVOLUTION = [
+  { valeur: "premiere_seance", libelle: "Première séance" },
+  { valeur: "nette_amelioration", libelle: "Nette amélioration" },
+  { valeur: "legere_amelioration", libelle: "Légère amélioration" },
+  { valeur: "stable", libelle: "Stable" },
+  { valeur: "degradation", libelle: "Dégradation" },
+] as const;
+
+export const TYPE_VENUE = [
+  { valeur: "premiere_seance", libelle: "Première séance" },
+  { valeur: "suivi", libelle: "Séance de suivi" },
+] as const;
+
+export const DELAIS = [
+  { valeur: "1_semaine", libelle: "1 semaine" },
+  { valeur: "2_semaines", libelle: "2 semaines" },
+  { valeur: "3_semaines", libelle: "3 semaines" },
+  { valeur: "1_mois", libelle: "1 mois" },
+  { valeur: "plus_1_mois", libelle: "Plus d'1 mois" },
+] as const;
+
 export const PRIORITES = [
   { valeur: "eclat", libelle: "Éclat" },
   { valeur: "rides", libelle: "Rides / Fermeté" },

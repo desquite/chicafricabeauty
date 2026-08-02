@@ -5,12 +5,15 @@ import { createClient } from "@/lib/supabase/server";
 import {
   age,
   alertes,
+  ETAT_PEAU,
+  EVOLUTION,
   EXPOSITION_UV,
   HYDRATATION,
   PRIORITES,
   type Anamnese,
   type Cliente,
   type Consentement,
+  type Seance,
 } from "@/lib/types";
 
 const dateFr = (iso: string | null) =>
@@ -39,19 +42,26 @@ export default async function PageFicheCliente({
     .maybeSingle<Cliente>();
   if (!cliente) notFound();
 
-  const [{ data: bilan }, { data: consentements }] = await Promise.all([
-    supabase
-      .from("anamneses_courantes")
-      .select("*")
-      .eq("cliente_id", id)
-      .maybeSingle<Anamnese>(),
-    supabase
-      .from("consentements")
-      .select("*")
-      .eq("cliente_id", id)
-      .order("signe_le", { ascending: false })
-      .returns<Consentement[]>(),
-  ]);
+  const [{ data: bilan }, { data: consentements }, { data: seances }] =
+    await Promise.all([
+      supabase
+        .from("anamneses_courantes")
+        .select("*")
+        .eq("cliente_id", id)
+        .maybeSingle<Anamnese>(),
+      supabase
+        .from("consentements")
+        .select("*")
+        .eq("cliente_id", id)
+        .order("signe_le", { ascending: false })
+        .returns<Consentement[]>(),
+      supabase
+        .from("seances")
+        .select("*")
+        .eq("cliente_id", id)
+        .order("date_seance", { ascending: false })
+        .returns<Seance[]>(),
+    ]);
 
   const listeAlertes = alertes(bilan ?? null);
   const dernier = (nature: "soin" | "photo") =>
@@ -182,10 +192,42 @@ export default async function PageFicheCliente({
       </section>
 
       <section className="rounded-2xl border border-brand-100 bg-white p-6">
-        <h2 className="mb-2 text-xl font-semibold text-brand-800">Historique des séances</h2>
-        <p className="text-brand-400">
-          Disponible au lot 2, avec le diagnostic de peau et les soins réalisés.
-        </p>
+        <div className="mb-4 flex items-baseline justify-between gap-4">
+          <h2 className="text-xl font-semibold text-brand-800">Historique des séances</h2>
+          <span className="text-sm text-brand-400">
+            {seances?.length ?? 0} séance{(seances?.length ?? 0) > 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {!seances || seances.length === 0 ? (
+          <p className="text-brand-400">Aucune séance enregistrée.</p>
+        ) : (
+          <ol className="space-y-3">
+            {seances.map((s) => (
+              <li key={s.id}>
+                <Link
+                  href={`/seances/${s.id}`}
+                  className="flex items-center justify-between gap-4 rounded-xl border border-brand-100 p-4 hover:bg-brand-50"
+                >
+                  <span className="min-w-0">
+                    <span className="block font-medium text-brand-800">
+                      {dateFr(s.date_seance)}
+                    </span>
+                    <span className="block text-sm text-brand-400">
+                      {libelle(EVOLUTION, s.evolution)}
+                      {s.etat_peau && ` · ${libelle(ETAT_PEAU, s.etat_peau)}`}
+                    </span>
+                  </span>
+                  {s.incident && (
+                    <span className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+                      Incident
+                    </span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ol>
+        )}
       </section>
     </div>
   );
