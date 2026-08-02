@@ -5,8 +5,11 @@
  * active. Ce script cree ou met a jour cette ligne.
  *
  *   node scripts/habiliter.mjs                                   liste les comptes
- *   node scripts/habiliter.mjs email@exemple.com "Nom Prenom" gerante
+ *   node scripts/habiliter.mjs email@exemple.com "Nom Prenom" gerante +2250700000000
  *   node scripts/habiliter.mjs email@exemple.com "Nom Prenom"    -> estheticienne
+ *
+ * Le telephone est celui du recapitulatif WhatsApp quotidien. Il est
+ * normalise a lindicatif +225 sil est donne au format local.
  *
  * Le compte doit exister au prealable, cree depuis Supabase >
  * Authentication > Add user. Ce script ne cree pas de compte et ne
@@ -17,7 +20,17 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 
-const [email, nom, role = "estheticienne"] = process.argv.slice(2);
+const [email, nom, role = "estheticienne", telephoneBrut] = process.argv.slice(2);
+
+/** 0709646096 -> +2250709646096 ; un numero deja international est garde tel quel. */
+function normaliserTelephone(brut) {
+  if (!brut) return null;
+  const propre = brut.replace(/[\s()-]/g, "");
+  if (propre.startsWith("+")) return propre;
+  if (propre.startsWith("00")) return `+${propre.slice(2)}`;
+  if (propre.startsWith("225")) return `+${propre}`;
+  return `+225${propre}`;
+}
 
 if (email && !nom) {
   console.error(
@@ -44,7 +57,7 @@ if (!email) {
   const { rows } = await client.query(
     `select u.email,
             u.email_confirmed_at is not null as confirme,
-            p.nom, p.role, p.actif
+            p.nom, p.role, p.actif, p.telephone, p.notifications_whatsapp
      from auth.users u
      left join profiles p on p.id = u.id
      order by u.created_at`,
@@ -56,21 +69,30 @@ if (!email) {
     const habilitation = u.nom
       ? `${u.nom} (${u.role}${u.actif ? "" : ", inactif"})`
       : "NON HABILITE";
+    const rappel = u.telephone
+      ? `${u.telephone}${u.notifications_whatsapp ? "" : " (notifications coupees)"}`
+      : "pas de telephone";
     console.log(
-      `${u.email.padEnd(34)} confirme=${String(u.confirme).padEnd(5)} ${habilitation}`,
+      `${u.email.padEnd(26)} ${habilitation.padEnd(28)} ${rappel}`,
     );
   }
   await client.end();
   process.exit(0);
 }
 
+const telephone = normaliserTelephone(telephoneBrut);
+
 const { rows } = await client.query(
-  `insert into profiles (id, nom, role, actif)
-   select id, $2, $3, true from auth.users where email = $1
+  `insert into profiles (id, nom, role, actif, telephone)
+   select id, $2, $3, true, $4 from auth.users where email = $1
    on conflict (id) do update
-     set nom = excluded.nom, role = excluded.role, actif = true
-   returning id, nom, role`,
-  [email, nom, role],
+     set nom = excluded.nom,
+         role = excluded.role,
+         actif = true,
+         -- Un appel sans telephone ne doit pas effacer celui deja enregistre.
+         telephone = coalesce(excluded.telephone, profiles.telephone)
+   returning id, nom, role, telephone`,
+  [email, nom, role, telephone],
 );
 
 if (rows.length === 0) {
@@ -82,5 +104,7 @@ if (rows.length === 0) {
   process.exit(1);
 }
 
-console.log(`Habilite : ${rows[0].nom} (${rows[0].role})`);
+console.log(
+  `Habilite : ${rows[0].nom} (${rows[0].role}) telephone=${rows[0].telephone ?? "aucun"}`,
+);
 await client.end();

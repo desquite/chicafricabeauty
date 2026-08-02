@@ -22,6 +22,23 @@ export const maxDuration = 60;
  * sans activité.
  */
 export async function GET(requete: Request) {
+  try {
+    return await traiter(requete);
+  } catch (e) {
+    // Sans ce filet, une variable d'environnement manquante renvoie une trace
+    // d'exécution illisible dans les journaux Vercel.
+    return NextResponse.json(
+      { erreur: e instanceof Error ? e.message : "Erreur inattendue" },
+      { status: 500 },
+    );
+  }
+}
+
+async function traiter(requete: Request) {
+  const url = new URL(requete.url);
+  // ?apercu=1 construit le message et le renvoie sans rien envoyer.
+  const apercu = url.searchParams.get("apercu") === "1";
+
   const secret = process.env.CRON_SECRET;
   const entete = requete.headers.get("authorization");
   if (secret && entete !== `Bearer ${secret}`) {
@@ -56,7 +73,7 @@ export async function GET(requete: Request) {
         .returns<{ id: string }[]>(),
     ]);
 
-  if (!destinataires || destinataires.length === 0) {
+  if (!apercu && (!destinataires || destinataires.length === 0)) {
     return NextResponse.json({
       envoyes: 0,
       motif: "Aucune gérante avec un téléphone et les notifications activées.",
@@ -117,9 +134,20 @@ export async function GET(requete: Request) {
     seancesHier: seancesHier?.length ?? 0,
   });
 
+  if (apercu) {
+    return NextResponse.json({
+      apercu: true,
+      jour,
+      destinataires: (destinataires ?? []).map((d) => `${d.nom} ${d.telephone}`),
+      rendezVous: rdvs?.length ?? 0,
+      relances: aRelancer.length,
+      message,
+    });
+  }
+
   const resultats: { destinataire: string; ok: boolean; erreur?: string }[] = [];
 
-  for (const d of destinataires) {
+  for (const d of destinataires ?? []) {
     // Le journal porte un index unique sur (type, jour, destinataire) pour les
     // envois réussis : rejouer le cron ne produit donc pas de doublon.
     const { data: deja } = await supabase
