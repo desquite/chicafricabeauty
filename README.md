@@ -22,6 +22,11 @@ pnpm install
 Copier `.env.local.example` en `.env.local`, renseigner les deux variables,
 puis `pnpm dev`.
 
+L'URL du projet se trouve dans **Settings → Data API**, la clé dans
+**Settings → API Keys**. Prendre la **Publishable key** (`sb_publishable_…`),
+qui remplace l'ancienne clé `anon` ; jamais la **Secret key**, qui contourne
+la RLS.
+
 ### Base de données
 
 Coller `supabase/migrations/0001_schema_initial.sql` dans l'éditeur SQL du
