@@ -158,9 +158,30 @@ async function traiter(requete: Request) {
   });
 
   if (apercu) {
+    // Diagnostic : le catalogue contient toujours des lignes et n'est lisible
+    // qu'avec une clé qui contourne la RLS. S'il ressort vide, la clé posée
+    // n'est pas la clé secrète. Seule la famille de la clé est exposée,
+    // jamais sa valeur.
+    const { count: catalogue } = await supabase
+      .from("soins_catalogue")
+      .select("*", { count: "exact", head: true });
+    const cle = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+    const familleCle = cle.startsWith("sb_secret_")
+      ? "secrète"
+      : cle.startsWith("sb_publishable_")
+        ? "PUBLISHABLE — incorrecte, il faut la clé secrète"
+        : cle.startsWith("eyJ")
+          ? "JWT hérité (service_role ou anon, indéterminable)"
+          : "inconnue";
+
     return NextResponse.json({
       apercu: true,
       jour,
+      diagnostic: {
+        familleCle,
+        soinsVisibles: catalogue ?? 0,
+        contourneRls: (catalogue ?? 0) > 0,
+      },
       destinataires: (destinataires ?? []).map((d) => `${d.nom} ${d.telephone}`),
       rendezVous: rdvs?.length ?? 0,
       relances: aRelancer.length,
