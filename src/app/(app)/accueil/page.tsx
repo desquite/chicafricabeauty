@@ -69,7 +69,7 @@ export default async function PageAccueil() {
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <Action
-          href="/clientes/nouvelle"
+          href="/fiche/nouvelle"
           titre="Nouvelle cliente"
           detail="Fiche d'accueil à remplir sur la tablette"
         />
