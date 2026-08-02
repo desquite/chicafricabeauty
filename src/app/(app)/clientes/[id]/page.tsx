@@ -77,7 +77,7 @@ export default async function PageFicheCliente({
 
       <header className="mb-6">
         <h1 className="text-3xl font-semibold text-brand-800">
-          {cliente.prenoms} {cliente.nom}
+          {cliente.nom_complet}
         </h1>
         <p className="mt-1 text-brand-400">
           {cliente.telephone}

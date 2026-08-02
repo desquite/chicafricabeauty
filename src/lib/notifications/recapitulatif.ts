@@ -4,13 +4,12 @@ import { JOURS_PAR_DELAI } from "@/lib/types";
 export type RdvDuJour = {
   heure_rdv: string | null;
   statut: string;
-  clientes: { id: string; nom: string; prenoms: string; telephone: string } | null;
+  clientes: { id: string; nom_complet: string; telephone: string } | null;
   soins_catalogue: { libelle: string } | null;
 };
 
 export type ARelancer = {
-  prenoms: string;
-  nom: string;
+  nom_complet: string;
   jours: number;
 };
 
@@ -51,9 +50,7 @@ export function construireRecapitulatif({
     lignes.push(
       `*${rdvs.length} rendez-vous* aujourd'hui`,
       ...rdvs.map((r) => {
-        const cliente = r.clientes
-          ? `${r.clientes.prenoms} ${r.clientes.nom}`
-          : "Cliente inconnue";
+        const cliente = r.clientes?.nom_complet ?? "Cliente inconnue";
         const soin = r.soins_catalogue ? ` — ${r.soins_catalogue.libelle}` : "";
         const nb = r.clientes ? (alertesParCliente.get(r.clientes.id)?.length ?? 0) : 0;
         const marque = nb > 0 ? ` ⚠️ ${nb}` : "";
@@ -71,7 +68,7 @@ export function construireRecapitulatif({
       `*${aRelancer.length} cliente${aRelancer.length > 1 ? "s" : ""} à relancer*`,
       ...aRelancer
         .slice(0, 8)
-        .map((c) => `• ${c.prenoms} ${c.nom} — ${c.jours} jours sans séance`),
+        .map((c) => `• ${c.nom_complet} — ${c.jours} jours sans séance`),
     );
     if (aRelancer.length > 8) {
       lignes.push(`… et ${aRelancer.length - 8} autres.`);
@@ -96,7 +93,7 @@ export function calculerRelances(
     cliente_id: string;
     date_seance: string;
     delai_recommande: string | null;
-    clientes: { nom: string; prenoms: string } | null;
+    clientes: { nom_complet: string } | null;
   }[],
   clientesAvecRdv: Set<string>,
   aujourdhui: Date,
@@ -117,7 +114,7 @@ export function calculerRelances(
       (aujourdhui.getTime() - new Date(s.date_seance).getTime()) / 86_400_000,
     );
     if (jours > attendu + 7 && s.clientes) {
-      relances.push({ prenoms: s.clientes.prenoms, nom: s.clientes.nom, jours });
+      relances.push({ nom_complet: s.clientes.nom_complet, jours });
     }
   }
 

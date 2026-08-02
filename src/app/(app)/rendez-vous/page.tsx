@@ -23,17 +23,17 @@ export default async function PageRendezVous({
     supabase
       .from("rendez_vous")
       .select(
-        "id, date_rdv, heure_rdv, duree_min, statut, notes, clientes(id, nom, prenoms, telephone), soins_catalogue(libelle)",
+        "id, date_rdv, heure_rdv, duree_min, statut, notes, clientes(id, nom_complet, telephone), soins_catalogue(libelle)",
       )
       .eq("date_rdv", jour)
       .order("heure_rdv", { nullsFirst: false })
       .returns<Omit<RdvAffiche, "alertes">[]>(),
     supabase
       .from("clientes")
-      .select("id, nom, prenoms, telephone")
+      .select("id, nom_complet, telephone")
       .eq("actif", true)
-      .order("nom")
-      .returns<Pick<Cliente, "id" | "nom" | "prenoms" | "telephone">[]>(),
+      .order("nom_complet")
+      .returns<Pick<Cliente, "id" | "nom_complet" | "telephone">[]>(),
     supabase
       .from("soins_catalogue")
       .select("*")

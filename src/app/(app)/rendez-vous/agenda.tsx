@@ -14,7 +14,7 @@ export type RdvAffiche = {
   duree_min: number | null;
   statut: "prevu" | "honore" | "annule" | "absent";
   notes: string | null;
-  clientes: Pick<Cliente, "id" | "nom" | "prenoms" | "telephone"> | null;
+  clientes: Pick<Cliente, "id" | "nom_complet" | "telephone"> | null;
   soins_catalogue: { libelle: string } | null;
   alertes: number;
 };
@@ -42,7 +42,7 @@ export default function Agenda({
   jour,
 }: {
   rdvs: RdvAffiche[];
-  clientes: Pick<Cliente, "id" | "nom" | "prenoms" | "telephone">[];
+  clientes: Pick<Cliente, "id" | "nom_complet" | "telephone">[];
   soins: SoinCatalogue[];
   jour: string;
 }) {
@@ -68,7 +68,7 @@ export default function Agenda({
     ? []
     : clientes
         .filter((c) => {
-          const nom = normalise(`${c.prenoms} ${c.nom}`);
+          const nom = normalise(c.nom_complet);
           return (
             nom.includes(requete) ||
             (requeteChiffres.length >= 3 &&
@@ -102,7 +102,7 @@ export default function Agenda({
             {choisie ? (
               <div className="flex h-touch items-center justify-between rounded-xl border-2 border-brand-600 bg-brand-50 px-4">
                 <span className="font-medium text-brand-800">
-                  {choisie.prenoms} {choisie.nom}
+                  {choisie.nom_complet}
                 </span>
                 <button
                   type="button"
@@ -128,7 +128,7 @@ export default function Agenda({
                       className="flex h-touch w-full items-center justify-between rounded-xl border border-brand-200 px-4 text-left hover:border-brand-400"
                     >
                       <span className="font-medium text-brand-800">
-                        {c.prenoms} {c.nom}
+                        {c.nom_complet}
                       </span>
                       <span className="text-sm text-brand-400">{c.telephone}</span>
                     </button>
@@ -223,7 +223,7 @@ export default function Agenda({
                     {" — "}
                     {r.clientes ? (
                       <Link href={`/clientes/${r.clientes.id}`} className="hover:underline">
-                        {r.clientes.prenoms} {r.clientes.nom}
+                        {r.clientes.nom_complet}
                       </Link>
                     ) : (
                       "Cliente inconnue"

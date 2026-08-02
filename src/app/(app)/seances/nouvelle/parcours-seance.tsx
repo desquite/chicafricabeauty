@@ -33,7 +33,7 @@ export default function ParcoursSeance({
   alertesCliente,
   avecSeance,
 }: {
-  clientes: Pick<Cliente, "id" | "nom" | "prenoms" | "telephone">[];
+  clientes: Pick<Cliente, "id" | "nom_complet" | "telephone">[];
   soins: SoinCatalogue[];
   clienteInitiale: string | null;
   alertesCliente: string[];
@@ -104,7 +104,7 @@ export default function ParcoursSeance({
   ][etape];
 
   const visibles = clientes.filter((c) =>
-    `${c.prenoms} ${c.nom} ${c.telephone}`.toLowerCase().includes(filtre.toLowerCase()),
+    `${c.nom_complet} ${c.telephone}`.toLowerCase().includes(filtre.toLowerCase()),
   );
 
   return (
@@ -166,7 +166,7 @@ export default function ParcoursSeance({
                     }`}
                   >
                     <span className="font-medium text-brand-800">
-                      {c.prenoms} {c.nom}
+                      {c.nom_complet}
                     </span>
                     <span className="text-sm text-brand-400">{c.telephone}</span>
                   </button>

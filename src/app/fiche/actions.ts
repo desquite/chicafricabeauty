@@ -9,8 +9,7 @@ import {
 } from "@/lib/consentements";
 
 export type Identite = {
-  nom: string;
-  prenoms: string;
+  nom_complet: string;
   date_naissance: string;
   profession: string;
   telephone: string;
@@ -53,8 +52,8 @@ export async function enregistrerNouvelleFiche(payload: {
   const supabase = await createClient();
   const { identite, sante } = payload;
 
-  if (!identite.nom.trim() || !identite.prenoms.trim() || !identite.telephone.trim()) {
-    return { ok: false, erreur: "Nom, prénoms et téléphone sont obligatoires." };
+  if (!identite.nom_complet.trim() || !identite.telephone.trim()) {
+    return { ok: false, erreur: "Le nom et le téléphone sont obligatoires." };
   }
   if (!payload.consentementSoin) {
     return { ok: false, erreur: "Le consentement aux soins est obligatoire." };
@@ -63,8 +62,7 @@ export async function enregistrerNouvelleFiche(payload: {
   const { data: cliente, error: erreurCliente } = await supabase
     .from("clientes")
     .insert({
-      nom: identite.nom.trim(),
-      prenoms: identite.prenoms.trim(),
+      nom_complet: identite.nom_complet.trim(),
       date_naissance: vide(identite.date_naissance),
       profession: vide(identite.profession),
       telephone: identite.telephone.trim(),
@@ -78,13 +76,13 @@ export async function enregistrerNouvelleFiche(payload: {
     if (erreurCliente?.code === "23505") {
       const { data: existante } = await supabase
         .from("clientes")
-        .select("nom, prenoms")
+        .select("nom_complet")
         .eq("telephone", identite.telephone.trim())
         .maybeSingle();
       return {
         ok: false,
         erreur: existante
-          ? `Ce téléphone est déjà celui de ${existante.prenoms} ${existante.nom}.`
+          ? `Ce téléphone est déjà celui de ${existante.nom_complet}.`
           : "Ce numéro de téléphone est déjà enregistré.",
       };
     }
@@ -169,7 +167,7 @@ export async function enregistrerNouvelleAnamnese(
 /** Recherche d'un doublon avant creation, sur les chiffres du numero seuls. */
 export async function chercherParTelephone(tel: string) {
   const supabase = await createClient();
-  const { data } = await supabase.from("clientes").select("id, nom, prenoms, telephone");
+  const { data } = await supabase.from("clientes").select("id, nom_complet, telephone");
   const cible = chiffres(tel);
   if (cible.length < 6) return null;
   return (

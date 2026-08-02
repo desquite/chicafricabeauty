@@ -17,7 +17,7 @@ export default async function PageSante({
 
   const { data: cliente } = await supabase
     .from("clientes")
-    .select("id, nom, prenoms")
+    .select("id, nom_complet")
     .eq("id", id)
     .maybeSingle();
   if (!cliente) notFound();
@@ -49,7 +49,7 @@ export default async function PageSante({
   return (
     <ParcoursSante
       clienteId={cliente.id}
-      nomComplet={`${cliente.prenoms} ${cliente.nom}`}
+      nomComplet={cliente.nom_complet}
       initial={initial}
     />
   );

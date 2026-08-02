@@ -2,8 +2,8 @@ export type RoleStaff = "gerante" | "estheticienne";
 
 export type Cliente = {
   id: string;
-  nom: string;
-  prenoms: string;
+  /** Nom et prénoms en une seule saisie, comme sur le formulaire d'origine. */
+  nom_complet: string;
   date_naissance: string | null;
   profession: string | null;
   telephone: string;

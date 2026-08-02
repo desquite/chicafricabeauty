@@ -5,7 +5,7 @@ import { EVOLUTION, type Cliente, type Seance } from "@/lib/types";
 
 export const metadata = { title: "Séances — Chic Africa Beauty Online" };
 
-type LigneSeance = Seance & { clientes: Pick<Cliente, "nom" | "prenoms"> | null };
+type LigneSeance = Seance & { clientes: Pick<Cliente, "nom_complet"> | null };
 
 const dateFr = (iso: string) =>
   new Date(iso).toLocaleDateString("fr-FR", {
@@ -20,7 +20,7 @@ export default async function PageSeances() {
 
   const { data: seances, error } = await supabase
     .from("seances")
-    .select("*, clientes(nom, prenoms)")
+    .select("*, clientes(nom_complet)")
     .order("date_seance", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(100)
@@ -93,7 +93,7 @@ function Groupe({
               >
                 <span className="min-w-0">
                   <span className="block truncate text-lg font-semibold text-brand-800">
-                    {s.clientes ? `${s.clientes.prenoms} ${s.clientes.nom}` : "Cliente inconnue"}
+                    {s.clientes?.nom_complet ?? "Cliente inconnue"}
                   </span>
                   <span className="block text-sm text-brand-400">
                     {dateFr(s.date_seance)}

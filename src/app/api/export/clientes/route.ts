@@ -45,7 +45,7 @@ export async function GET() {
 
   const [{ data: clientes }, { data: bilans }, { data: consentements }, { data: seances }] =
     await Promise.all([
-      supabase.from("clientes").select("*").order("nom").returns<Cliente[]>(),
+      supabase.from("clientes").select("*").order("nom_complet").returns<Cliente[]>(),
       supabase.from("anamneses").select("*").order("date_maj", { ascending: false }).returns<Anamnese[]>(),
       supabase.from("consentements").select("*").order("signe_le", { ascending: false }).returns<Consentement[]>(),
       supabase
@@ -73,8 +73,7 @@ export async function GET() {
     classeur,
     "Clientes",
     [
-      { entete: "Nom", largeur: 18, valeur: (c) => c.nom },
-      { entete: "Prénoms", largeur: 22, valeur: (c) => c.prenoms },
+      { entete: "Nom & Prénoms", largeur: 30, valeur: (c) => c.nom_complet },
       { entete: "Téléphone", largeur: 18, valeur: (c) => c.telephone },
       { entete: "Email", largeur: 26, valeur: (c) => c.email },
       { entete: "Date de naissance", valeur: (c) => dateFr(c.date_naissance) },
@@ -140,7 +139,7 @@ export async function GET() {
     [
       { entete: "Cliente", largeur: 28, valeur: (s) => {
         const c = nomCliente.get(s.cliente_id);
-        return c ? `${c.prenoms} ${c.nom}` : "";
+        return c?.nom_complet ?? "";
       } },
       { entete: "Téléphone", largeur: 18, valeur: (s) => nomCliente.get(s.cliente_id)?.telephone ?? "" },
       { entete: "Date", valeur: (s) => dateFr(s.date_seance) },
@@ -169,7 +168,7 @@ export async function GET() {
     [
       { entete: "Cliente", largeur: 28, valeur: (a) => {
         const c = nomCliente.get(a.cliente_id);
-        return c ? `${c.prenoms} ${c.nom}` : "";
+        return c?.nom_complet ?? "";
       } },
       { entete: "Saisi le", valeur: (a) => dateFr(a.date_maj) },
       { entete: "Allergies", largeur: 40, valeur: (a) => a.allergies },

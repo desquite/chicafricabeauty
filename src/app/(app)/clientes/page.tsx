@@ -19,14 +19,12 @@ export default async function PageClientes({
     .from("clientes")
     .select("*")
     .eq("actif", true)
-    .order("nom")
+    .order("nom_complet")
     .limit(200);
 
   if (recherche) {
     const motif = `%${recherche}%`;
-    requete = requete.or(
-      `nom.ilike.${motif},prenoms.ilike.${motif},telephone.ilike.${motif}`,
-    );
+    requete = requete.or(`nom_complet.ilike.${motif},telephone.ilike.${motif}`);
   }
 
   const { data: clientes, error } = await requete.returns<Cliente[]>();
@@ -64,7 +62,7 @@ export default async function PageClientes({
           type="search"
           name="q"
           defaultValue={recherche}
-          placeholder="Rechercher par nom, prénoms ou téléphone"
+          placeholder="Rechercher par nom ou téléphone"
           className="h-touch w-full rounded-xl border border-brand-200 bg-white px-5 text-lg outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
         />
       </form>
@@ -89,7 +87,7 @@ export default async function PageClientes({
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-lg font-semibold text-brand-800">
-                      {c.prenoms} {c.nom}
+                      {c.nom_complet}
                     </span>
                     <span className="block text-sm text-brand-400">
                       {c.telephone}

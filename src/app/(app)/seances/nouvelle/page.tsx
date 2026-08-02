@@ -17,10 +17,10 @@ export default async function PageNouvelleSeance({
   const [{ data: clientes }, { data: soins }, { data: dejaVenues }] = await Promise.all([
     supabase
       .from("clientes")
-      .select("id, nom, prenoms, telephone")
+      .select("id, nom_complet, telephone")
       .eq("actif", true)
-      .order("nom")
-      .returns<Pick<Cliente, "id" | "nom" | "prenoms" | "telephone">[]>(),
+      .order("nom_complet")
+      .returns<Pick<Cliente, "id" | "nom_complet" | "telephone">[]>(),
     supabase
       .from("soins_catalogue")
       .select("*")

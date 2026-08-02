@@ -27,8 +27,7 @@ export default function Parcours() {
   const [erreur, setErreur] = useState<string | null>(null);
 
   const [identite, setIdentite] = useState<Identite>({
-    nom: "",
-    prenoms: "",
+    nom_complet: "",
     date_naissance: "",
     profession: "",
     telephone: "",
@@ -45,8 +44,7 @@ export default function Parcours() {
     setSante((p) => ({ ...p, [cle]: v }));
 
   const identiteComplete =
-    identite.nom.trim() !== "" &&
-    identite.prenoms.trim() !== "" &&
+    identite.nom_complet.trim() !== "" &&
     identite.telephone.trim() !== "" &&
     identite.date_naissance !== "";
 
@@ -120,11 +118,11 @@ export default function Parcours() {
       <div className="flex-1">
         {etape === 0 && (
           <>
-            <Champ label="Nom" requis>
-              <Texte valeur={identite.nom} onChange={(v) => majIdentite("nom", v)} />
-            </Champ>
-            <Champ label="Prénoms" requis>
-              <Texte valeur={identite.prenoms} onChange={(v) => majIdentite("prenoms", v)} />
+            <Champ label="Nom & Prénoms" requis>
+              <Texte
+                valeur={identite.nom_complet}
+                onChange={(v) => majIdentite("nom_complet", v)}
+              />
             </Champ>
             <Champ label="Date de naissance" requis>
               <DateFr

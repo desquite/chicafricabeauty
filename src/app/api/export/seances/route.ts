@@ -24,7 +24,7 @@ import {
 export const dynamic = "force-dynamic";
 
 type LigneSeance = Seance & {
-  clientes: Pick<Cliente, "nom" | "prenoms" | "telephone"> | null;
+  clientes: Pick<Cliente, "nom_complet" | "telephone"> | null;
   profiles: { nom: string } | null;
   soins: { soins_catalogue: { libelle: string; categorie: string | null; prix: number | null } | null }[];
 };
@@ -36,7 +36,7 @@ export async function GET() {
   const { data: seances, error } = await supabase
     .from("seances")
     .select(
-      "*, clientes(nom, prenoms, telephone), profiles(nom), soins:seance_soins(soins_catalogue(libelle, categorie, prix))",
+      "*, clientes(nom_complet, telephone), profiles(nom), soins:seance_soins(soins_catalogue(libelle, categorie, prix))",
     )
     .order("date_seance", { ascending: false })
     .returns<LigneSeance[]>();
@@ -46,7 +46,7 @@ export async function GET() {
   }
 
   const nomComplet = (s: LigneSeance) =>
-    s.clientes ? `${s.clientes.prenoms} ${s.clientes.nom}` : "";
+    s.clientes?.nom_complet ?? "";
 
   const classeur = new ExcelJS.Workbook();
   classeur.creator = "Chic Africa Beauty Online";

@@ -47,11 +47,11 @@ export default async function PageSeance({
 
   const { data: seance } = await supabase
     .from("seances")
-    .select("*, clientes(id, nom, prenoms, telephone), profiles(nom)")
+    .select("*, clientes(id, nom_complet, telephone), profiles(nom)")
     .eq("id", id)
     .maybeSingle<
       Seance & {
-        clientes: Pick<Cliente, "id" | "nom" | "prenoms" | "telephone"> | null;
+        clientes: Pick<Cliente, "id" | "nom_complet" | "telephone"> | null;
         profiles: { nom: string } | null;
       }
     >();
@@ -147,15 +147,13 @@ export default async function PageSeance({
           href={`/clientes/${seance.clientes.id}`}
           className="mb-4 inline-block text-sm text-brand-500 hover:underline"
         >
-          ← Fiche de {seance.clientes.prenoms} {seance.clientes.nom}
+          ← Fiche de {seance.clientes.nom_complet}
         </Link>
       )}
 
       <header className="mb-6">
         <h1 className="text-3xl font-semibold text-brand-800">
-          {seance.clientes
-            ? `${seance.clientes.prenoms} ${seance.clientes.nom}`
-            : "Séance"}
+          {seance.clientes?.nom_complet ?? "Séance"}
         </h1>
         <p className="mt-1 text-brand-400">
           {dateFr(seance.date_seance)} · {lib(TYPE_VENUE, seance.type_venue)}

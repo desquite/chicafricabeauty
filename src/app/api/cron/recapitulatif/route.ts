@@ -73,7 +73,7 @@ async function traiter(requete: Request) {
   ] = await Promise.all([
       supabase
         .from("rendez_vous")
-        .select("heure_rdv, statut, clientes(id, nom, prenoms, telephone), soins_catalogue(libelle)")
+        .select("heure_rdv, statut, clientes(id, nom_complet, telephone), soins_catalogue(libelle)")
         .eq("date_rdv", jour)
         .eq("statut", "prevu")
         .order("heure_rdv", { nullsFirst: false })
@@ -124,7 +124,7 @@ async function traiter(requete: Request) {
   // Relances : dernière séance de chaque cliente, hors celles déjà attendues.
   const { data: dernieres } = await supabase
     .from("seances")
-    .select("cliente_id, date_seance, delai_recommande, clientes(nom, prenoms)")
+    .select("cliente_id, date_seance, delai_recommande, clientes(nom_complet)")
     .order("date_seance", { ascending: false })
     .limit(500)
     .returns<
@@ -132,7 +132,7 @@ async function traiter(requete: Request) {
         cliente_id: string;
         date_seance: string;
         delai_recommande: string | null;
-        clientes: { nom: string; prenoms: string } | null;
+        clientes: { nom_complet: string } | null;
       }[]
     >();
 
