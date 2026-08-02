@@ -17,14 +17,18 @@ export default function Photos({
   seanceId,
   photos,
   consentement,
+  reference,
 }: {
   seanceId: string;
   photos: PhotoAffichee[];
   consentement: boolean | null;
+  /** Dernière photo d'une séance antérieure, si la cliente en a déjà eu une. */
+  reference: { url: string; date: string } | null;
 }) {
   const [comparaison, setComparaison] = useState(false);
   const avant = photos.filter((p) => p.moment === "avant");
   const apres = photos.filter((p) => p.moment === "apres");
+  const suivi = reference !== null;
 
   if (consentement !== true) {
     return (
@@ -44,8 +48,10 @@ export default function Photos({
   return (
     <section className="mb-6 rounded-2xl border border-brand-100 bg-white p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold text-brand-800">Photos avant / après</h2>
-        {avant.length > 0 && apres.length > 0 && (
+        <h2 className="text-xl font-semibold text-brand-800">
+          {suivi ? "Photos" : "Photos avant / après"}
+        </h2>
+        {((suivi && apres.length > 0) || (avant.length > 0 && apres.length > 0)) && (
           <button
             type="button"
             onClick={() => setComparaison((v) => !v)}
@@ -56,7 +62,34 @@ export default function Photos({
         )}
       </div>
 
-      {comparaison ? (
+      {/* Séance de suivi : l'état de départ est celui qu'on a laissé la fois
+          précédente. Reprendre une photo « avant » ferait doublon, et le vrai
+          repère visuel serait perdu au milieu. */}
+      {suivi ? (
+        comparaison ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="mb-2 text-sm font-semibold tracking-wide text-brand-400 uppercase">
+                Séance du {new Date(reference.date).toLocaleDateString("fr-FR")}
+              </p>
+              <Reference url={reference.url} date={reference.date} />
+            </div>
+            <Colonne titre="Aujourd'hui" photos={apres} seanceId={seanceId} />
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div>
+              <p className="mb-3 text-sm font-semibold tracking-wide text-brand-400 uppercase">
+                Séance précédente — {new Date(reference.date).toLocaleDateString("fr-FR")}
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <Reference url={reference.url} date={reference.date} />
+              </div>
+            </div>
+            <Lot titre="Photo du jour" moment="apres" photos={apres} seanceId={seanceId} />
+          </div>
+        )
+      ) : comparaison ? (
         <div className="grid grid-cols-2 gap-3">
           <Colonne titre="Avant" photos={avant} seanceId={seanceId} />
           <Colonne titre="Après" photos={apres} seanceId={seanceId} />
@@ -68,6 +101,20 @@ export default function Photos({
         </div>
       )}
     </section>
+  );
+}
+
+/** Photo d'une séance antérieure : consultable, jamais supprimable d'ici. */
+function Reference({ url, date }: { url: string; date: string }) {
+  return (
+    <figure className="overflow-hidden rounded-xl border-2 border-brand-200">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt={`Photo de la séance du ${new Date(date).toLocaleDateString("fr-FR")}`}
+        className="aspect-square w-full object-cover"
+      />
+    </figure>
   );
 }
 

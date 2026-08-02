@@ -36,12 +36,20 @@ export default async function PageSeances() {
     <div className="mx-auto max-w-4xl">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-3xl font-semibold text-brand-800">Séances</h1>
-        <Link
-          href="/seances/nouvelle"
-          className="flex h-touch items-center rounded-xl bg-brand-600 px-6 font-semibold text-white hover:bg-brand-700"
-        >
-          Nouvelle séance
-        </Link>
+        <div className="flex gap-3">
+          <a
+            href="/api/export/seances"
+            className="flex h-touch items-center rounded-xl border border-brand-200 bg-white px-5 font-medium text-brand-700 hover:bg-brand-50"
+          >
+            Export Excel
+          </a>
+          <Link
+            href="/seances/nouvelle"
+            className="flex h-touch items-center rounded-xl bg-brand-600 px-6 font-semibold text-white hover:bg-brand-700"
+          >
+            Nouvelle séance
+          </Link>
+        </div>
       </header>
 
       {seances.length === 0 ? (

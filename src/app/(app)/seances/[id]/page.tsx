@@ -106,6 +106,40 @@ export default async function PageSeance({
     }))
     .filter((p) => p.url !== "");
 
+  // Dernière photo prise lors d'une séance antérieure de la même cliente.
+  // Elle sert de point de comparaison : à partir de la deuxième séance, il n'y
+  // a plus lieu de reprendre une photo « avant », l'état de départ est celui
+  // qu'on a laissé la fois précédente.
+  const { data: precedente } = await supabase
+    .from("seances")
+    .select("id, date_seance, photos(storage_path, prise_le, moment)")
+    .eq("cliente_id", seance.cliente_id)
+    .lt("date_seance", seance.date_seance)
+    .order("date_seance", { ascending: false })
+    .limit(5)
+    .returns<
+      {
+        id: string;
+        date_seance: string;
+        photos: { storage_path: string; prise_le: string; moment: string }[];
+      }[]
+    >();
+
+  const seanceAvecPhoto = (precedente ?? []).find((s) => s.photos.length > 0);
+  let reference: { url: string; date: string } | null = null;
+
+  if (seanceAvecPhoto) {
+    const derniere = [...seanceAvecPhoto.photos].sort((a, b) =>
+      a.prise_le < b.prise_le ? 1 : -1,
+    )[0];
+    const { data: signee } = await supabase.storage
+      .from("photos-soins")
+      .createSignedUrl(derniere.storage_path, 3600);
+    if (signee) {
+      reference = { url: signee.signedUrl, date: seanceAvecPhoto.date_seance };
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl">
       {seance.clientes && (
@@ -178,6 +212,7 @@ export default async function PageSeance({
         seanceId={seance.id}
         photos={photosAffichees}
         consentement={consentement?.accepte ?? null}
+        reference={reference}
       />
     </div>
   );
