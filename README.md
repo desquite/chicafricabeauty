@@ -29,9 +29,19 @@ la RLS.
 
 ### Base de données
 
-Coller `supabase/migrations/0001_schema_initial.sql` dans l'éditeur SQL du
-projet Supabase. La migration crée les 8 tables, active la RLS sur chacune,
-crée les deux buckets privés et pré-remplit le catalogue de soins.
+Dans l'éditeur SQL du projet Supabase, exécuter les trois fichiers de
+`supabase/migrations/` **dans l'ordre, un par requête** :
+
+| Fichier | Contenu |
+|---|---|
+| `0001_tables.sql` | 8 tables, index, vue `anamneses_courantes` |
+| `0002_fonctions_rls.sql` | `est_staff_actif()`, déclencheurs, RLS et policies |
+| `0003_storage_catalogue.sql` | Buckets privés, catalogue de soins de départ |
+
+Le découpage n'est pas cosmétique : un script d'un seul tenant arrivait
+tronqué à Postgres (`42601: syntax error at end of input`). Pour la même
+raison, il n'y a ni type ENUM ni bloc `DO` — les valeurs fermées sont tenues
+par des contraintes `CHECK`, plus faciles à faire évoluer par la suite.
 
 ### Créer le premier compte
 
