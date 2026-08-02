@@ -14,6 +14,7 @@ import {
   type Cliente,
   type Seance,
 } from "@/lib/types";
+import Photos, { type PhotoAffichee } from "./photos";
 
 const dateFr = (iso: string | null) =>
   iso
@@ -56,16 +57,54 @@ export default async function PageSeance({
     >();
   if (!seance) notFound();
 
-  const { data: soins } = await supabase
-    .from("seance_soins")
-    .select("soins_catalogue(libelle)")
-    .eq("seance_id", id)
-    .returns<{ soins_catalogue: { libelle: string } | null }[]>();
+  const [{ data: soins }, { data: photos }, { data: consentement }] =
+    await Promise.all([
+      supabase
+        .from("seance_soins")
+        .select("soins_catalogue(libelle)")
+        .eq("seance_id", id)
+        .returns<{ soins_catalogue: { libelle: string } | null }[]>(),
+      supabase
+        .from("photos")
+        .select("id, moment, storage_path, prise_le")
+        .eq("seance_id", id)
+        .order("prise_le")
+        .returns<
+          { id: string; moment: "avant" | "apres"; storage_path: string; prise_le: string }[]
+        >(),
+      supabase
+        .from("consentements")
+        .select("accepte")
+        .eq("cliente_id", seance.cliente_id)
+        .eq("nature", "photo")
+        .order("signe_le", { ascending: false })
+        .limit(1)
+        .maybeSingle<{ accepte: boolean }>(),
+    ]);
 
   const libellesSoins = (soins ?? [])
     .map((s) => s.soins_catalogue?.libelle)
     .filter(Boolean)
     .join(", ");
+
+  // Bucket privé : chaque vignette passe par une URL signée, générée ici et
+  // valable une heure. Rien n'est jamais exposé publiquement.
+  const chemins = (photos ?? []).map((p) => p.storage_path);
+  const { data: urls } = chemins.length
+    ? await supabase.storage.from("photos-soins").createSignedUrls(chemins, 3600)
+    : { data: [] };
+
+  const parChemin = new Map(
+    (urls ?? []).map((u) => [u.path ?? "", u.signedUrl]),
+  );
+  const photosAffichees: PhotoAffichee[] = (photos ?? [])
+    .map((p) => ({
+      id: p.id,
+      moment: p.moment,
+      prise_le: p.prise_le,
+      url: parChemin.get(p.storage_path) ?? "",
+    }))
+    .filter((p) => p.url !== "");
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -135,9 +174,11 @@ export default async function PageSeance({
         />
       </Bloc>
 
-      <p className="rounded-2xl border border-dashed border-brand-200 p-6 text-center text-brand-400">
-        Photos avant / après : lot 3.
-      </p>
+      <Photos
+        seanceId={seance.id}
+        photos={photosAffichees}
+        consentement={consentement?.accepte ?? null}
+      />
     </div>
   );
 }
