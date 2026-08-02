@@ -39,9 +39,20 @@ async function traiter(requete: Request) {
   // ?apercu=1 construit le message et le renvoie sans rien envoyer.
   const apercu = url.searchParams.get("apercu") === "1";
 
+  // Vercel envoie automatiquement "Authorization: Bearer <CRON_SECRET>" sur
+  // les appels planifiés. En l'absence de secret la route serait ouverte a
+  // tout le monde : en production on refuse plutot que de laisser passer.
   const secret = process.env.CRON_SECRET;
   const entete = requete.headers.get("authorization");
-  if (secret && entete !== `Bearer ${secret}`) {
+
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { erreur: "CRON_SECRET non configuré : route désactivée." },
+        { status: 503 },
+      );
+    }
+  } else if (entete !== `Bearer ${secret}`) {
     return NextResponse.json({ erreur: "Non autorisé" }, { status: 401 });
   }
 
