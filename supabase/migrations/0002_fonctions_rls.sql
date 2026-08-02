@@ -1,12 +1,12 @@
 -- ============================================================================
--- 2/3 — Fonctions, déclencheurs et politiques de sécurité
--- À exécuter après 0001_tables.sql.
+-- 2/3 -- Fonctions, declencheurs et politiques de securite
+-- A executer apres 0001_tables.sql.
 --
--- Données de santé : la RLS est posée dès la mise en place, pas « plus tard ».
--- Aucune table n'est lisible sans session d'un membre actif du personnel.
+-- Donnees de sante : la RLS est posee des la mise en place. Aucune table
+-- nest lisible sans session dun membre actif du personnel.
 -- ============================================================================
 
--- Utilisée par toutes les policies : l'appelant est-il un membre actif ?
+-- Utilisee par toutes les policies : lappelant est-il un membre actif ?
 create or replace function est_staff_actif()
 returns boolean
 language sql
@@ -35,7 +35,6 @@ drop trigger if exists seances_touch on seances;
 create trigger seances_touch before update on seances
   for each row execute function touch_updated_at();
 
--- ---------------------------------------------------------------------- RLS
 alter table profiles         enable row level security;
 alter table clientes         enable row level security;
 alter table anamneses        enable row level security;
@@ -45,40 +44,51 @@ alter table seances          enable row level security;
 alter table seance_soins     enable row level security;
 alter table photos           enable row level security;
 
--- profiles : chacun lit l'annuaire du personnel, seule la gérante modifie.
+-- profiles : chacun lit lannuaire du personnel, seule la gerante modifie.
+drop policy if exists profiles_select on profiles;
 create policy profiles_select on profiles
   for select to authenticated using (est_staff_actif());
 
+drop policy if exists profiles_self_update on profiles;
 create policy profiles_self_update on profiles
   for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
 
+drop policy if exists profiles_gerante_all on profiles;
 create policy profiles_gerante_all on profiles
   for all to authenticated
   using (exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'gerante' and p.actif))
   with check (exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'gerante' and p.actif));
 
--- Données métier : tout le personnel actif, en lecture comme en écriture.
+-- Donnees metier : tout le personnel actif, en lecture comme en ecriture.
+drop policy if exists clientes_staff on clientes;
 create policy clientes_staff on clientes
   for all to authenticated using (est_staff_actif()) with check (est_staff_actif());
 
+drop policy if exists anamneses_staff on anamneses;
 create policy anamneses_staff on anamneses
   for all to authenticated using (est_staff_actif()) with check (est_staff_actif());
 
+drop policy if exists soins_staff on soins_catalogue;
 create policy soins_staff on soins_catalogue
   for all to authenticated using (est_staff_actif()) with check (est_staff_actif());
 
+drop policy if exists seances_staff on seances;
 create policy seances_staff on seances
   for all to authenticated using (est_staff_actif()) with check (est_staff_actif());
 
+drop policy if exists seance_soins_staff on seance_soins;
 create policy seance_soins_staff on seance_soins
   for all to authenticated using (est_staff_actif()) with check (est_staff_actif());
 
+drop policy if exists photos_staff on photos;
 create policy photos_staff on photos
   for all to authenticated using (est_staff_actif()) with check (est_staff_actif());
 
--- Consentements : insérables et lisibles, jamais modifiables ni supprimables.
+-- Consentements : inserables et lisibles, jamais modifiables ni supprimables.
+drop policy if exists consentements_select on consentements;
 create policy consentements_select on consentements
   for select to authenticated using (est_staff_actif());
 
+drop policy if exists consentements_insert on consentements;
 create policy consentements_insert on consentements
   for insert to authenticated with check (est_staff_actif());

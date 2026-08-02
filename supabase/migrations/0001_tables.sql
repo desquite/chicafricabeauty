@@ -1,16 +1,14 @@
 -- ============================================================================
--- 1/3 — Tables, vue et déclencheurs
--- À exécuter en premier dans l'éditeur SQL Supabase.
+-- 1/3 -- Tables, vue et index
 --
--- Pas de type ENUM ni de bloc DO : uniquement du DDL simple, pour rester
--- lisible par n'importe quel client SQL. Les valeurs fermées sont tenues par
--- des contraintes CHECK, qui ont l'avantage d'évoluer par un simple ALTER
--- quand l'institut ajoute une catégorie.
+-- Commentaires volontairement en ASCII sans apostrophe : une apostrophe dans
+-- un commentaire suffit a faire croire a certains editeurs SQL quune chaine
+-- souvre, et tout ce qui suit cesse detre execute. Les explications en
+-- francais sont dans le README.
 -- ============================================================================
 
--- --------------------------------------------------------------- remise à plat
--- Ces objets viennent de la migration partielle du 2 août 2026, qu'aucune
--- application n'a jamais alimentée. On repart proprement.
+-- Remise a plat des objets issus de la migration partielle du 2 aout 2026,
+-- quaucune application na jamais alimentes.
 drop view if exists anamneses_courantes;
 drop table if exists photos cascade;
 drop table if exists seance_soins cascade;
@@ -32,9 +30,8 @@ drop type if exists evolution_peau;
 
 create extension if not exists "pgcrypto";
 
--- ------------------------------------------------------- personnel (staff)
--- pin_hash sert à savoir QUI saisit sur la tablette partagée ; ce n'est pas
--- une frontière de sécurité (la vraie frontière est la session Supabase).
+-- Personnel de linstitut. pin_hash sert a identifier qui saisit sur la
+-- tablette partagee ; ce nest pas une frontiere de securite.
 create table profiles (
   id          uuid primary key references auth.users(id) on delete cascade,
   nom         text not null,
@@ -45,7 +42,6 @@ create table profiles (
   created_at  timestamptz not null default now()
 );
 
--- ---------------------------------------------------------------- clientes
 create table clientes (
   id              uuid primary key default gen_random_uuid(),
   nom             text not null,
@@ -63,9 +59,8 @@ create table clientes (
 create index clientes_recherche_idx on clientes
   using gin (to_tsvector('simple', nom || ' ' || prenoms || ' ' || telephone));
 
--- --------------------------------------------------------------- anamnèses
--- Bilan santé + habitudes. Une nouvelle ligne à chaque mise à jour :
--- l'historique est conservé, la ligne la plus récente fait foi.
+-- Bilan sante et habitudes. Une nouvelle ligne a chaque mise a jour :
+-- lhistorique est conserve, la ligne la plus recente fait foi.
 create table anamneses (
   id                      uuid primary key default gen_random_uuid(),
   cliente_id              uuid not null references clientes(id) on delete cascade,
@@ -90,14 +85,13 @@ create table anamneses (
 
 create index anamneses_cliente_idx on anamneses (cliente_id, date_maj desc);
 
--- Dernière anamnèse connue de chaque cliente, pour l'écran fiche.
+-- Derniere anamnese connue de chaque cliente, pour la fiche.
 create view anamneses_courantes as
 select distinct on (cliente_id) *
 from anamneses
 order by cliente_id, date_maj desc;
 
--- ----------------------------------------------------------- consentements
--- Daté et jamais écrasé : un retrait de consentement = une nouvelle ligne.
+-- Consentement date et jamais ecrase : un retrait cree une nouvelle ligne.
 create table consentements (
   id             uuid primary key default gen_random_uuid(),
   cliente_id     uuid not null references clientes(id) on delete cascade,
@@ -112,8 +106,7 @@ create table consentements (
 create index consentements_cliente_idx
   on consentements (cliente_id, nature, signe_le desc);
 
--- --------------------------------------------------------- catalogue soins
--- Table et non liste en dur : la gérante ajoute ses soins elle-même.
+-- Catalogue de soins en table et non en dur : la gerante le modifie seule.
 create table soins_catalogue (
   id         uuid primary key default gen_random_uuid(),
   libelle    text not null unique,
@@ -124,7 +117,7 @@ create table soins_catalogue (
   ordre      int not null default 0
 );
 
--- ----------------------------------------------------------------- séances
+-- Une ligne par venue de la cliente.
 create table seances (
   id                   uuid primary key default gen_random_uuid(),
   cliente_id           uuid not null references clientes(id) on delete restrict,
@@ -169,7 +162,6 @@ create table seance_soins (
   primary key (seance_id, soin_id)
 );
 
--- ------------------------------------------------------------------ photos
 create table photos (
   id           uuid primary key default gen_random_uuid(),
   seance_id    uuid not null references seances(id) on delete cascade,
