@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  /* Palette institut : terre cuite, or, crème */
+  --color-brand-50: #fdf8f5;
+  --color-brand-100: #f7ebe4;
+  --color-brand-200: #edd4c6;
+  --color-brand-300: #ddb29b;
+  --color-brand-400: #c68767;
+  --color-brand-500: #a8603f;
+  --color-brand-600: #7a3b2e;
+  --color-brand-700: #632f25;
+  --color-brand-800: #4a231c;
+  --color-brand-900: #331813;
+
+  --color-or-400: #d9b45f;
+  --color-or-500: #c89b3c;
+  --color-or-600: #a67d29;
+
+  --color-creme: #faf6f2;
+  --color-encre: #2a1f1b;
+
+  /* Cibles tactiles : rien en dessous de 48px sur tablette */
+  --spacing-touch: 3.5rem;
+}
+
+:root {
+  --background: var(--color-creme);
+  --foreground: var(--color-encre);
+}
+
+html {
+  /* Empêche le zoom involontaire sur double-tap en cabine */
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Les champs sous 16px déclenchent un zoom automatique sur iPad */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
