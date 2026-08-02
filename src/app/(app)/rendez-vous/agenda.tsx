@@ -14,6 +14,7 @@ export type RdvAffiche = {
   duree_min: number | null;
   statut: "prevu" | "honore" | "annule" | "absent";
   notes: string | null;
+  soin_id: string | null;
   clientes: Pick<Cliente, "id" | "nom_complet" | "telephone"> | null;
   soins_catalogue: { libelle: string } | null;
   alertes: number;
@@ -55,6 +56,27 @@ export default function Agenda({
 
   const maj = (cle: keyof typeof vierge, v: string) =>
     setSaisie((p) => ({ ...p, [cle]: v }));
+
+  /**
+   * Reprogrammation après une annulation ou une absence.
+   *
+   * Crée un nouveau rendez-vous pré-rempli au lieu de modifier l'ancien :
+   * celui-ci garde son statut, sans quoi le taux d'absence s'effacerait à
+   * mesure qu'on reprogramme.
+   */
+  const reprogrammer = (r: RdvAffiche) => {
+    setSaisie({
+      cliente_id: r.clientes?.id ?? "",
+      date_rdv: "",
+      heure_rdv: r.heure_rdv?.slice(0, 5) ?? "",
+      duree_min: r.duree_min?.toString() ?? "",
+      soin_id: r.soin_id ?? "",
+      notes: r.notes ?? "",
+    });
+    setFiltre("");
+    setErreur(null);
+    setOuvert(true);
+  };
 
   const normalise = (s: string) =>
     s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -275,6 +297,15 @@ export default function Agenda({
                   >
                     Saisir la séance
                   </Link>
+                )}
+                {r.clientes && (r.statut === "annule" || r.statut === "absent") && (
+                  <button
+                    type="button"
+                    onClick={() => reprogrammer(r)}
+                    className="flex h-11 items-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
+                  >
+                    Reprogrammer
+                  </button>
                 )}
               </div>
             </li>
