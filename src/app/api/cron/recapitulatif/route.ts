@@ -61,8 +61,16 @@ async function traiter(requete: Request) {
   const jour = maintenant.toISOString().slice(0, 10);
   const hier = new Date(maintenant.getTime() - 86_400_000).toISOString().slice(0, 10);
 
-  const [{ data: rdvs }, { data: destinataires }, { data: seancesHier }] =
-    await Promise.all([
+  // Les erreurs sont collectées et remontées : une requête qui échoue
+  // silencieusement se lit comme « aucune donnée », ce qui est indiscernable
+  // d'une base vide et impossible à diagnostiquer à distance.
+  const erreurs: string[] = [];
+
+  const [
+    { data: rdvs, error: erreurRdv },
+    { data: destinataires, error: erreurDest },
+    { data: seancesHier, error: erreurSeances },
+  ] = await Promise.all([
       supabase
         .from("rendez_vous")
         .select("heure_rdv, statut, clientes(id, nom, prenoms, telephone), soins_catalogue(libelle)")
@@ -83,6 +91,10 @@ async function traiter(requete: Request) {
         .eq("date_seance", hier)
         .returns<{ id: string }[]>(),
     ]);
+
+  if (erreurRdv) erreurs.push(`rendez_vous : ${erreurRdv.code} ${erreurRdv.message}`);
+  if (erreurDest) erreurs.push(`profiles : ${erreurDest.code} ${erreurDest.message}`);
+  if (erreurSeances) erreurs.push(`seances : ${erreurSeances.code} ${erreurSeances.message}`);
 
   if (!apercu && (!destinataires || destinataires.length === 0)) {
     return NextResponse.json({
@@ -152,6 +164,7 @@ async function traiter(requete: Request) {
       destinataires: (destinataires ?? []).map((d) => `${d.nom} ${d.telephone}`),
       rendezVous: rdvs?.length ?? 0,
       relances: aRelancer.length,
+      erreurs,
       message,
     });
   }
