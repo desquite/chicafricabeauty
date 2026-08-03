@@ -83,12 +83,14 @@ export function VueMois({
                 )}
               </span>
 
+              {/* Vert : les jours occupés doivent ressortir du brun ambiant,
+                  qui sert partout ailleurs et ne signale donc rien. */}
               {c.total > 0 && (
                 <span className="mt-auto">
-                  <span className="block text-lg leading-tight font-semibold text-brand-700">
+                  <span className="block text-lg leading-tight font-semibold text-green-700">
                     {c.total}
                   </span>
-                  <span className="block text-[11px] text-brand-400">
+                  <span className="block text-[11px] text-green-600">
                     rendez-vous
                   </span>
                 </span>
