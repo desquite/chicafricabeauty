@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Logo } from "@/components/logo";
+import { Rouet } from "@/components/attente";
 import { enregistrerNouvelleAnamnese, type Sante } from "../../actions";
 import { EtapeBilanSante, EtapeHabitudes, santeComplete } from "../../etapes-sante";
 
@@ -82,8 +83,9 @@ export default function ParcoursSante({
               router.push(`/clientes/${clienteId}`);
             });
           }}
-          className="h-touch flex-[2] rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
+          className="flex h-touch flex-[2] items-center justify-center gap-2 rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
         >
+          {enCours && <Rouet />}
           {enCours ? "Enregistrement…" : etape === 0 ? "Suivant" : "Enregistrer"}
         </button>
       </div>

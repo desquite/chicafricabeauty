@@ -22,6 +22,7 @@ import {
   type Cliente,
   type SoinCatalogue,
 } from "@/lib/types";
+import { Rouet } from "@/components/attente";
 import { enregistrerSeance, type SaisieSeance } from "../actions";
 
 const ETAPES = ["Séance", "Diagnostic", "Soin réalisé", "Observations", "Suite"];
@@ -354,8 +355,9 @@ export default function ParcoursSeance({
               router.push(`/seances/${r.id}`);
             });
           }}
-          className="h-touch flex-[2] rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
+          className="flex h-touch flex-[2] items-center justify-center gap-2 rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
         >
+          {enCours && <Rouet />}
           {enCours
             ? "Enregistrement…"
             : etape === ETAPES.length - 1

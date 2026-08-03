@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
+import { Rouet } from "@/components/attente";
 import { seConnecter, type EtatConnexion } from "./actions";
 
 function BoutonValider() {
@@ -10,8 +11,9 @@ function BoutonValider() {
     <button
       type="submit"
       disabled={pending}
-      className="h-touch w-full rounded-xl bg-brand-600 text-base font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
+      className="flex h-touch w-full items-center justify-center gap-2 rounded-xl bg-brand-600 text-base font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-60"
     >
+      {pending && <Rouet />}
       {pending ? "Connexion…" : "Se connecter"}
     </button>
   );

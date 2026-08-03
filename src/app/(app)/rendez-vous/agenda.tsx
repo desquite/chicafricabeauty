@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Champ, DateFr, HeureFr, Paragraphe, Texte } from "@/components/champs";
+import { Rouet } from "@/components/attente";
 import type { Cliente, SoinCatalogue } from "@/lib/types";
 import { changerStatut, enregistrerRdv } from "./actions";
 
@@ -53,6 +54,9 @@ export default function Agenda({
   const [filtre, setFiltre] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();
+  // Identifie le bouton précis en attente : sans cela, tous les statuts de
+  // tous les rendez-vous s'afficheraient occupés pour un seul clic.
+  const [enAttente, setEnAttente] = useState<string | null>(null);
 
   const maj = (cle: keyof typeof vierge, v: string) =>
     setSaisie((p) => ({ ...p, [cle]: v }));
@@ -220,8 +224,9 @@ export default function Agenda({
                 router.refresh();
               })
             }
-            className="h-touch w-full rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
+            className="flex h-touch w-full items-center justify-center gap-2 rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
           >
+            {enCours && <Rouet />}
             {enCours ? "Enregistrement…" : "Enregistrer le rendez-vous"}
           </button>
         </div>
@@ -270,26 +275,33 @@ export default function Agenda({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {STATUTS.map((s) => (
-                  <button
-                    key={s.valeur}
-                    type="button"
-                    aria-pressed={r.statut === s.valeur}
-                    onClick={() =>
-                      demarrer(async () => {
-                        await changerStatut(r.id, s.valeur);
-                        router.refresh();
-                      })
-                    }
-                    className={`h-11 rounded-lg px-4 text-sm font-medium transition-colors ${
-                      r.statut === s.valeur
-                        ? s.classe
-                        : "border border-brand-200 text-brand-500 hover:bg-brand-50"
-                    }`}
-                  >
-                    {s.libelle}
-                  </button>
-                ))}
+                {STATUTS.map((s) => {
+                  const cle = `${r.id}:${s.valeur}`;
+                  return (
+                    <button
+                      key={s.valeur}
+                      type="button"
+                      aria-pressed={r.statut === s.valeur}
+                      disabled={enCours}
+                      onClick={() => {
+                        setEnAttente(cle);
+                        demarrer(async () => {
+                          await changerStatut(r.id, s.valeur);
+                          router.refresh();
+                          setEnAttente(null);
+                        });
+                      }}
+                      className={`flex h-11 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors disabled:opacity-60 ${
+                        r.statut === s.valeur
+                          ? s.classe
+                          : "border border-brand-200 text-brand-500 hover:bg-brand-50"
+                      }`}
+                    >
+                      {enAttente === cle && <Rouet />}
+                      {s.libelle}
+                    </button>
+                  );
+                })}
                 {r.clientes && r.statut === "prevu" && (
                   <Link
                     href={`/seances/nouvelle?cliente=${r.clientes.id}`}

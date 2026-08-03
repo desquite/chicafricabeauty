@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { requireProfil } from "@/lib/auth";
+import { BarreChargement } from "@/components/attente";
 import { NavigationTablette } from "@/components/navigation-tablette";
 import { seDeconnecter } from "@/app/connexion/actions";
 import { Logo } from "@/components/logo";
@@ -12,6 +14,11 @@ export default async function LayoutApplication({
 
   return (
     <div className="flex min-h-full flex-1">
+      {/* useSearchParams impose une frontière Suspense. */}
+      <Suspense fallback={null}>
+        <BarreChargement />
+      </Suspense>
+
       {/* Rail latéral : en paysage sur tablette, c'est la disposition qui laisse
           le plus de hauteur utile aux formulaires de saisie. */}
       <aside className="no-print hidden w-64 shrink-0 flex-col border-r border-brand-100 bg-white md:flex">

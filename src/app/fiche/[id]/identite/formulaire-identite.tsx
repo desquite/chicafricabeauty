@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Champ, DateFr, Paragraphe, Texte } from "@/components/champs";
 import { Logo } from "@/components/logo";
+import { Rouet } from "@/components/attente";
 import {
   changerArchivage,
   modifierCliente,
@@ -137,8 +138,9 @@ export default function FormulaireIdentite({
               router.push(`/clientes/${clienteId}`);
             })
           }
-          className="h-touch flex-[2] rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
+          className="flex h-touch flex-[2] items-center justify-center gap-2 rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
         >
+          {enCours && <Rouet />}
           {enCours ? "Enregistrement…" : "Enregistrer"}
         </button>
       </div>

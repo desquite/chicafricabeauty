@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireProfil } from "@/lib/auth";
+import { BoutonExport } from "@/components/bouton-export";
 import { createClient } from "@/lib/supabase/server";
 import { age, alertes, type Anamnese, type Cliente } from "@/lib/types";
 
@@ -42,12 +43,7 @@ export default async function PageClientes({
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-3xl font-semibold text-brand-800">Clientes</h1>
         <div className="flex gap-3">
-          <a
-            href="/api/export/clientes"
-            className="flex h-touch items-center rounded-xl border border-brand-200 bg-white px-5 font-medium text-brand-700 hover:bg-brand-50"
-          >
-            Export Excel
-          </a>
+          <BoutonExport href="/api/export/clientes" />
           <Link
             href="/fiche/nouvelle"
             className="flex h-touch items-center rounded-xl bg-brand-600 px-6 font-semibold text-white hover:bg-brand-700"

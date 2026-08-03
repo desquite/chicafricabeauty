@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { compresserPhoto, poidsLisible } from "@/lib/image";
+import { Rouet } from "@/components/attente";
 import { enregistrerPhoto, supprimerPhoto } from "./actions";
 
 export type PhotoAffichee = {
@@ -191,12 +192,18 @@ function Vignette({ photo, seanceId }: { photo: PhotoAffichee; seanceId: string 
             router.refresh();
           });
         }}
-        className="absolute top-2 right-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-brand-700 opacity-0 transition-opacity group-hover:opacity-100 focus:opacity-100"
+        className={`absolute top-2 right-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-brand-700 transition-opacity focus:opacity-100 ${
+          enCours ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+        }`}
         aria-label="Supprimer cette photo"
       >
-        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+        {enCours ? (
+          <Rouet className="h-5 w-5" />
+        ) : (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
       </button>
     </figure>
   );

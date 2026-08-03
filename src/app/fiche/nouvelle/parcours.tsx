@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Champ, DateFr, OuiNon, Texte } from "@/components/champs";
 import { Signature } from "@/components/signature";
+import { Rouet } from "@/components/attente";
 import { Logo } from "@/components/logo";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -225,8 +226,9 @@ export default function Parcours() {
               ? demarrer(() => void valider())
               : setEtape((e) => e + 1)
           }
-          className="h-touch flex-[2] rounded-xl bg-brand-600 font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-40"
+          className="flex h-touch flex-[2] items-center justify-center gap-2 rounded-xl bg-brand-600 font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-40"
         >
+          {enCours && <Rouet />}
           {enCours
             ? "Enregistrement…"
             : etape === ETAPES.length - 1

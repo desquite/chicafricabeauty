@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Champ, Texte } from "@/components/champs";
+import { Rouet } from "@/components/attente";
 import type { SoinCatalogue } from "@/lib/types";
 import { basculerSoin, enregistrerSoin } from "./actions";
 
@@ -21,6 +22,7 @@ export default function Editeur({
   const [saisie, setSaisie] = useState(vierge);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();
+  const [enAttente, setEnAttente] = useState<string | null>(null);
 
   const maj = (cle: keyof typeof vierge, v: string) =>
     setSaisie((p) => ({ ...p, [cle]: v }));
@@ -107,8 +109,9 @@ export default function Editeur({
               type="button"
               disabled={enCours}
               onClick={enregistrer}
-              className="h-touch flex-[2] rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
+              className="flex h-touch flex-[2] items-center justify-center gap-2 rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
             >
+              {enCours && <Rouet />}
               {enCours ? "Enregistrement…" : "Enregistrer"}
             </button>
           </div>
@@ -145,21 +148,26 @@ export default function Editeur({
               <div className="flex gap-2">
                 <button
                   type="button"
+                  disabled={enCours}
                   onClick={() => ouvrir(s)}
-                  className="h-11 rounded-lg border border-brand-200 px-4 text-sm font-medium text-brand-700 hover:bg-brand-50"
+                  className="h-11 rounded-lg border border-brand-200 px-4 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:opacity-60"
                 >
                   Modifier
                 </button>
                 <button
                   type="button"
-                  onClick={() =>
+                  disabled={enCours}
+                  onClick={() => {
+                    setEnAttente(s.id);
                     demarrer(async () => {
                       await basculerSoin(s.id, !s.actif);
                       router.refresh();
-                    })
-                  }
-                  className="h-11 rounded-lg border border-brand-200 px-4 text-sm font-medium text-brand-700 hover:bg-brand-50"
+                      setEnAttente(null);
+                    });
+                  }}
+                  className="flex h-11 items-center gap-2 rounded-lg border border-brand-200 px-4 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:opacity-60"
                 >
+                  {enAttente === s.id && <Rouet />}
                   {s.actif ? "Retirer" : "Réactiver"}
                 </button>
               </div>

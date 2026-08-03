@@ -49,6 +49,40 @@ textarea {
   font-size: 16px;
 }
 
+/* Retour tactile immédiat.
+   Sur tablette, l'attente serveur est invisible : sans réaction au doigt, la
+   gérante reclique. Cet effet se produit à l'appui, avant toute requête. */
+a,
+button,
+[role="button"] {
+  transition:
+    transform 80ms ease-out,
+    opacity 80ms ease-out;
+}
+
+a:active,
+button:not(:disabled):active,
+[role="button"]:active {
+  transform: scale(0.985);
+  opacity: 0.9;
+}
+
+button:disabled {
+  cursor: progress;
+}
+
+@keyframes progression {
+  from {
+    transform: scaleX(0.05);
+  }
+  60% {
+    transform: scaleX(0.75);
+  }
+  to {
+    transform: scaleX(0.95);
+  }
+}
+
 @media print {
   .no-print {
     display: none !important;
