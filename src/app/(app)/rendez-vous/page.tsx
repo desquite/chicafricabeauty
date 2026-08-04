@@ -50,6 +50,7 @@ export default async function PageRendezVous({
     .from("rendez_vous")
     .select(CHAMPS_RDV)
     .is("remplace_par", null)
+    .is("masque_le", null)
     .gte("date_rdv", debut)
     .lte("date_rdv", fin)
     .order("date_rdv")

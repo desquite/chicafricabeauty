@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { Champ, DateFr, HeureFr, Paragraphe, Texte } from "@/components/champs";
 import { Rouet } from "@/components/attente";
 import type { Cliente, SoinCatalogue } from "@/lib/types";
-import { changerStatut, enregistrerRdv } from "./actions";
+import { changerStatut, enregistrerRdv, masquerRdv } from "./actions";
+
+/** Durée de l'effacement, à garder alignée sur la transition CSS ci-dessous. */
+const DUREE_SORTIE = 450;
 
 export type RdvAffiche = {
   id: string;
@@ -58,6 +61,17 @@ export default function Agenda({
   // Identifie le bouton précis en attente : sans cela, tous les statuts de
   // tous les rendez-vous s'afficheraient occupés pour un seul clic.
   const [enAttente, setEnAttente] = useState<string | null>(null);
+  // Rendez-vous en cours d'effacement : ils restent affichés le temps de
+  // l'animation, sinon ils disparaîtraient d'un coup au rafraîchissement.
+  const [sortants, setSortants] = useState<string[]>([]);
+
+  const effacer = (id: string, apres: () => void) => {
+    setSortants((s) => [...s, id]);
+    setTimeout(() => {
+      apres();
+      router.refresh();
+    }, DUREE_SORTIE);
+  };
 
   const maj = (cle: keyof typeof vierge, v: string) =>
     setSaisie((p) => ({ ...p, [cle]: v }));
@@ -227,10 +241,14 @@ export default function Agenda({
             disabled={enCours}
             onClick={() =>
               demarrer(async () => {
+                const remplace = saisie.remplace;
                 const r = await enregistrerRdv(saisie);
                 if (!r.ok) return setErreur(r.erreur ?? "Enregistrement impossible.");
                 setOuvert(false);
-                router.refresh();
+                // L'original s'efface en douceur plutôt que de disparaître
+                // brutalement : on doit voir lequel s'en va.
+                if (remplace) effacer(remplace, () => {});
+                else router.refresh();
               })
             }
             className="flex h-touch w-full items-center justify-center gap-2 rounded-xl bg-brand-600 font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
@@ -250,7 +268,11 @@ export default function Agenda({
           {rdvs.map((r) => (
             <li
               key={r.id}
-              className="rounded-2xl border border-brand-100 bg-white p-5"
+              className={`overflow-hidden rounded-2xl border border-brand-100 bg-white p-5 transition-all duration-[450ms] ease-out ${
+                sortants.includes(r.id)
+                  ? "max-h-0 -translate-x-6 scale-95 border-0 p-0 opacity-0"
+                  : "max-h-[40rem] opacity-100"
+              }`}
             >
               <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -320,13 +342,32 @@ export default function Agenda({
                   </Link>
                 )}
                 {r.clientes && (r.statut === "annule" || r.statut === "absent") && (
-                  <button
-                    type="button"
-                    onClick={() => reprogrammer(r)}
-                    className="flex h-11 items-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
-                  >
-                    Reprogrammer
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => reprogrammer(r)}
+                      className="flex h-11 items-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
+                    >
+                      Reprogrammer
+                    </button>
+                    {/* Pour les annulations reprogrammées à la main, avant que
+                        le bouton ci-dessus n'existe : elles n'ont aucun lien
+                        vers leur remplaçant et resteraient affichées. */}
+                    <button
+                      type="button"
+                      disabled={enCours}
+                      onClick={() =>
+                        effacer(r.id, () => {
+                          demarrer(async () => {
+                            await masquerRdv(r.id, true);
+                          });
+                        })
+                      }
+                      className="flex h-11 items-center rounded-lg border border-brand-200 px-4 text-sm font-medium text-brand-500 hover:bg-brand-50 disabled:opacity-60"
+                    >
+                      Retirer de l&apos;agenda
+                    </button>
+                  </>
                 )}
               </div>
             </li>

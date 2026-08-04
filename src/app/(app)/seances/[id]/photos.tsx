@@ -217,7 +217,11 @@ function Capture({
   moment: "avant" | "apres";
 }) {
   const router = useRouter();
-  const champ = useRef<HTMLInputElement>(null);
+  // Deux champs distincts : l'attribut capture force l'appareil photo et
+  // supprime l'accès à la galerie. Un seul champ obligerait donc à choisir
+  // entre prendre une photo et en reprendre une déjà enregistrée.
+  const champAppareil = useRef<HTMLInputElement>(null);
+  const champGalerie = useRef<HTMLInputElement>(null);
   const [etat, setEtat] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -246,32 +250,64 @@ function Capture({
     }
   }
 
+  const auChangement = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (f) void traiter(f);
+  };
+
   return (
     <div>
       <input
-        ref={champ}
+        ref={champAppareil}
         type="file"
         accept="image/*"
         capture="environment"
         className="sr-only"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          e.target.value = "";
-          if (f) void traiter(f);
-        }}
+        onChange={auChangement}
       />
-      <button
-        type="button"
-        disabled={etat !== null}
-        onClick={() => champ.current?.click()}
-        className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-brand-300 text-brand-500 hover:border-brand-500 hover:bg-brand-50 disabled:opacity-60"
-      >
-        <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" strokeLinejoin="round" />
-          <circle cx="12" cy="13" r="3.5" />
-        </svg>
-        <span className="px-2 text-center text-sm">{etat ?? "Ajouter une photo"}</span>
-      </button>
+      <input
+        ref={champGalerie}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={auChangement}
+      />
+
+      <div className="flex aspect-square w-full flex-col gap-2 rounded-xl border-2 border-dashed border-brand-300 p-2">
+        {etat ? (
+          <span className="flex flex-1 flex-col items-center justify-center gap-2 text-brand-500">
+            <Rouet className="h-6 w-6" />
+            <span className="px-2 text-center text-sm">{etat}</span>
+          </span>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => champAppareil.current?.click()}
+              className="flex flex-[2] flex-col items-center justify-center gap-1 rounded-lg text-brand-500 hover:bg-brand-50"
+            >
+              <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" strokeLinejoin="round" />
+                <circle cx="12" cy="13" r="3.5" />
+              </svg>
+              <span className="text-center text-sm">Prendre une photo</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => champGalerie.current?.click()}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-brand-200 text-sm text-brand-600 hover:bg-brand-50"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M4 5h16v14H4zM4 15l4.5-4.5 4 4L16 11l4 4" strokeLinejoin="round" />
+                <circle cx="9" cy="9" r="1.4" />
+              </svg>
+              Galerie
+            </button>
+          </>
+        )}
+      </div>
+
       {erreur && (
         <p role="alert" className="mt-2 text-sm text-red-700">
           {erreur}

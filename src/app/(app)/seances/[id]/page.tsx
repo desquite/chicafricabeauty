@@ -112,20 +112,29 @@ export default async function PageSeance({
   // qu'on a laissé la fois précédente.
   const { data: precedente } = await supabase
     .from("seances")
-    .select("id, date_seance, photos(storage_path, prise_le, moment)")
+    .select("id, date_seance, created_at, photos(storage_path, prise_le, moment)")
     .eq("cliente_id", seance.cliente_id)
-    .lt("date_seance", seance.date_seance)
+    .neq("id", seance.id)
+    .lte("date_seance", seance.date_seance)
     .order("date_seance", { ascending: false })
-    .limit(5)
+    .order("created_at", { ascending: false })
+    .limit(10)
     .returns<
       {
         id: string;
         date_seance: string;
+        created_at: string;
         photos: { storage_path: string; prise_le: string; moment: string }[];
       }[]
     >();
 
-  const seanceAvecPhoto = (precedente ?? []).find((s) => s.photos.length > 0);
+  // Le tri par date seule ne suffit pas : deux séances peuvent tomber le même
+  // jour, et l'ordre de saisie départage alors laquelle précède l'autre.
+  const seanceAvecPhoto = (precedente ?? []).find(
+    (s) =>
+      s.photos.length > 0 &&
+      (s.date_seance < seance.date_seance || s.created_at < seance.created_at),
+  );
   let reference: { url: string; date: string } | null = null;
 
   if (seanceAvecPhoto) {
