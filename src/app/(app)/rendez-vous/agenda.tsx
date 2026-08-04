@@ -35,6 +35,7 @@ const vierge = {
   duree_min: "",
   soin_id: "",
   notes: "",
+  remplace: "",
 };
 
 export default function Agenda({
@@ -76,6 +77,7 @@ export default function Agenda({
       duree_min: r.duree_min?.toString() ?? "",
       soin_id: r.soin_id ?? "",
       notes: r.notes ?? "",
+      remplace: r.id,
     });
     setFiltre("");
     setErreur(null);
@@ -124,6 +126,13 @@ export default function Agenda({
 
       {ouvert && (
         <div className="mb-8 rounded-2xl border-2 border-brand-200 bg-white p-6">
+          {saisie.remplace && (
+            <p className="mb-5 rounded-xl bg-or-400/10 px-4 py-3 text-sm text-brand-700">
+              Reprogrammation. Le rendez-vous d&apos;origine disparaîtra de
+              l&apos;agenda une fois celui-ci enregistré, mais restera compté
+              dans les statistiques.
+            </p>
+          )}
           <Champ label="Cliente" requis>
             {choisie ? (
               <div className="flex h-touch items-center justify-between rounded-xl border-2 border-brand-600 bg-brand-50 px-4">

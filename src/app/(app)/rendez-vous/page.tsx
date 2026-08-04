@@ -44,9 +44,12 @@ export default async function PageRendezVous({
         ? finDeMois(mois)
         : new Date(maintenant.getTime() + 30 * 86_400_000).toISOString().slice(0, 10);
 
+  // Un rendez-vous reprogrammé n'a plus rien à faire dans l'agenda : il a été
+  // remplacé. Il reste en base et continue d'alimenter le taux d'absence.
   let requete = supabase
     .from("rendez_vous")
     .select(CHAMPS_RDV)
+    .is("remplace_par", null)
     .gte("date_rdv", debut)
     .lte("date_rdv", fin)
     .order("date_rdv")

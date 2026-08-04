@@ -14,6 +14,8 @@ export async function enregistrerRdv(saisie: {
   duree_min: string;
   soin_id: string;
   notes: string;
+  /** Rendez-vous annulé ou manqué que celui-ci remplace. */
+  remplace?: string;
 }): Promise<Retour> {
   const profil = await requireProfil();
   const supabase = await createClient();
@@ -30,11 +32,31 @@ export async function enregistrerRdv(saisie: {
     notes: saisie.notes.trim() || null,
   };
 
-  const { error } = saisie.id
-    ? await supabase.from("rendez_vous").update(valeurs).eq("id", saisie.id)
-    : await supabase.from("rendez_vous").insert({ ...valeurs, cree_par: profil.id });
+  if (saisie.id) {
+    const { error } = await supabase
+      .from("rendez_vous")
+      .update(valeurs)
+      .eq("id", saisie.id);
+    if (error) return { ok: false, erreur: error.message };
+  } else {
+    const { data: cree, error } = await supabase
+      .from("rendez_vous")
+      .insert({ ...valeurs, cree_par: profil.id })
+      .select("id")
+      .single();
+    if (error || !cree) {
+      return { ok: false, erreur: error?.message ?? "Enregistrement impossible." };
+    }
 
-  if (error) return { ok: false, erreur: error.message };
+    // L'ancien rendez-vous garde son statut : c'est lui qui alimente le taux
+    // d'absence. Il est seulement écarté de l'agenda, pas supprimé.
+    if (saisie.remplace) {
+      await supabase
+        .from("rendez_vous")
+        .update({ remplace_par: cree.id })
+        .eq("id", saisie.remplace);
+    }
+  }
 
   revalidatePath("/rendez-vous");
   revalidatePath("/accueil");
