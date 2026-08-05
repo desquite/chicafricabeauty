@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { envoyerWhatsapp } from "@/lib/notifications/whatsapp";
 import {
   calculerRelances,
+  construireRappelCliente,
   construireRecapitulatif,
   type RdvDuJour,
 } from "@/lib/notifications/recapitulatif";
@@ -192,42 +193,116 @@ async function traiter(requete: Request) {
 
   const resultats: { destinataire: string; ok: boolean; erreur?: string }[] = [];
 
-  for (const d of destinataires ?? []) {
-    // Le journal porte un index unique sur (type, jour, destinataire) pour les
-    // envois réussis : rejouer le cron ne produit donc pas de doublon.
+  /** Envoi journalisé, avec garde contre le renvoi si le cron est rejoué. */
+  const envoyerUneFois = async (
+    type: string,
+    destinataire: string,
+    etiquette: string,
+    texte: string,
+    attente: number,
+  ) => {
     const { data: deja } = await supabase
       .from("notifications_envoyees")
       .select("id")
-      .eq("type", "recapitulatif")
+      .eq("type", type)
       .eq("cle_jour", jour)
-      .eq("destinataire", d.telephone)
+      .eq("destinataire", destinataire)
       .eq("succes", true)
       .maybeSingle();
 
     if (deja) {
-      resultats.push({ destinataire: d.nom, ok: true, erreur: "déjà envoyé" });
-      continue;
+      resultats.push({ destinataire: etiquette, ok: true, erreur: "déjà envoyé" });
+      return;
     }
 
-    const envoi = await envoyerWhatsapp(d.telephone, message);
+    const envoi = await envoyerWhatsapp(destinataire, texte);
     await supabase.from("notifications_envoyees").insert({
-      type: "recapitulatif",
+      type,
       cle_jour: jour,
-      destinataire: d.telephone,
+      destinataire,
       succes: envoi.ok,
       detail: envoi.erreur ?? null,
     });
-    resultats.push({ destinataire: d.nom, ok: envoi.ok, erreur: envoi.erreur });
+    resultats.push({ destinataire: etiquette, ok: envoi.ok, erreur: envoi.erreur });
 
-    // Espacement volontaire : WasenderAPI passe par WhatsApp Web, une rafale
-    // d'envois simultanés est ce qui déclenche les coupures.
-    await new Promise((r) => setTimeout(r, 5000));
+    // Espacement : WasenderAPI passe par WhatsApp Web, une rafale d'envois
+    // simultanés est ce qui déclenche les coupures.
+    await new Promise((r) => setTimeout(r, attente));
+  };
+
+  // Les gérantes d'abord : c'est le message qui organise la journée.
+  for (const d of destinataires ?? []) {
+    await envoyerUneFois("recapitulatif", d.telephone, d.nom, message, 5000);
+  }
+
+  // Puis les clientes : rappel du jour même, et rappel de la veille pour
+  // demain. Les deux partent du même passage, à la même heure.
+  const demain = new Date(maintenant.getTime() + 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+
+  const { data: aRappeler } = await supabase
+    .from("rendez_vous")
+    .select("date_rdv, heure_rdv, clientes(nom_complet, telephone, rappels_whatsapp), soins_catalogue(libelle)")
+    .in("date_rdv", [jour, demain])
+    .eq("statut", "prevu")
+    .is("remplace_par", null)
+    .is("masque_le", null)
+    .order("date_rdv")
+    .order("heure_rdv", { nullsFirst: false })
+    .returns<
+      {
+        date_rdv: string;
+        heure_rdv: string | null;
+        clientes: {
+          nom_complet: string;
+          telephone: string;
+          rappels_whatsapp: boolean;
+        } | null;
+        soins_catalogue: { libelle: string } | null;
+      }[]
+    >();
+
+  let rappelsEnvoyes = 0;
+  let rappelsIgnores = 0;
+
+  for (const r of aRappeler ?? []) {
+    if (!r.clientes?.rappels_whatsapp) {
+      rappelsIgnores += 1;
+      continue;
+    }
+    // La fonction s'exécute dans un temps borné : au-delà, mieux vaut
+    // s'arrêter proprement et le signaler que d'être coupé en plein envoi.
+    if (rappelsEnvoyes >= 20) {
+      rappelsIgnores += 1;
+      continue;
+    }
+
+    const quand = r.date_rdv === jour ? "aujourdhui" : "demain";
+    await envoyerUneFois(
+      quand === "aujourdhui" ? "rappel_jour" : "rappel_veille",
+      r.clientes.telephone,
+      `${r.clientes.nom_complet} (${quand})`,
+      construireRappelCliente(
+        {
+          nom_complet: r.clientes.nom_complet,
+          telephone: r.clientes.telephone,
+          heure_rdv: r.heure_rdv,
+          soin: r.soins_catalogue?.libelle ?? null,
+          date_rdv: r.date_rdv,
+        },
+        quand,
+      ),
+      2000,
+    );
+    rappelsEnvoyes += 1;
   }
 
   return NextResponse.json({
     jour,
     rendezVous: rdvs?.length ?? 0,
     relances: aRelancer.length,
+    rappelsClientes: { envoyes: rappelsEnvoyes, ignores: rappelsIgnores },
     resultats,
   });
 }

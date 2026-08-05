@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Champ, DateFr, Paragraphe, Texte } from "@/components/champs";
+import { Champ, DateFr, OuiNon, Paragraphe, Texte } from "@/components/champs";
 import { Logo } from "@/components/logo";
 import { Rouet } from "@/components/attente";
 import {
@@ -86,6 +86,16 @@ export default function FormulaireIdentite({
           aide="Visibles du personnel uniquement, jamais montrées à la cliente."
         >
           <Paragraphe valeur={identite.notes} onChange={(v) => maj("notes", v)} />
+        </Champ>
+
+        <Champ
+          label="Rappels de rendez-vous par WhatsApp"
+          aide="Un message la veille et le matin même. À désactiver si la cliente ne souhaite pas être contactée."
+        >
+          <OuiNon
+            valeur={identite.rappels_whatsapp}
+            onChange={(v) => setIdentite((p) => ({ ...p, rappels_whatsapp: v }))}
+          />
         </Champ>
 
         {erreur && (

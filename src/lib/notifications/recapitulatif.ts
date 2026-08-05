@@ -82,6 +82,49 @@ export function construireRecapitulatif({
   return lignes.join("\n");
 }
 
+export type RappelCliente = {
+  nom_complet: string;
+  telephone: string;
+  heure_rdv: string | null;
+  soin: string | null;
+  date_rdv: string;
+};
+
+/**
+ * Rappel envoyé à la cliente elle-même.
+ *
+ * Court, sans mise en forme superflue : il est lu sur un téléphone, souvent
+ * d'un coup d'œil sur l'écran verrouillé. L'essentiel — jour et heure — doit
+ * tenir dans les deux premières lignes de l'aperçu de notification.
+ */
+export function construireRappelCliente(
+  r: RappelCliente,
+  quand: "aujourdhui" | "demain",
+): string {
+  const heure = r.heure_rdv ? ` à ${r.heure_rdv.slice(0, 5)}` : "";
+  const jour =
+    quand === "aujourdhui"
+      ? "aujourd'hui"
+      : `demain ${new Date(r.date_rdv).toLocaleDateString("fr-FR", {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        })}`;
+
+  // Le prénom seul serait plus chaleureux, mais nom et prénoms ne sont qu'un
+  // champ : impossible de savoir lequel est lequel sans risquer un « Bonjour
+  // Kouassi » à quelqu'un qui s'appelle Kouassi de nom de famille.
+  return [
+    `Bonjour ${r.nom_complet},`,
+    "",
+    `Nous vous rappelons votre rendez-vous *${jour}${heure}*${r.soin ? ` — ${r.soin}` : ""} chez *Chic Africa Beauty*.`,
+    "",
+    "En cas d'empêchement, merci de nous prévenir en répondant à ce message.",
+    "",
+    "À très bientôt 🌸",
+  ].join("\n");
+}
+
 /**
  * Clientes dont le délai recommandé est dépassé de plus d'une semaine.
  *

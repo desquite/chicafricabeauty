@@ -10,6 +10,8 @@ export type Cliente = {
   email: string | null;
   notes: string | null;
   actif: boolean;
+  /** Autorise les rappels de rendez-vous par WhatsApp. */
+  rappels_whatsapp: boolean;
   created_at: string;
 };
 
@@ -101,6 +103,7 @@ export const ETAT_PEAU = [
 ] as const;
 
 export const OBSERVATIONS_PEAU = [
+  { valeur: "acne", libelle: "Acné" },
   { valeur: "cicatrices", libelle: "Cicatrices" },
   { valeur: "taches", libelle: "Taches pigmentaires" },
   { valeur: "pores", libelle: "Pores dilatés" },

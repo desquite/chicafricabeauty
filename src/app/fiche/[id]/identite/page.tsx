@@ -37,6 +37,7 @@ export default async function PageIdentite({
         telephone: cliente.telephone,
         email: cliente.email ?? "",
         notes: cliente.notes ?? "",
+        rappels_whatsapp: cliente.rappels_whatsapp,
       }}
     />
   );
