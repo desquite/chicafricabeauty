@@ -299,9 +299,10 @@ async function traiter(requete: Request) {
       rappelsIgnores += 1;
       continue;
     }
-    // La fonction s'exécute dans un temps borné : au-delà, mieux vaut
-    // s'arrêter proprement et le signaler que d'être coupé en plein envoi.
-    if (rappelsEnvoyes >= 20) {
+    // La fonction s'exécute dans un temps borné, et WasenderAPI impose un
+    // message toutes les 5 secondes. Au-delà de six rappels on s'arrête :
+    // le passage suivant reprendra la suite, le journal évitant les doublons.
+    if (rappelsEnvoyes >= 6) {
       rappelsIgnores += 1;
       continue;
     }
@@ -321,7 +322,10 @@ async function traiter(requete: Request) {
         },
         quand,
       ),
-      2000,
+      // WasenderAPI refuse en 429 sous les 5 secondes : « Account protection
+      // enabled, you can only send 1 message every 5 seconds ». La marge de
+      // 500 ms absorbe la latence variable de l'aller-retour.
+      5500,
     );
     rappelsEnvoyes += 1;
   }
