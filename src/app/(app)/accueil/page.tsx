@@ -11,11 +11,24 @@ export default async function PageAccueil() {
   // `null` = la requête a échoué, typiquement parce que la migration n'a pas
   // encore été appliquée. On l'affiche comme tel plutôt que comme un zéro.
   const supabase = await createClient();
-  const [clientes, seancesDuJour, rdvAVenir] = await Promise.all([
+  const [clientes, rdvDuJour, seancesDuJour, rdvAVenir] = await Promise.all([
     supabase
       .from("clientes")
       .select("*", { count: "exact", head: true })
+      .eq("actif", true)
       .then((r) => (r.error ? null : (r.count ?? 0))),
+    // Rendez-vous attendus aujourd'hui. C'est ce que la gérante regarde en
+    // premier le matin, et c'est ce qui manquait sur cet écran.
+    supabase
+      .from("rendez_vous")
+      .select("*", { count: "exact", head: true })
+      .eq("date_rdv", aujourdhui)
+      .eq("statut", "prevu")
+      .is("remplace_par", null)
+      .is("masque_le", null)
+      .then((r) => (r.error ? null : (r.count ?? 0))),
+    // Séances réellement saisies : un compteur distinct des rendez-vous, qui
+    // dit ce qui a été fait et non ce qui est prévu.
     supabase
       .from("seances")
       .select("*", { count: "exact", head: true })
@@ -24,8 +37,10 @@ export default async function PageAccueil() {
     supabase
       .from("rendez_vous")
       .select("*", { count: "exact", head: true })
-      .gte("date_rdv", aujourdhui)
+      .gt("date_rdv", aujourdhui)
       .eq("statut", "prevu")
+      .is("remplace_par", null)
+      .is("masque_le", null)
       .then((r) => (r.error ? null : (r.count ?? 0))),
   ]);
 
@@ -62,10 +77,26 @@ export default async function PageAccueil() {
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Carte
+          titre="Rendez-vous aujourd'hui"
+          valeur={rdvDuJour}
+          detail="attendus"
+          href={`/rendez-vous?jour=${aujourdhui}`}
+        />
+        <Carte
+          titre="Séances aujourd'hui"
+          valeur={seancesDuJour}
+          detail="déjà saisies"
+          href="/seances"
+        />
         <Carte titre="Clientes" valeur={clientes} href="/clientes" />
-        <Carte titre="Séances aujourd'hui" valeur={seancesDuJour} href="/seances" />
-        <Carte titre="Rendez-vous à venir" valeur={rdvAVenir} href="/rendez-vous" />
+        <Carte
+          titre="Rendez-vous à venir"
+          valeur={rdvAVenir}
+          detail="à partir de demain"
+          href="/rendez-vous?vue=avenir"
+        />
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -87,10 +118,12 @@ export default async function PageAccueil() {
 function Carte({
   titre,
   valeur,
+  detail,
   href,
 }: {
   titre: string;
   valeur: number | null;
+  detail?: string;
   href: string;
 }) {
   return (
@@ -102,6 +135,7 @@ function Carte({
       <p className="mt-2 text-4xl font-semibold text-brand-700">
         {valeur ?? "—"}
       </p>
+      {detail && <p className="mt-1 text-xs text-brand-400">{detail}</p>}
     </Link>
   );
 }

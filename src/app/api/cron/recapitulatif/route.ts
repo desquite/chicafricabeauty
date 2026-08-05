@@ -67,18 +67,42 @@ async function traiter(requete: Request) {
   // d'une base vide et impossible à diagnostiquer à distance.
   const erreurs: string[] = [];
 
+  /**
+   * Rejoue une requête une fois avant d'abandonner.
+   *
+   * Le cron ne passe qu'une fois par jour : une erreur passagère — un
+   * PGRST303 dû à une horloge décalée chez Supabase, déjà constaté — ferait
+   * annoncer « aucun rendez-vous » pendant vingt-quatre heures.
+   */
+  async function avecReessai<T>(
+    lancer: () => PromiseLike<{
+      data: T | null;
+      error: { code?: string; message: string } | null;
+    }>,
+  ) {
+    const premier = await lancer();
+    if (!premier.error) return premier;
+    await new Promise((r) => setTimeout(r, 800));
+    return lancer();
+  }
+
   const [
     { data: rdvs, error: erreurRdv },
     { data: destinataires, error: erreurDest },
     { data: seancesHier, error: erreurSeances },
   ] = await Promise.all([
+    avecReessai(() =>
       supabase
         .from("rendez_vous")
         .select("heure_rdv, statut, clientes(id, nom_complet, telephone), soins_catalogue(libelle)")
         .eq("date_rdv", jour)
         .eq("statut", "prevu")
+        .is("remplace_par", null)
+        .is("masque_le", null)
         .order("heure_rdv", { nullsFirst: false })
         .returns<RdvDuJour[]>(),
+    ),
+    avecReessai(() =>
       supabase
         .from("profiles")
         .select("id, nom, telephone")
@@ -86,12 +110,15 @@ async function traiter(requete: Request) {
         .eq("notifications_whatsapp", true)
         .not("telephone", "is", null)
         .returns<{ id: string; nom: string; telephone: string }[]>(),
+    ),
+    avecReessai(() =>
       supabase
         .from("seances")
         .select("id")
         .eq("date_seance", hier)
         .returns<{ id: string }[]>(),
-    ]);
+    ),
+  ]);
 
   if (erreurRdv) erreurs.push(`rendez_vous : ${erreurRdv.code} ${erreurRdv.message}`);
   if (erreurDest) erreurs.push(`profiles : ${erreurDest.code} ${erreurDest.message}`);
@@ -156,6 +183,7 @@ async function traiter(requete: Request) {
     alertesParCliente,
     aRelancer,
     seancesHier: seancesHier?.length ?? 0,
+    lectureIncertaine: Boolean(erreurRdv),
   });
 
   if (apercu) {

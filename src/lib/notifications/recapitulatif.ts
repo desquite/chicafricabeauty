@@ -29,12 +29,15 @@ export function construireRecapitulatif({
   alertesParCliente,
   aRelancer,
   seancesHier,
+  lectureIncertaine = false,
 }: {
   date: Date;
   rdvs: RdvDuJour[];
   alertesParCliente: Map<string, string[]>;
   aRelancer: ARelancer[];
   seancesHier: number;
+  /** La lecture des rendez-vous a échoué : ne pas affirmer qu'il n'y en a pas. */
+  lectureIncertaine?: boolean;
 }): string {
   const jour = date.toLocaleDateString("fr-FR", {
     weekday: "long",
@@ -44,7 +47,15 @@ export function construireRecapitulatif({
 
   const lignes: string[] = [`*Chic Africa Beauty* — ${jour}`, ""];
 
-  if (rdvs.length === 0) {
+  if (lectureIncertaine) {
+    // Annoncer « aucun rendez-vous » sur une lecture ratée serait pire que de
+    // ne rien dire : la gérante organiserait sa journée sur une information
+    // fausse.
+    lignes.push(
+      "⚠️ La liste des rendez-vous n'a pas pu être lue ce matin.",
+      "Ouvrez l'application pour la consulter.",
+    );
+  } else if (rdvs.length === 0) {
     lignes.push("Aucun rendez-vous prévu aujourd'hui.");
   } else {
     lignes.push(
