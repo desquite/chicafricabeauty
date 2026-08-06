@@ -82,6 +82,22 @@ export default async function PageSeance({
         .maybeSingle<{ accepte: boolean }>(),
     ]);
 
+  // Le rendez-vous de suite est désormais inscrit à l'agenda à l'enregistrement
+  // de la séance. On le retrouve ici pour distinguer, d'un coup d'œil, une
+  // date effectivement posée d'une date restée sans rendez-vous : les séances
+  // saisies avant ce correctif n'en ont pas.
+  const { data: rdvSuite } = seance.prochain_rdv
+    ? await supabase
+        .from("rendez_vous")
+        .select("id, heure_rdv, statut")
+        .eq("cliente_id", seance.cliente_id)
+        .eq("date_rdv", seance.prochain_rdv)
+        .is("remplace_par", null)
+        .is("masque_le", null)
+        .limit(1)
+        .maybeSingle<{ id: string; heure_rdv: string | null; statut: string }>()
+    : { data: null };
+
   const libellesSoins = (soins ?? [])
     .map((s) => s.soins_catalogue?.libelle)
     .filter(Boolean)
@@ -211,7 +227,29 @@ export default async function PageSeance({
         <Ligne t="Délai recommandé" v={lib(DELAIS, seance.delai_recommande)} />
         <Ligne
           t="Prochain rendez-vous"
-          v={seance.prochain_rdv ? dateFr(seance.prochain_rdv) : "—"}
+          large
+          v={
+            !seance.prochain_rdv ? (
+              "—"
+            ) : (
+              <>
+                {dateFr(seance.prochain_rdv)}
+                {rdvSuite?.heure_rdv && ` à ${rdvSuite.heure_rdv.slice(0, 5)}`}
+                {rdvSuite ? (
+                  <Link
+                    href={`/rendez-vous?jour=${seance.prochain_rdv}`}
+                    className="ml-2 text-sm text-brand-500 hover:underline"
+                  >
+                    voir à l&apos;agenda →
+                  </Link>
+                ) : (
+                  <span className="ml-2 text-sm text-brand-400">
+                    pas encore à l&apos;agenda
+                  </span>
+                )}
+              </>
+            )
+          }
         />
       </Bloc>
 
@@ -234,7 +272,15 @@ function Bloc({ titre, children }: { titre: string; children: React.ReactNode })
   );
 }
 
-function Ligne({ t, v, large }: { t: string; v: string; large?: boolean }) {
+function Ligne({
+  t,
+  v,
+  large,
+}: {
+  t: string;
+  v: React.ReactNode;
+  large?: boolean;
+}) {
   return (
     <div className={large ? "sm:col-span-2" : undefined}>
       <dt className="text-sm text-brand-400">{t}</dt>

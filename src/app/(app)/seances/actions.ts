@@ -25,12 +25,18 @@ export type SaisieSeance = {
   produits_conseilles: string;
   delai_recommande: string | null;
   prochain_rdv: string;
+  prochain_rdv_heure: string;
+  /** Rendez-vous que cette séance honore, quand la saisie part de l'agenda. */
+  rdv_id: string | null;
 };
 
 export type Resultat = { ok: true; id: string } | { ok: false; erreur: string };
 
+type Client = Awaited<ReturnType<typeof createClient>>;
+
 const vide = (s: string) => (s.trim() === "" ? null : s.trim());
 const liste = (l: string[]) => (l.length ? l : null);
+const jourFr = (iso: string) => iso.split("-").reverse().join("/");
 
 export async function enregistrerSeance(s: SaisieSeance): Promise<Resultat> {
   const profil = await requireProfil();
@@ -82,8 +88,92 @@ export async function enregistrerSeance(s: SaisieSeance): Promise<Resultat> {
     return { ok: false, erreur: `Soins non enregistrés : ${erreurSoins.message}` };
   }
 
+  // Les deux liens avec l'agenda. Ni l'un ni l'autre ne conditionne la
+  // séance : elle est enregistrée, et une erreur ici ne doit pas la faire
+  // annuler. Chacun est rattrapable à la main depuis les rendez-vous.
+  await honorerRdv(supabase, s, seance.id);
+  await inscrireProchainRdv(supabase, s, profil.id);
+
   revalidatePath("/seances");
   revalidatePath("/accueil");
+  revalidatePath("/rendez-vous");
   revalidatePath(`/clientes/${s.cliente_id}`);
   return { ok: true, id: seance.id };
+}
+
+/**
+ * Bascule en « honoré » le rendez-vous que cette séance vient de réaliser.
+ *
+ * Sans ce rattachement, un rendez-vous restait « prévu » indéfiniment : une
+ * cliente pourtant venue continuait d'apparaître à l'agenda, et rien ne
+ * distinguait plus un rendez-vous honoré d'une absence.
+ *
+ * Le rendez-vous est connu quand la saisie part de l'agenda. Sinon on le
+ * retrouve par la cliente et la date, car la séance est le plus souvent
+ * saisie depuis la fiche de la cliente, sans passer par l'agenda.
+ */
+async function honorerRdv(supabase: Client, s: SaisieSeance, seanceId: string) {
+  let id = s.rdv_id;
+
+  if (!id) {
+    const { data } = await supabase
+      .from("rendez_vous")
+      .select("id")
+      .eq("cliente_id", s.cliente_id)
+      .eq("date_rdv", s.date_seance)
+      .eq("statut", "prevu")
+      .is("seance_id", null)
+      .is("remplace_par", null)
+      .is("masque_le", null)
+      .order("heure_rdv", { nullsFirst: false })
+      .limit(1)
+      .maybeSingle<{ id: string }>();
+    id = data?.id ?? null;
+  }
+
+  if (!id) return;
+
+  await supabase
+    .from("rendez_vous")
+    .update({ statut: "honore", seance_id: seanceId })
+    .eq("id", id);
+}
+
+/**
+ * Inscrit à l'agenda le rendez-vous fixé en fin de séance.
+ *
+ * Cette date ne vivait que sur la séance : elle n'apparaissait sur aucune
+ * journée de l'agenda, ne comptait pas dans les rendez-vous du jour et ne
+ * déclenchait aucun rappel WhatsApp. La cliente repartait avec une date que
+ * l'institut était seul à ne pas voir venir.
+ */
+async function inscrireProchainRdv(
+  supabase: Client,
+  s: SaisieSeance,
+  profilId: string,
+) {
+  const date = vide(s.prochain_rdv);
+  if (!date) return;
+
+  // La gérante a pu poser ce rendez-vous depuis l'agenda avant de saisir la
+  // séance : on ne le double pas. Les rendez-vous masqués ou remplacés ne
+  // comptent pas, ils ne sont plus à l'agenda.
+  const { data: existant } = await supabase
+    .from("rendez_vous")
+    .select("id")
+    .eq("cliente_id", s.cliente_id)
+    .eq("date_rdv", date)
+    .is("remplace_par", null)
+    .is("masque_le", null)
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+  if (existant) return;
+
+  await supabase.from("rendez_vous").insert({
+    cliente_id: s.cliente_id,
+    date_rdv: date,
+    heure_rdv: vide(s.prochain_rdv_heure),
+    notes: `Fixé en fin de séance du ${jourFr(s.date_seance)}`,
+    cree_par: profilId,
+  });
 }

@@ -7,6 +7,7 @@ import {
   ChoixMultiple,
   ChoixUnique,
   DateFr,
+  HeureFr,
   Paragraphe,
   Texte,
 } from "@/components/champs";
@@ -27,12 +28,22 @@ import { enregistrerSeance, type SaisieSeance } from "../actions";
 
 const ETAPES = ["Séance", "Diagnostic", "Soin réalisé", "Observations", "Suite"];
 
+/** Rendez-vous d'où part la saisie, quand elle vient de l'agenda. */
+export type RdvOrigine = {
+  id: string;
+  date_rdv: string;
+  heure_rdv: string | null;
+  /** Déjà filtré par la page : un soin retiré du catalogue n'est pas repris. */
+  soin_id: string | null;
+};
+
 export default function ParcoursSeance({
   clientes,
   soins,
   clienteInitiale,
   alertesCliente,
   avecSeance,
+  rdvOrigine,
 }: {
   clientes: Pick<Cliente, "id" | "nom_complet" | "telephone">[];
   soins: SoinCatalogue[];
@@ -40,6 +51,7 @@ export default function ParcoursSeance({
   alertesCliente: string[];
   /** Clientes ayant déjà au moins une séance enregistrée. */
   avecSeance: string[];
+  rdvOrigine: RdvOrigine | null;
 }) {
   const dejaVenue = new Set(avecSeance);
   const router = useRouter();
@@ -50,13 +62,16 @@ export default function ParcoursSeance({
 
   const [s, setS] = useState<SaisieSeance>({
     cliente_id: clienteInitiale ?? "",
-    date_seance: new Date().toISOString().slice(0, 10),
+    // La séance porte la date du rendez-vous qu'elle honore, pas celle de la
+    // saisie : une séance de la veille rattrapée le lendemain reste datée du
+    // jour où la cliente est venue.
+    date_seance: rdvOrigine?.date_rdv ?? new Date().toISOString().slice(0, 10),
     type_venue:
       clienteInitiale && !dejaVenue.has(clienteInitiale) ? "premiere_seance" : "suivi",
     type_peau: null,
     etat_peau: null,
     observations_peau: [],
-    soins: [],
+    soins: rdvOrigine?.soin_id ? [rdvOrigine.soin_id] : [],
     zones: [],
     produits_utilises: "",
     appareil: "",
@@ -70,6 +85,8 @@ export default function ParcoursSeance({
     produits_conseilles: "",
     delai_recommande: null,
     prochain_rdv: "",
+    prochain_rdv_heure: "",
+    rdv_id: rdvOrigine?.id ?? null,
   });
 
   const maj = <K extends keyof SaisieSeance>(cle: K, v: SaisieSeance[K]) =>
@@ -86,6 +103,9 @@ export default function ParcoursSeance({
       cliente_id: id,
       type_venue: dejaVenue.has(id) ? "suivi" : "premiere_seance",
       evolution: dejaVenue.has(id) ? p.evolution : "premiere_seance",
+      // Changer de cliente détache la séance du rendez-vous de départ : il ne
+      // serait plus le sien, et passerait en honoré à tort.
+      rdv_id: id === clienteInitiale ? (rdvOrigine?.id ?? null) : null,
     }));
 
   const connue = s.cliente_id !== "" && dejaVenue.has(s.cliente_id);
@@ -144,6 +164,15 @@ export default function ParcoursSeance({
 
       {etape === 0 && (
         <>
+          {s.rdv_id && rdvOrigine && (
+            <p className="mb-6 rounded-xl bg-or-400/10 px-4 py-3 text-sm text-brand-700">
+              Séance du rendez-vous de{" "}
+              {rdvOrigine.date_rdv.split("-").reverse().join("/")}
+              {rdvOrigine.heure_rdv && ` à ${rdvOrigine.heure_rdv.slice(0, 5)}`}.
+              Il passera en « honoré » dès l&apos;enregistrement.
+            </p>
+          )}
+
           {!clienteInitiale && (
             <Champ label="Cliente" requis>
               <div className="mb-3">
@@ -324,8 +353,17 @@ export default function ParcoursSeance({
               onChange={(v) => maj("delai_recommande", v)}
             />
           </Champ>
-          <Champ label="Date du prochain rendez-vous">
-            <DateFr valeur={s.prochain_rdv} onChange={(v) => maj("prochain_rdv", v)} />
+          <Champ
+            label="Prochain rendez-vous"
+            aide="Inscrit automatiquement à l'agenda, avec rappel WhatsApp la veille"
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <DateFr valeur={s.prochain_rdv} onChange={(v) => maj("prochain_rdv", v)} />
+              <HeureFr
+                valeur={s.prochain_rdv_heure}
+                onChange={(v) => maj("prochain_rdv_heure", v)}
+              />
+            </div>
           </Champ>
         </>
       )}

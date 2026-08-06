@@ -335,7 +335,7 @@ export default function Agenda({
                 })}
                 {r.clientes && r.statut === "prevu" && (
                   <Link
-                    href={`/seances/nouvelle?cliente=${r.clientes.id}`}
+                    href={`/seances/nouvelle?cliente=${r.clientes.id}&rdv=${r.id}`}
                     className="flex h-11 items-center rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white hover:bg-brand-700"
                   >
                     Saisir la séance
