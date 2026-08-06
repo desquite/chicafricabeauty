@@ -14,7 +14,7 @@ import {
   type Cliente,
   type Seance,
 } from "@/lib/types";
-import { etiquetteRemise, REMISE_CHOIX } from "@/lib/fidelite";
+import { etiquetteRemise, phraseRemise } from "@/lib/fidelite";
 import Photos, { type PhotoAffichee } from "./photos";
 
 const dateFr = (iso: string | null) =>
@@ -200,9 +200,7 @@ export default async function PageSeance({
             🎁 {etiquetteRemise(seance.remise_palier)}
           </h2>
           <p className="mt-1 text-brand-700">
-            {seance.remise_fidelite
-              ? lib(REMISE_CHOIX, seance.remise_fidelite)
-              : "Choix non renseigné."}
+            {phraseRemise(seance.remise_fidelite)}
           </p>
         </section>
       )}

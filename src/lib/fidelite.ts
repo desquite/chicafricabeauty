@@ -38,3 +38,19 @@ export type ChoixRemise = (typeof REMISE_CHOIX)[number]["valeur"];
  */
 export const etiquetteRemise = (rang: number) =>
   `${rang}e séance — remise ${REMISE_POURCENT} %`;
+
+/**
+ * Ce qui est consigné sur une séance passée.
+ *
+ * Distinct des libellés de REMISE_CHOIX, qui répondent à une question posée
+ * pendant la saisie : relu six mois plus tard, « Sur un soin » ne dit pas si
+ * la remise a été accordée ou si le choix restait à faire.
+ */
+export const phraseRemise = (choix: ChoixRemise | null) => {
+  if (choix === "soin") return `Remise de ${REMISE_POURCENT} % accordée sur un soin.`;
+  if (choix === "produit")
+    return `Remise de ${REMISE_POURCENT} % accordée sur un produit.`;
+  if (choix === "non_utilisee")
+    return "Remise non utilisée ce jour-là. Elle n'est pas reportée.";
+  return "Choix non renseigné.";
+};

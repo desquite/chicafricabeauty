@@ -3,6 +3,7 @@ import { requireProfil } from "@/lib/auth";
 import { BoutonExport } from "@/components/bouton-export";
 import { createClient } from "@/lib/supabase/server";
 import { EVOLUTION, type Cliente, type Seance } from "@/lib/types";
+import { REMISE_POURCENT } from "@/lib/fidelite";
 
 export const metadata = { title: "Séances — Chic Africa Beauty Online" };
 
@@ -97,11 +98,18 @@ function Groupe({
                       ` · ${EVOLUTION.find((e) => e.valeur === s.evolution)?.libelle}`}
                   </span>
                 </span>
-                {s.incident && (
-                  <span className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
-                    Incident
-                  </span>
-                )}
+                <span className="flex shrink-0 gap-2">
+                  {s.remise_palier && (
+                    <span className="rounded-full bg-or-400/20 px-3 py-1 text-sm font-medium text-brand-700">
+                      🎁 {s.remise_palier}e — {REMISE_POURCENT} %
+                    </span>
+                  )}
+                  {s.incident && (
+                    <span className="rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
+                      Incident
+                    </span>
+                  )}
+                </span>
               </Link>
             </li>
           ))}
