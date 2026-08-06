@@ -171,9 +171,10 @@ function Lot({
 function Vignette({ photo, seanceId }: { photo: PhotoAffichee; seanceId: string }) {
   const router = useRouter();
   const [enCours, demarrer] = useTransition();
+  const [erreur, setErreur] = useState<string | null>(null);
 
   return (
-    <figure className="group relative overflow-hidden rounded-xl border border-brand-100">
+    <figure className="relative overflow-hidden rounded-xl border border-brand-100">
       {/* Pas de next/image : les URL signées expirent et changent à chaque
           rendu, l'optimiseur ne peut rien en mettre en cache. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -182,19 +183,22 @@ function Vignette({ photo, seanceId }: { photo: PhotoAffichee; seanceId: string 
         alt={`Photo ${photo.moment} le ${new Date(photo.prise_le).toLocaleDateString("fr-FR")}`}
         className="aspect-square w-full object-cover"
       />
+      {/* Toujours visible : l'affichage au survol rendait ce bouton
+          inaccessible sur la tablette de l'institut, où aucun survol ne se
+          produit jamais. La confirmation reste le garde-fou. */}
       <button
         type="button"
         disabled={enCours}
         onClick={() => {
-          if (!confirm("Supprimer cette photo ?")) return;
+          if (!confirm("Supprimer définitivement cette photo ?")) return;
+          setErreur(null);
           demarrer(async () => {
-            await supprimerPhoto(seanceId, photo.id);
+            const r = await supprimerPhoto(seanceId, photo.id);
+            if (!r.ok) return setErreur(r.erreur ?? "Suppression impossible.");
             router.refresh();
           });
         }}
-        className={`absolute top-2 right-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-brand-700 transition-opacity focus:opacity-100 ${
-          enCours ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-        }`}
+        className="absolute top-2 right-2 flex h-11 w-11 items-center justify-center rounded-full bg-white/95 text-red-700 shadow-sm hover:bg-white disabled:opacity-60"
         aria-label="Supprimer cette photo"
       >
         {enCours ? (
@@ -205,6 +209,15 @@ function Vignette({ photo, seanceId }: { photo: PhotoAffichee; seanceId: string 
           </svg>
         )}
       </button>
+
+      {erreur && (
+        <figcaption
+          role="alert"
+          className="absolute inset-x-0 bottom-0 bg-red-50/95 px-2 py-1 text-center text-xs text-red-700"
+        >
+          {erreur}
+        </figcaption>
+      )}
     </figure>
   );
 }
