@@ -75,11 +75,18 @@ export function VueAvenir({
                       .join(" · ")}
                   </span>
                 </span>
-                {r.alertes > 0 && (
-                  <span className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
-                    {r.alertes} alerte{r.alertes > 1 ? "s" : ""}
-                  </span>
-                )}
+                <span className="flex shrink-0 gap-2">
+                  {r.remise && (
+                    <span className="rounded-full bg-or-400/20 px-3 py-1 text-sm font-medium text-brand-700">
+                      🎁 {r.remise}e
+                    </span>
+                  )}
+                  {r.alertes > 0 && (
+                    <span className="rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
+                      {r.alertes} alerte{r.alertes > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </span>
               </li>
             ))}
           </ul>

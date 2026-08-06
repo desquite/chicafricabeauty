@@ -1,6 +1,7 @@
 import { requireProfil } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { alertes, type Anamnese, type Cliente, type SoinCatalogue } from "@/lib/types";
+import { ouvreDroit, rangSeance } from "@/lib/fidelite";
 import Agenda, { type RdvAffiche } from "./agenda";
 import { NavigationJour, NavigationMois } from "./navigation";
 import { VueMois, type JourDuMois } from "./vue-mois";
@@ -80,13 +81,34 @@ export default async function PageRendezVous({
   const ids = [
     ...new Set((rdvs ?? []).map((r) => r.clientes?.id).filter((v): v is string => Boolean(v))),
   ];
-  const { data: bilans } = ids.length
-    ? await supabase
-        .from("anamneses_courantes")
-        .select("*")
-        .in("cliente_id", ids)
-        .returns<Anamnese[]>()
-    : { data: [] as Anamnese[] };
+  const [{ data: bilans }, { data: venues }] = ids.length
+    ? await Promise.all([
+        supabase
+          .from("anamneses_courantes")
+          .select("*")
+          .in("cliente_id", ids)
+          .returns<Anamnese[]>(),
+        // Séances déjà faites par ces clientes : la venue à venir est-elle
+        // une 5e, une 10e ? La gérante doit le savoir avant l'arrivée.
+        supabase
+          .from("seances")
+          .select("cliente_id")
+          .in("cliente_id", ids)
+          .returns<{ cliente_id: string }[]>(),
+      ])
+    : [{ data: [] as Anamnese[] }, { data: [] as { cliente_id: string }[] }];
+
+  const seancesParCliente = new Map<string, number>();
+  for (const v of venues ?? []) {
+    seancesParCliente.set(v.cliente_id, (seancesParCliente.get(v.cliente_id) ?? 0) + 1);
+  }
+
+  /** Rang de la venue si elle ouvre droit à la remise, sinon null. */
+  const remiseDe = (clienteId?: string) => {
+    if (!clienteId) return null;
+    const rang = rangSeance(seancesParCliente.get(clienteId) ?? 0);
+    return ouvreDroit(rang) ? rang : null;
+  };
 
   const nbAlertes = (clienteId?: string) =>
     clienteId
@@ -96,6 +118,7 @@ export default async function PageRendezVous({
   const enrichis: RdvAffiche[] = (rdvs ?? []).map((r) => ({
     ...r,
     alertes: nbAlertes(r.clientes?.id),
+    remise: remiseDe(r.clientes?.id),
   }));
 
   // Compteurs par jour pour la grille mensuelle. Les annulés sont comptés à

@@ -54,6 +54,14 @@ export default async function PageNouvelleSeance({
 
   const avecSeance = [...new Set((dejaVenues ?? []).map((s) => s.cliente_id))];
 
+  // Nombre de séances déjà enregistrées par cliente : c'est lui qui dit si la
+  // séance en cours est une 5e, une 10e… et ouvre droit à la remise fidélité.
+  // La même lecture sert aux deux, elle n'est pas refaite.
+  const seancesParCliente: Record<string, number> = {};
+  for (const s of dejaVenues ?? []) {
+    seancesParCliente[s.cliente_id] = (seancesParCliente[s.cliente_id] ?? 0) + 1;
+  }
+
   // Un rendez-vous déjà rattaché à une séance n'est pas repris : ce serait
   // une seconde séance pour une seule venue. Un soin retiré du catalogue non
   // plus, il ne serait pas visible dans la liste des soins réalisés.
@@ -87,6 +95,7 @@ export default async function PageNouvelleSeance({
       clienteInitiale={cliente ?? null}
       alertesCliente={alertesCliente}
       avecSeance={avecSeance}
+      seancesParCliente={seancesParCliente}
       rdvOrigine={rdvOrigine}
     />
   );

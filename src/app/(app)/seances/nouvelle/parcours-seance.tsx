@@ -24,6 +24,13 @@ import {
   type SoinCatalogue,
 } from "@/lib/types";
 import { Rouet } from "@/components/attente";
+import {
+  etiquetteRemise,
+  ouvreDroit,
+  rangSeance,
+  REMISE_CHOIX,
+  REMISE_POURCENT,
+} from "@/lib/fidelite";
 import { enregistrerSeance, type SaisieSeance } from "../actions";
 
 const ETAPES = ["Séance", "Diagnostic", "Soin réalisé", "Observations", "Suite"];
@@ -43,6 +50,7 @@ export default function ParcoursSeance({
   clienteInitiale,
   alertesCliente,
   avecSeance,
+  seancesParCliente,
   rdvOrigine,
 }: {
   clientes: Pick<Cliente, "id" | "nom_complet" | "telephone">[];
@@ -51,6 +59,8 @@ export default function ParcoursSeance({
   alertesCliente: string[];
   /** Clientes ayant déjà au moins une séance enregistrée. */
   avecSeance: string[];
+  /** Séances déjà enregistrées par cliente, pour le compteur de fidélité. */
+  seancesParCliente: Record<string, number>;
   rdvOrigine: RdvOrigine | null;
 }) {
   const dejaVenue = new Set(avecSeance);
@@ -87,7 +97,13 @@ export default function ParcoursSeance({
     prochain_rdv: "",
     prochain_rdv_heure: "",
     rdv_id: rdvOrigine?.id ?? null,
+    remise_fidelite: null,
   });
+
+  // Rang de la séance en cours pour la cliente choisie. Le serveur le
+  // recomptera à l'enregistrement : ici, il ne sert qu'à afficher.
+  const rang = rangSeance(seancesParCliente[s.cliente_id] ?? 0);
+  const remise = s.cliente_id !== "" && ouvreDroit(rang);
 
   const maj = <K extends keyof SaisieSeance>(cle: K, v: SaisieSeance[K]) =>
     setS((p) => ({ ...p, [cle]: v }));
@@ -121,7 +137,7 @@ export default function ParcoursSeance({
     true,
     s.soins.length > 0 && s.produits_utilises.trim() !== "",
     s.reactions.length > 0 && s.evolution !== null && s.observations.trim() !== "",
-    s.conseils.trim() !== "",
+    s.conseils.trim() !== "" && (!remise || s.remise_fidelite !== null),
   ][etape];
 
   const visibles = clientes.filter((c) =>
@@ -159,6 +175,19 @@ export default function ParcoursSeance({
               <li key={a}>• {a}</li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Signalée elle aussi à chaque étape : la remise se décide au moment de
+          payer, et il serait fâcheux de s'en souvenir après le départ de la
+          cliente. */}
+      {remise && (
+        <div className="mb-6 rounded-2xl border-2 border-or-400 bg-or-400/10 p-4">
+          <p className="font-semibold text-brand-800">🎁 {etiquetteRemise(rang)}</p>
+          <p className="mt-1 text-sm text-brand-700">
+            Sur un soin ou sur un produit, au choix de la cliente. À indiquer à
+            la dernière étape.
+          </p>
         </div>
       )}
 
@@ -334,6 +363,20 @@ export default function ParcoursSeance({
 
       {etape === 4 && (
         <>
+          {remise && (
+            <Champ
+              label={`Remise fidélité ${REMISE_POURCENT} % — ${rang}e séance`}
+              aide="Ce que la cliente en a fait. Non utilisée, elle est perdue : le compteur repart."
+              requis
+            >
+              <ChoixUnique
+                options={REMISE_CHOIX}
+                valeur={s.remise_fidelite}
+                onChange={(v) => maj("remise_fidelite", v)}
+              />
+            </Champ>
+          )}
+
           <Champ label="Conseils donnés à la cliente" aide="Routine à domicile, gestes à éviter" requis>
             <Paragraphe valeur={s.conseils} onChange={(v) => maj("conseils", v)} />
           </Champ>

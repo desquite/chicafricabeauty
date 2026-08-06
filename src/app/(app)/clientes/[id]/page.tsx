@@ -15,6 +15,13 @@ import {
   type Consentement,
   type Seance,
 } from "@/lib/types";
+import {
+  etiquetteRemise,
+  ouvreDroit,
+  PAS_FIDELITE,
+  rangSeance,
+  REMISE_POURCENT,
+} from "@/lib/fidelite";
 
 const dateFr = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString("fr-FR") : "—";
@@ -64,6 +71,12 @@ export default async function PageFicheCliente({
     ]);
 
   const listeAlertes = alertes(bilan ?? null);
+  // Fidélité : rang de la prochaine venue, et nombre de séances restant avant
+  // la remise suivante. Annoncé même quand elle n'est pas encore due — c'est
+  // ce qui donne envie de revenir.
+  const rangProchaine = rangSeance(seances?.length ?? 0);
+  const remiseDue = ouvreDroit(rangProchaine);
+  const avantRemise = PAS_FIDELITE - ((rangProchaine - 1) % PAS_FIDELITE);
   const dernier = (nature: "soin" | "photo") =>
     (consentements ?? []).find((c) => c.nature === nature) ?? null;
   const photo = dernier("photo");
@@ -124,6 +137,18 @@ export default async function PageFicheCliente({
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {remiseDue && (
+        <section className="mb-6 rounded-2xl border-2 border-or-400 bg-or-400/10 p-5">
+          <h2 className="font-semibold text-brand-800">
+            🎁 Prochaine venue : {etiquetteRemise(rangProchaine)}
+          </h2>
+          <p className="mt-1 text-brand-700">
+            {REMISE_POURCENT} % sur un soin ou sur un produit, au choix de la
+            cliente. À indiquer pendant la saisie de la séance.
+          </p>
         </section>
       )}
 
@@ -219,6 +244,8 @@ export default async function PageFicheCliente({
           <h2 className="text-xl font-semibold text-brand-800">Historique des séances</h2>
           <span className="text-sm text-brand-400">
             {seances?.length ?? 0} séance{(seances?.length ?? 0) > 1 ? "s" : ""}
+            {!remiseDue &&
+              ` · remise dans ${avantRemise} séance${avantRemise > 1 ? "s" : ""}`}
           </span>
         </div>
 
@@ -241,11 +268,18 @@ export default async function PageFicheCliente({
                       {s.etat_peau && ` · ${libelle(ETAT_PEAU, s.etat_peau)}`}
                     </span>
                   </span>
-                  {s.incident && (
-                    <span className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
-                      Incident
-                    </span>
-                  )}
+                  <span className="flex shrink-0 gap-2">
+                    {s.remise_palier && (
+                      <span className="rounded-full bg-or-400/20 px-3 py-1 text-xs font-medium text-brand-700">
+                        🎁 {s.remise_palier}e
+                      </span>
+                    )}
+                    {s.incident && (
+                      <span className="rounded-full bg-red-50 px-3 py-1 text-xs font-medium text-red-700">
+                        Incident
+                      </span>
+                    )}
+                  </span>
                 </Link>
               </li>
             ))}

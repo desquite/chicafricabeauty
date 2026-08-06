@@ -20,6 +20,7 @@ import {
   type Cliente,
   type Seance,
 } from "@/lib/types";
+import { REMISE_CHOIX } from "@/lib/fidelite";
 
 export const dynamic = "force-dynamic";
 
@@ -80,6 +81,10 @@ export async function GET() {
       { entete: "Produits conseillés", largeur: 40, valeur: (s) => s.produits_conseilles },
       { entete: "Délai recommandé", largeur: 18, valeur: (s) => libelle(DELAIS, s.delai_recommande) },
       { entete: "Prochain RDV", valeur: (s) => dateFr(s.prochain_rdv) },
+      { entete: "Remise fidélité", largeur: 18, valeur: (s) =>
+        s.remise_palier ? `${s.remise_palier}e séance` : "" },
+      { entete: "Remise utilisée", largeur: 18, valeur: (s) =>
+        libelle(REMISE_CHOIX, s.remise_fidelite) },
     ],
     seances ?? [],
   );

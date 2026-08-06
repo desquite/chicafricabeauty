@@ -1,5 +1,6 @@
 import "server-only";
 import { JOURS_PAR_DELAI } from "@/lib/types";
+import { REMISE_POURCENT } from "@/lib/fidelite";
 
 export type RdvDuJour = {
   heure_rdv: string | null;
@@ -27,6 +28,7 @@ export function construireRecapitulatif({
   date,
   rdvs,
   alertesParCliente,
+  remisesParCliente,
   aRelancer,
   seancesHier,
   lectureIncertaine = false,
@@ -34,6 +36,8 @@ export function construireRecapitulatif({
   date: Date;
   rdvs: RdvDuJour[];
   alertesParCliente: Map<string, string[]>;
+  /** Rang de la venue des clientes qui ouvrent droit à la remise fidélité. */
+  remisesParCliente: Map<string, number>;
   aRelancer: ARelancer[];
   seancesHier: number;
   /** La lecture des rendez-vous a échoué : ne pas affirmer qu'il n'y en a pas. */
@@ -65,11 +69,18 @@ export function construireRecapitulatif({
         const soin = r.soins_catalogue ? ` — ${r.soins_catalogue.libelle}` : "";
         const nb = r.clientes ? (alertesParCliente.get(r.clientes.id)?.length ?? 0) : 0;
         const marque = nb > 0 ? ` ⚠️ ${nb}` : "";
-        return `• ${heure(r.heure_rdv)} ${cliente}${soin}${marque}`;
+        const rang = r.clientes ? remisesParCliente.get(r.clientes.id) : undefined;
+        const fidelite = rang ? ` 🎁 ${rang}e — ${REMISE_POURCENT} %` : "";
+        return `• ${heure(r.heure_rdv)} ${cliente}${soin}${marque}${fidelite}`;
       }),
     );
     if ([...alertesParCliente.values()].some((a) => a.length > 0)) {
       lignes.push("", "⚠️ = contre-indications à vérifier sur la fiche.");
+    }
+    if (rdvs.some((r) => r.clientes && remisesParCliente.has(r.clientes.id))) {
+      lignes.push(
+        `🎁 = remise fidélité ${REMISE_POURCENT} %, sur un soin ou un produit au choix.`,
+      );
     }
   }
 
@@ -99,6 +110,8 @@ export type RappelCliente = {
   heure_rdv: string | null;
   soin: string | null;
   date_rdv: string;
+  /** Rang de cette venue si elle ouvre droit à la remise fidélité. */
+  rangRemise: number | null;
 };
 
 /**
@@ -129,6 +142,15 @@ export function construireRappelCliente(
     `Bonjour ${r.nom_complet},`,
     "",
     `Nous vous rappelons votre rendez-vous *${jour}${heure}*${r.soin ? ` — ${r.soin}` : ""} chez *Chic Africa Beauty*.`,
+    // La remise s'annonce, elle ne se choisit pas ici : le choix se fait sur
+    // place, au moment de payer, et une réponse à ce message n'est lue par
+    // personne.
+    ...(r.rangRemise
+      ? [
+          "",
+          `🎁 C'est votre *${r.rangRemise}e séance* : vous bénéficiez de *${REMISE_POURCENT} % de remise*, sur un soin ou sur un produit, à choisir sur place.`,
+        ]
+      : []),
     "",
     "En cas d'empêchement, merci de nous prévenir en répondant à ce message.",
     "",

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfil } from "@/lib/auth";
+import { ouvreDroit, rangSeance, type ChoixRemise } from "@/lib/fidelite";
 
 export type SaisieSeance = {
   cliente_id: string;
@@ -28,6 +29,8 @@ export type SaisieSeance = {
   prochain_rdv_heure: string;
   /** Rendez-vous que cette séance honore, quand la saisie part de l'agenda. */
   rdv_id: string | null;
+  /** Ce que la cliente a fait de sa remise, si cette séance y ouvre droit. */
+  remise_fidelite: ChoixRemise | null;
 };
 
 export type Resultat = { ok: true; id: string } | { ok: false; erreur: string };
@@ -45,6 +48,18 @@ export async function enregistrerSeance(s: SaisieSeance): Promise<Resultat> {
   if (!s.cliente_id) return { ok: false, erreur: "Aucune cliente sélectionnée." };
   if (s.soins.length === 0)
     return { ok: false, erreur: "Indiquez au moins un soin réalisé." };
+
+  // Le rang est recompté ici, jamais repris du navigateur : deux tablettes
+  // ouvertes en même temps sur la même cliente offriraient sinon deux fois la
+  // remise. Il est ensuite figé sur la séance, pour qu'une venue supprimée
+  // plus tard ne décale pas les remises déjà accordées.
+  const { count } = await supabase
+    .from("seances")
+    .select("id", { count: "exact", head: true })
+    .eq("cliente_id", s.cliente_id);
+
+  const rang = rangSeance(count ?? 0);
+  const remise = ouvreDroit(rang);
 
   const { data: seance, error } = await supabase
     .from("seances")
@@ -69,6 +84,8 @@ export async function enregistrerSeance(s: SaisieSeance): Promise<Resultat> {
       produits_conseilles: vide(s.produits_conseilles),
       delai_recommande: s.delai_recommande,
       prochain_rdv: vide(s.prochain_rdv),
+      remise_palier: remise ? rang : null,
+      remise_fidelite: remise ? s.remise_fidelite : null,
       cloturee: true,
     })
     .select("id")

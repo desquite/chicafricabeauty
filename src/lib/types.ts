@@ -84,6 +84,9 @@ export type Seance = {
   produits_conseilles: string | null;
   delai_recommande: string | null;
   prochain_rdv: string | null;
+  /** Rang de la séance quand elle ouvre droit à la remise fidélité : 5, 10… */
+  remise_palier: number | null;
+  remise_fidelite: "soin" | "produit" | "non_utilisee" | null;
   cloturee: boolean;
   created_at: string;
 };

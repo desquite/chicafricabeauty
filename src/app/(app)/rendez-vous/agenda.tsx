@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Champ, DateFr, HeureFr, Paragraphe, Texte } from "@/components/champs";
 import { Rouet } from "@/components/attente";
 import type { Cliente, SoinCatalogue } from "@/lib/types";
+import { REMISE_POURCENT } from "@/lib/fidelite";
 import { changerStatut, enregistrerRdv, masquerRdv } from "./actions";
 
 /** Durée de l'effacement, à garder alignée sur la transition CSS ci-dessous. */
@@ -22,6 +23,8 @@ export type RdvAffiche = {
   clientes: Pick<Cliente, "id" | "nom_complet" | "telephone"> | null;
   soins_catalogue: { libelle: string } | null;
   alertes: number;
+  /** Rang de la venue quand elle ouvre droit à la remise fidélité, sinon null. */
+  remise: number | null;
 };
 
 const STATUTS = [
@@ -298,11 +301,18 @@ export default function Agenda({
                   </p>
                   {r.notes && <p className="mt-1 text-sm text-brand-700">{r.notes}</p>}
                 </div>
-                {r.alertes > 0 && (
-                  <span className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
-                    {r.alertes} alerte{r.alertes > 1 ? "s" : ""}
-                  </span>
-                )}
+                <span className="flex shrink-0 gap-2">
+                  {r.remise && (
+                    <span className="rounded-full bg-or-400/20 px-3 py-1 text-sm font-medium text-brand-700">
+                      🎁 {r.remise}e séance — {REMISE_POURCENT} %
+                    </span>
+                  )}
+                  {r.alertes > 0 && (
+                    <span className="rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
+                      {r.alertes} alerte{r.alertes > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </span>
               </div>
 
               <div className="flex flex-wrap gap-2">

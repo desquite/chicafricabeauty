@@ -8,6 +8,7 @@ import {
   type RdvDuJour,
 } from "@/lib/notifications/recapitulatif";
 import { alertes, type Anamnese } from "@/lib/types";
+import { ouvreDroit, rangSeance } from "@/lib/fidelite";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -86,6 +87,32 @@ async function traiter(requete: Request) {
     return lancer();
   }
 
+  /**
+   * Rang de la venue à venir pour les clientes qui ouvrent droit à la remise
+   * fidélité, en une seule lecture pour tout le lot. Les autres sont absentes
+   * de la table : `has` suffit à décider s'il faut en parler.
+   */
+  async function remisesDues(ids: string[]) {
+    const dues = new Map<string, number>();
+    if (ids.length === 0) return dues;
+
+    const { data } = await supabase
+      .from("seances")
+      .select("cliente_id")
+      .in("cliente_id", ids)
+      .returns<{ cliente_id: string }[]>();
+
+    const compte = new Map<string, number>();
+    for (const s of data ?? []) {
+      compte.set(s.cliente_id, (compte.get(s.cliente_id) ?? 0) + 1);
+    }
+    for (const id of new Set(ids)) {
+      const rang = rangSeance(compte.get(id) ?? 0);
+      if (ouvreDroit(rang)) dues.set(id, rang);
+    }
+    return dues;
+  }
+
   const [
     { data: rdvs, error: erreurRdv },
     { data: destinataires, error: erreurDest },
@@ -149,6 +176,8 @@ async function traiter(requete: Request) {
     }
   }
 
+  const remisesParCliente = await remisesDues(idsClientes);
+
   // Relances : dernière séance de chaque cliente, hors celles déjà attendues.
   const { data: dernieres } = await supabase
     .from("seances")
@@ -181,6 +210,7 @@ async function traiter(requete: Request) {
     date: maintenant,
     rdvs: rdvs ?? [],
     alertesParCliente,
+    remisesParCliente,
     aRelancer,
     seancesHier: seancesHier?.length ?? 0,
     lectureIncertaine: Boolean(erreurRdv),
@@ -271,7 +301,7 @@ async function traiter(requete: Request) {
 
   const { data: aRappeler } = await supabase
     .from("rendez_vous")
-    .select("date_rdv, heure_rdv, clientes(nom_complet, telephone, rappels_whatsapp), soins_catalogue(libelle)")
+    .select("date_rdv, heure_rdv, clientes(id, nom_complet, telephone, rappels_whatsapp), soins_catalogue(libelle)")
     .in("date_rdv", [jour, demain])
     .eq("statut", "prevu")
     .is("remplace_par", null)
@@ -283,6 +313,7 @@ async function traiter(requete: Request) {
         date_rdv: string;
         heure_rdv: string | null;
         clientes: {
+          id: string;
           nom_complet: string;
           telephone: string;
           rappels_whatsapp: boolean;
@@ -290,6 +321,14 @@ async function traiter(requete: Request) {
         soins_catalogue: { libelle: string } | null;
       }[]
     >();
+
+  // Les clientes rappelées ne sont pas les mêmes que celles du récapitulatif :
+  // celui-ci ne parle que d'aujourd'hui, les rappels couvrent aussi demain.
+  const remisesRappels = await remisesDues(
+    (aRappeler ?? [])
+      .map((r) => r.clientes?.id)
+      .filter((v): v is string => Boolean(v)),
+  );
 
   let rappelsEnvoyes = 0;
   let rappelsIgnores = 0;
@@ -319,6 +358,7 @@ async function traiter(requete: Request) {
           heure_rdv: r.heure_rdv,
           soin: r.soins_catalogue?.libelle ?? null,
           date_rdv: r.date_rdv,
+          rangRemise: remisesRappels.get(r.clientes.id) ?? null,
         },
         quand,
       ),
