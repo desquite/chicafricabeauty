@@ -16,6 +16,13 @@ export type ARelancer = {
 
 const heure = (h: string | null) => (h ? h.slice(0, 5) : "heure à définir");
 
+/** « lundi 10 août ». Partagée par le texte libre et par le modèle. */
+const dateEnToutesLettres = (d: Date) =>
+  d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+
+/** Longueur au-delà de laquelle la liste des rendez-vous est écourtée. */
+const LONGUEUR_MAX_LISTE = 700;
+
 /**
  * Construit le message envoyé aux gérantes.
  *
@@ -43,13 +50,10 @@ export function construireRecapitulatif({
   /** La lecture des rendez-vous a échoué : ne pas affirmer qu'il n'y en a pas. */
   lectureIncertaine?: boolean;
 }): string {
-  const jour = date.toLocaleDateString("fr-FR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-
-  const lignes: string[] = [`*Chic Africa Beauty* — ${jour}`, ""];
+  const lignes: string[] = [
+    `*Chic Africa Beauty* — ${dateEnToutesLettres(date)}`,
+    "",
+  ];
 
   if (lectureIncertaine) {
     // Annoncer « aucun rendez-vous » sur une lecture ratée serait pire que de
@@ -102,6 +106,98 @@ export function construireRecapitulatif({
   }
 
   return lignes.join("\n");
+}
+
+/**
+ * Les quatre variables du modèle `recapitulatif_gerante`.
+ *
+ * Trois règles de Meta commandent cette forme, et aucune n'est négociable :
+ * une variable ne peut contenir **ni retour à la ligne** ni tabulation, elle
+ * ne peut **jamais être vide**, et leur nombre est **figé** par le modèle
+ * approuvé. La liste des rendez-vous tient donc sur une seule ligne, les
+ * rendez-vous séparés par des points médians, et chaque variable a une
+ * formulation de repli quand il n'y a rien à dire.
+ */
+export function partiesRecapitulatif({
+  nomGerante,
+  date,
+  rdvs,
+  alertesParCliente,
+  remisesParCliente,
+  aRelancer,
+  seancesHier,
+  lectureIncertaine = false,
+}: {
+  /** `profiles.nom`, dont seul le premier mot est repris. */
+  nomGerante: string;
+  date: Date;
+  rdvs: RdvDuJour[];
+  alertesParCliente: Map<string, string[]>;
+  remisesParCliente: Map<string, number>;
+  aRelancer: ARelancer[];
+  seancesHier: number;
+  lectureIncertaine?: boolean;
+}): { nom: string; date: string; rendezVous: string; aSignaler: string } {
+  // Le personnel est saisi par la gérante elle-même, en « Prénom NOM », et
+  // tient en deux lignes : le premier mot est le prénom sans ambiguïté. Rien
+  // à voir avec les clientes, dont nom et prénoms sont un seul champ dont on
+  // ne sait pas démêler l'ordre.
+  const prenom = nomGerante.trim().split(/\s+/)[0] || nomGerante.trim();
+
+  let rendezVous: string;
+  if (lectureIncertaine) {
+    // Annoncer « aucun rendez-vous » sur une lecture ratée ferait organiser
+    // la journée sur une information fausse.
+    rendezVous = "liste illisible ce matin, ouvrez l'application";
+  } else if (rdvs.length === 0) {
+    rendezVous = "aucun aujourd'hui";
+  } else {
+    const items = rdvs.map((r) => {
+      const cliente = r.clientes?.nom_complet ?? "Cliente inconnue";
+      const soin = r.soins_catalogue ? `, ${r.soins_catalogue.libelle}` : "";
+      const id = r.clientes?.id;
+      const alerte = id && (alertesParCliente.get(id)?.length ?? 0) > 0 ? " ⚠️" : "";
+      const remise = id && remisesParCliente.has(id) ? " 🎁" : "";
+      return `${heure(r.heure_rdv)} ${cliente}${soin}${alerte}${remise}`;
+    });
+
+    let liste = items.join(" · ");
+    // Une journée très chargée produirait une variable démesurée. On coupe
+    // sur un rendez-vous entier, jamais au milieu d'un nom.
+    if (liste.length > LONGUEUR_MAX_LISTE) {
+      const gardes: string[] = [];
+      let taille = 0;
+      for (const item of items) {
+        if (taille + item.length + 3 > LONGUEUR_MAX_LISTE) break;
+        gardes.push(item);
+        taille += item.length + 3;
+      }
+      liste = `${gardes.join(" · ")} · … et ${items.length - gardes.length} autres`;
+    }
+    rendezVous = `${rdvs.length} — ${liste}`;
+  }
+
+  const nbAlertes = [...alertesParCliente.values()].filter((a) => a.length > 0).length;
+  const nbRemises = rdvs.filter(
+    (r) => r.clientes && remisesParCliente.has(r.clientes.id),
+  ).length;
+
+  const signaux = [
+    nbAlertes > 0 &&
+      `${nbAlertes} contre-indication${nbAlertes > 1 ? "s" : ""} à vérifier`,
+    nbRemises > 0 && `${nbRemises} remise${nbRemises > 1 ? "s" : ""} fidélité`,
+    aRelancer.length > 0 &&
+      `${aRelancer.length} cliente${aRelancer.length > 1 ? "s" : ""} à relancer`,
+    seancesHier > 0 &&
+      `${seancesHier} séance${seancesHier > 1 ? "s" : ""} saisie${seancesHier > 1 ? "s" : ""} hier`,
+  ].filter((s): s is string => typeof s === "string");
+
+  return {
+    nom: prenom,
+    date: dateEnToutesLettres(date),
+    rendezVous,
+    aSignaler: signaux.length > 0 ? signaux.join(", ") : "rien de particulier",
+  };
 }
 
 export type RappelCliente = {

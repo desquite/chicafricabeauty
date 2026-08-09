@@ -5,12 +5,17 @@ import {
   envoyerWhatsapp,
   type ResultatEnvoi,
 } from "@/lib/notifications/whatsapp";
-import { LANGUE_MODELES, modeleRappel } from "@/lib/notifications/modeles";
+import {
+  LANGUE_MODELES,
+  modeleRappel,
+  modeleRecapitulatif,
+} from "@/lib/notifications/modeles";
 import {
   calculerRelances,
   construireRappelCliente,
   construireRecapitulatif,
   partiesRappel,
+  partiesRecapitulatif,
   type RdvDuJour,
 } from "@/lib/notifications/recapitulatif";
 import { alertes, type Anamnese } from "@/lib/types";
@@ -142,11 +147,18 @@ async function traiter(requete: Request) {
     avecReessai(() =>
       supabase
         .from("profiles")
-        .select("id, nom, telephone")
+        .select("id, nom, telephone, notifications_infobip")
         .eq("actif", true)
         .eq("notifications_whatsapp", true)
         .not("telephone", "is", null)
-        .returns<{ id: string; nom: string; telephone: string }[]>(),
+        .returns<
+          {
+            id: string;
+            nom: string;
+            telephone: string;
+            notifications_infobip: boolean;
+          }[]
+        >(),
     ),
     avecReessai(() =>
       supabase
@@ -268,11 +280,27 @@ async function traiter(requete: Request) {
           clientesBasculees: surInfobip ?? 0,
         },
       },
-      destinataires: (destinataires ?? []).map((d) => `${d.nom} ${d.telephone}`),
+      destinataires: (destinataires ?? []).map(
+        (d) => `${d.nom} ${d.telephone} (${d.notifications_infobip ? "infobip" : "wasender"})`,
+      ),
       rendezVous: rdvs?.length ?? 0,
       relances: aRelancer.length,
       erreurs,
       message,
+      // Ce que recevrait une gérante basculée : à lire avant de cocher la
+      // case, puisque le modèle rend autrement que le texte libre.
+      modeleGerante: modeleRecapitulatif(
+        partiesRecapitulatif({
+          nomGerante: destinataires?.[0]?.nom ?? "Gérante",
+          date: maintenant,
+          rdvs: rdvs ?? [],
+          alertesParCliente,
+          remisesParCliente,
+          aRelancer,
+          seancesHier: seancesHier?.length ?? 0,
+          lectureIncertaine: Boolean(erreurRdv),
+        }),
+      ),
     });
   }
 
@@ -335,16 +363,44 @@ async function traiter(requete: Request) {
     await new Promise((r) => setTimeout(r, attente));
   };
 
-  // Les gérantes d'abord : c'est le message qui organise la journée. Elles
-  // restent sur WasenderAPI, aucun modèle ne portant une liste de longueur
-  // variable.
+  // Les gérantes d'abord : c'est le message qui organise la journée. Chacune
+  // part sur son canal — le modèle Infobip perd la mise en colonne, il ne
+  // s'active donc qu'une fois vu et accepté.
   for (const d of destinataires ?? []) {
     await envoyerUneFois(
       "recapitulatif",
       d.telephone,
       d.nom,
-      async () => ({ ...(await envoyerWhatsapp(d.telephone, message)), canal: "wasender" }),
-      5000,
+      async (): Promise<Envoi> => {
+        if (!d.notifications_infobip) {
+          return {
+            ...(await envoyerWhatsapp(d.telephone, message)),
+            canal: "wasender",
+          };
+        }
+        const modele = modeleRecapitulatif(
+          partiesRecapitulatif({
+            nomGerante: d.nom,
+            date: maintenant,
+            rdvs: rdvs ?? [],
+            alertesParCliente,
+            remisesParCliente,
+            aRelancer,
+            seancesHier: seancesHier?.length ?? 0,
+            lectureIncertaine: Boolean(erreurRdv),
+          }),
+        );
+        return {
+          ...(await envoyerModeleWhatsapp(
+            d.telephone,
+            modele.nom,
+            modele.placeholders,
+            LANGUE_MODELES,
+          )),
+          canal: "infobip",
+        };
+      },
+      d.notifications_infobip ? 400 : 5000,
     );
   }
 

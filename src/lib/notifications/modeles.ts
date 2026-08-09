@@ -20,6 +20,31 @@ export type Modele = {
   repli?: Modele;
 };
 
+/**
+ * Recapitulatif du matin aux gerantes.
+ *
+ * Le texte libre de WasenderAPI listait un rendez-vous par ligne. Un modele
+ * ne peut pas : une variable n accepte pas de retour a la ligne, et le nombre
+ * de rendez-vous change chaque jour. La liste tient donc sur une seule
+ * variable, les rendez-vous separes par des points medians. On perd la mise
+ * en colonne, pas l information.
+ */
+export function modeleRecapitulatif(p: {
+  /** Prenom de la gerante. */
+  nom: string;
+  /** « lundi 10 août ». */
+  date: string;
+  /** Les rendez-vous du jour sur une ligne, ou « aucun aujourd'hui ». */
+  rendezVous: string;
+  /** Ce qui demande attention, ou « rien de particulier ». */
+  aSignaler: string;
+}): Modele {
+  return {
+    nom: "recapitulatif_gerante",
+    placeholders: [p.nom, p.date, p.rendezVous, p.aSignaler],
+  };
+}
+
 export function modeleRappel({
   nom,
   quand,
