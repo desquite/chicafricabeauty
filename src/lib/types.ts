@@ -12,6 +12,8 @@ export type Cliente = {
   actif: boolean;
   /** Autorise les rappels de rendez-vous par WhatsApp. */
   rappels_whatsapp: boolean;
+  /** Ses rappels partent par Infobip, et non plus par WasenderAPI. */
+  rappels_infobip: boolean;
   created_at: string;
 };
 

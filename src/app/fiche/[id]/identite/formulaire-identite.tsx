@@ -98,6 +98,21 @@ export default function FormulaireIdentite({
           />
         </Champ>
 
+        {/* Bascule fiche par fiche, le temps de la migration : le message part
+            alors du numéro officiel de l'institut, avec un modèle approuvé.
+            Sans intérêt si la cliente ne veut pas de rappels du tout. */}
+        {identite.rappels_whatsapp && (
+          <Champ
+            label="Envoyer ses rappels par le nouveau numéro"
+            aide="Numéro officiel Chic Africa Beauty. La cliente verra un expéditeur qu'elle ne connaît pas encore : à activer une fois qu'elle en est prévenue."
+          >
+            <OuiNon
+              valeur={identite.rappels_infobip}
+              onChange={(v) => setIdentite((p) => ({ ...p, rappels_infobip: v }))}
+            />
+          </Champ>
+        )}
+
         {erreur && (
           <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-red-700">
             {erreur}

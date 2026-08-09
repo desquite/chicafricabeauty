@@ -115,16 +115,17 @@ export type RappelCliente = {
 };
 
 /**
- * Rappel envoyé à la cliente elle-même.
+ * Les parties variables du rappel, communes aux deux canaux.
  *
- * Court, sans mise en forme superflue : il est lu sur un téléphone, souvent
- * d'un coup d'œil sur l'écran verrouillé. L'essentiel — jour et heure — doit
- * tenir dans les deux premières lignes de l'aperçu de notification.
+ * WasenderAPI reçoit un texte libre, Infobip des variables à glisser dans un
+ * modèle approuvé : les deux doivent dire exactement la même chose, donc rien
+ * ne se calcule deux fois. Chaque partie tient sur une seule ligne — une
+ * variable de modèle WhatsApp ne supporte ni retour à la ligne ni tabulation.
  */
-export function construireRappelCliente(
+export function partiesRappel(
   r: RappelCliente,
   quand: "aujourdhui" | "demain",
-): string {
+): { nom: string; quand: string; soin: string | null; rang: number | null } {
   const heure = r.heure_rdv ? ` à ${r.heure_rdv.slice(0, 5)}` : "";
   const jour =
     quand === "aujourdhui"
@@ -135,20 +136,45 @@ export function construireRappelCliente(
           month: "long",
         })}`;
 
+  return {
+    nom: r.nom_complet,
+    quand: `${jour}${heure}`,
+    soin: r.soin,
+    rang: r.rangRemise,
+  };
+}
+
+/**
+ * Rappel envoyé à la cliente elle-même, en texte libre — canal WasenderAPI.
+ *
+ * Court, sans mise en forme superflue : il est lu sur un téléphone, souvent
+ * d'un coup d'œil sur l'écran verrouillé. L'essentiel — jour et heure — doit
+ * tenir dans les deux premières lignes de l'aperçu de notification.
+ *
+ * Les modèles Infobip reprennent ce texte au mot près : toute retouche ici
+ * doit être reportée dans la console Meta, où les modèles ne se modifient pas
+ * mais se recréent.
+ */
+export function construireRappelCliente(
+  r: RappelCliente,
+  quand: "aujourdhui" | "demain",
+): string {
+  const p = partiesRappel(r, quand);
+
   // Le prénom seul serait plus chaleureux, mais nom et prénoms ne sont qu'un
   // champ : impossible de savoir lequel est lequel sans risquer un « Bonjour
   // Kouassi » à quelqu'un qui s'appelle Kouassi de nom de famille.
   return [
-    `Bonjour ${r.nom_complet},`,
+    `Bonjour ${p.nom},`,
     "",
-    `Nous vous rappelons votre rendez-vous *${jour}${heure}*${r.soin ? ` — ${r.soin}` : ""} chez *Chic Africa Beauty*.`,
+    `Nous vous rappelons votre rendez-vous *${p.quand}*${p.soin ? ` — ${p.soin}` : ""} chez *Chic Africa Beauty*.`,
     // La remise s'annonce, elle ne se choisit pas ici : le choix se fait sur
     // place, au moment de payer, et une réponse à ce message n'est lue par
     // personne.
-    ...(r.rangRemise
+    ...(p.rang
       ? [
           "",
-          `🎁 C'est votre *${r.rangRemise}e séance* : vous bénéficiez de *${REMISE_POURCENT} % de remise*, sur un soin ou sur un produit, à choisir sur place.`,
+          `🎁 C'est votre *${p.rang}e séance* : vous bénéficiez de *${REMISE_POURCENT} % de remise*, sur un soin ou sur un produit, à choisir sur place.`,
         ]
       : []),
     "",

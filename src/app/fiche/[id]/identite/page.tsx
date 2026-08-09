@@ -38,6 +38,7 @@ export default async function PageIdentite({
         email: cliente.email ?? "",
         notes: cliente.notes ?? "",
         rappels_whatsapp: cliente.rappels_whatsapp,
+        rappels_infobip: cliente.rappels_infobip,
       }}
     />
   );

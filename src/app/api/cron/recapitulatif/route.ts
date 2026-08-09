@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { envoyerWhatsapp } from "@/lib/notifications/whatsapp";
+import {
+  envoyerModeleWhatsapp,
+  envoyerWhatsapp,
+  type ResultatEnvoi,
+} from "@/lib/notifications/whatsapp";
+import { LANGUE_MODELES, modeleRappel } from "@/lib/notifications/modeles";
 import {
   calculerRelances,
   construireRappelCliente,
   construireRecapitulatif,
+  partiesRappel,
   type RdvDuJour,
 } from "@/lib/notifications/recapitulatif";
 import { alertes, type Anamnese } from "@/lib/types";
@@ -59,6 +65,10 @@ async function traiter(requete: Request) {
   }
 
   const supabase = createAdminClient();
+  // La fonction est bornée à 60 s. Les envois sont espacés, parfois de cinq
+  // secondes : sans repère de départ, un passage chargé serait interrompu au
+  // milieu d'un envoi, sans trace dans le journal.
+  const debut = Date.now();
   const maintenant = new Date();
   const jour = maintenant.toISOString().slice(0, 10);
   const hier = new Date(maintenant.getTime() - 86_400_000).toISOString().slice(0, 10);
@@ -233,6 +243,14 @@ async function traiter(requete: Request) {
           ? "JWT hérité (service_role ou anon, indéterminable)"
           : "inconnue";
 
+    // Combien de clientes sont déjà basculées, et la configuration Infobip
+    // est-elle complète ? Se vérifie avant le premier envoi réel, sans jamais
+    // exposer la clé elle-même.
+    const { count: surInfobip } = await supabase
+      .from("clientes")
+      .select("*", { count: "exact", head: true })
+      .eq("rappels_infobip", true);
+
     return NextResponse.json({
       apercu: true,
       jour,
@@ -240,6 +258,15 @@ async function traiter(requete: Request) {
         familleCle,
         soinsVisibles: catalogue ?? 0,
         contourneRls: (catalogue ?? 0) > 0,
+        infobip: {
+          configure: Boolean(
+            process.env.INFOBIP_API_KEY &&
+              process.env.INFOBIP_BASE_URL &&
+              process.env.INFOBIP_SENDER,
+          ),
+          expediteur: process.env.INFOBIP_SENDER ?? null,
+          clientesBasculees: surInfobip ?? 0,
+        },
       },
       destinataires: (destinataires ?? []).map((d) => `${d.nom} ${d.telephone}`),
       rendezVous: rdvs?.length ?? 0,
@@ -249,14 +276,22 @@ async function traiter(requete: Request) {
     });
   }
 
-  const resultats: { destinataire: string; ok: boolean; erreur?: string }[] = [];
+  const resultats: {
+    destinataire: string;
+    canal: string;
+    ok: boolean;
+    erreur?: string;
+  }[] = [];
+
+  /** Ce que rapporte un envoi, avec le canal qui l'a réellement porté. */
+  type Envoi = ResultatEnvoi & { canal: string };
 
   /** Envoi journalisé, avec garde contre le renvoi si le cron est rejoué. */
   const envoyerUneFois = async (
     type: string,
     destinataire: string,
     etiquette: string,
-    texte: string,
+    faire: () => Promise<Envoi>,
     attente: number,
   ) => {
     const { data: deja } = await supabase
@@ -269,28 +304,48 @@ async function traiter(requete: Request) {
       .maybeSingle();
 
     if (deja) {
-      resultats.push({ destinataire: etiquette, ok: true, erreur: "déjà envoyé" });
+      resultats.push({
+        destinataire: etiquette,
+        canal: "—",
+        ok: true,
+        erreur: "déjà envoyé",
+      });
       return;
     }
 
-    const envoi = await envoyerWhatsapp(destinataire, texte);
+    const envoi = await faire();
     await supabase.from("notifications_envoyees").insert({
       type,
       cle_jour: jour,
       destinataire,
       succes: envoi.ok,
       detail: envoi.erreur ?? null,
+      canal: envoi.canal,
     });
-    resultats.push({ destinataire: etiquette, ok: envoi.ok, erreur: envoi.erreur });
+    resultats.push({
+      destinataire: etiquette,
+      canal: envoi.canal,
+      ok: envoi.ok,
+      erreur: envoi.erreur,
+    });
 
     // Espacement : WasenderAPI passe par WhatsApp Web, une rafale d'envois
-    // simultanés est ce qui déclenche les coupures.
+    // simultanés est ce qui déclenche les coupures. Infobip n'a pas cette
+    // contrainte, la pause y est symbolique.
     await new Promise((r) => setTimeout(r, attente));
   };
 
-  // Les gérantes d'abord : c'est le message qui organise la journée.
+  // Les gérantes d'abord : c'est le message qui organise la journée. Elles
+  // restent sur WasenderAPI, aucun modèle ne portant une liste de longueur
+  // variable.
   for (const d of destinataires ?? []) {
-    await envoyerUneFois("recapitulatif", d.telephone, d.nom, message, 5000);
+    await envoyerUneFois(
+      "recapitulatif",
+      d.telephone,
+      d.nom,
+      async () => ({ ...(await envoyerWhatsapp(d.telephone, message)), canal: "wasender" }),
+      5000,
+    );
   }
 
   // Puis les clientes : rappel du jour même, et rappel de la veille pour
@@ -301,7 +356,9 @@ async function traiter(requete: Request) {
 
   const { data: aRappeler } = await supabase
     .from("rendez_vous")
-    .select("date_rdv, heure_rdv, clientes(id, nom_complet, telephone, rappels_whatsapp), soins_catalogue(libelle)")
+    .select(
+      "date_rdv, heure_rdv, clientes(id, nom_complet, telephone, rappels_whatsapp, rappels_infobip), soins_catalogue(libelle)",
+    )
     .in("date_rdv", [jour, demain])
     .eq("statut", "prevu")
     .is("remplace_par", null)
@@ -317,6 +374,7 @@ async function traiter(requete: Request) {
           nom_complet: string;
           telephone: string;
           rappels_whatsapp: boolean;
+          rappels_infobip: boolean;
         } | null;
         soins_catalogue: { libelle: string } | null;
       }[]
@@ -331,6 +389,7 @@ async function traiter(requete: Request) {
   );
 
   let rappelsEnvoyes = 0;
+  let rappelsWasender = 0;
   let rappelsIgnores = 0;
 
   for (const r of aRappeler ?? []) {
@@ -338,43 +397,100 @@ async function traiter(requete: Request) {
       rappelsIgnores += 1;
       continue;
     }
-    // La fonction s'exécute dans un temps borné, et WasenderAPI impose un
-    // message toutes les 5 secondes. Au-delà de six rappels on s'arrête :
-    // le passage suivant reprendra la suite, le journal évitant les doublons.
-    if (rappelsEnvoyes >= 6) {
+
+    const cliente = r.clientes;
+    const infobip = cliente.rappels_infobip;
+
+    // WasenderAPI impose un message toutes les 5 secondes : au-delà de six
+    // rappels sur ce canal, le passage suivant reprendra la suite, le journal
+    // évitant les doublons. Infobip n'a pas cette limite et n'est donc pas
+    // compté ici.
+    if (!infobip && rappelsWasender >= 6) {
+      rappelsIgnores += 1;
+      continue;
+    }
+    // Garde-fou de durée, tous canaux confondus : mieux vaut un rappel remis
+    // au passage suivant qu'une fonction coupée en plein envoi.
+    if (Date.now() - debut > 45_000) {
       rappelsIgnores += 1;
       continue;
     }
 
     const quand = r.date_rdv === jour ? "aujourdhui" : "demain";
+    const parties = partiesRappel(
+      {
+        nom_complet: cliente.nom_complet,
+        telephone: cliente.telephone,
+        heure_rdv: r.heure_rdv,
+        soin: r.soins_catalogue?.libelle ?? null,
+        date_rdv: r.date_rdv,
+        rangRemise: remisesRappels.get(cliente.id) ?? null,
+      },
+      quand,
+    );
+
     await envoyerUneFois(
       quand === "aujourdhui" ? "rappel_jour" : "rappel_veille",
-      r.clientes.telephone,
-      `${r.clientes.nom_complet} (${quand})`,
-      construireRappelCliente(
-        {
-          nom_complet: r.clientes.nom_complet,
-          telephone: r.clientes.telephone,
-          heure_rdv: r.heure_rdv,
-          soin: r.soins_catalogue?.libelle ?? null,
-          date_rdv: r.date_rdv,
-          rangRemise: remisesRappels.get(r.clientes.id) ?? null,
-        },
-        quand,
-      ),
+      cliente.telephone,
+      `${cliente.nom_complet} (${quand})`,
+      async (): Promise<Envoi> => {
+        if (!infobip) {
+          const texte = construireRappelCliente(
+            {
+              nom_complet: parties.nom,
+              telephone: cliente.telephone,
+              heure_rdv: r.heure_rdv,
+              soin: parties.soin,
+              date_rdv: r.date_rdv,
+              rangRemise: parties.rang,
+            },
+            quand,
+          );
+          return { ...(await envoyerWhatsapp(cliente.telephone, texte)), canal: "wasender" };
+        }
+
+        const modele = modeleRappel(parties);
+        const envoi = await envoyerModeleWhatsapp(
+          cliente.telephone,
+          modele.nom,
+          modele.placeholders,
+          LANGUE_MODELES,
+        );
+        if (envoi.ok || !modele.repli) return { ...envoi, canal: "infobip" };
+
+        // Les modèles qui annoncent la remise ont été reclassés en Marketing
+        // par Meta, catégorie qu'une cliente peut refuser dans ses réglages.
+        // Le rendez-vous doit lui parvenir malgré tout : on renvoie le modèle
+        // Utilité, sans la mention des 20 %.
+        const secours = await envoyerModeleWhatsapp(
+          cliente.telephone,
+          modele.repli.nom,
+          modele.repli.placeholders,
+          LANGUE_MODELES,
+        );
+        return secours.ok
+          ? { ok: true, erreur: `repli ${modele.repli.nom} : ${envoi.erreur}`, canal: "infobip-repli" }
+          : { ok: false, erreur: `${envoi.erreur} | repli : ${secours.erreur}`, canal: "infobip" };
+      },
       // WasenderAPI refuse en 429 sous les 5 secondes : « Account protection
       // enabled, you can only send 1 message every 5 seconds ». La marge de
-      // 500 ms absorbe la latence variable de l'aller-retour.
-      5500,
+      // 500 ms absorbe la latence variable de l'aller-retour. Infobip accepte
+      // 250 messages par 24 h sans cadence imposée.
+      infobip ? 400 : 5500,
     );
     rappelsEnvoyes += 1;
+    if (!infobip) rappelsWasender += 1;
   }
 
   return NextResponse.json({
     jour,
     rendezVous: rdvs?.length ?? 0,
     relances: aRelancer.length,
-    rappelsClientes: { envoyes: rappelsEnvoyes, ignores: rappelsIgnores },
+    rappelsClientes: {
+      envoyes: rappelsEnvoyes,
+      dontInfobip: rappelsEnvoyes - rappelsWasender,
+      ignores: rappelsIgnores,
+    },
     resultats,
   });
 }
