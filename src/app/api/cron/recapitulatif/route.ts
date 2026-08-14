@@ -7,18 +7,20 @@ import {
 } from "@/lib/notifications/whatsapp";
 import {
   LANGUE_MODELES,
+  modeleAnniversaire,
   modeleRappel,
   modeleRecapitulatif,
 } from "@/lib/notifications/modeles";
 import {
   calculerRelances,
+  construireAnniversaire,
   construireRappelCliente,
   construireRecapitulatif,
   partiesRappel,
   partiesRecapitulatif,
   type RdvDuJour,
 } from "@/lib/notifications/recapitulatif";
-import { alertes, type Anamnese } from "@/lib/types";
+import { alertes, nomChaleureux, type Anamnese } from "@/lib/types";
 import { ouvreDroit, rangSeance } from "@/lib/fidelite";
 
 export const dynamic = "force-dynamic";
@@ -200,6 +202,51 @@ async function traiter(requete: Request) {
 
   const remisesParCliente = await remisesDues(idsClientes);
 
+  /* --------------------------------------------------------- anniversaires
+   * Le tri se fait sur le mois et le jour, jamais sur l'année. Le 29 février
+   * bascule sur le 28 les années non bissextiles, sans quoi la cliente née un
+   * 29 ne serait fêtée qu'une fois tous les quatre ans.
+   */
+  const jourMois = jour.slice(5);
+  const bissextile = (a: number) => (a % 4 === 0 && a % 100 !== 0) || a % 400 === 0;
+  const joursFetes = [jourMois];
+  if (jourMois === "02-28" && !bissextile(maintenant.getUTCFullYear())) {
+    joursFetes.push("02-29");
+  }
+
+  const { data: toutesClientes } = await supabase
+    .from("clientes")
+    .select(
+      "id, nom_complet, prenom_usuel, telephone, date_naissance, actif, rappels_whatsapp, anniversaire_whatsapp, rappels_infobip",
+    )
+    .eq("actif", true)
+    .not("date_naissance", "is", null)
+    .returns<
+      {
+        id: string;
+        nom_complet: string;
+        prenom_usuel: string | null;
+        telephone: string;
+        date_naissance: string;
+        actif: boolean;
+        rappels_whatsapp: boolean;
+        anniversaire_whatsapp: boolean;
+        rappels_infobip: boolean;
+      }[]
+    >();
+
+  // Le filtre se fait ici plutôt qu'en SQL : la table tient en une centaine de
+  // lignes, et une comparaison de chaînes en JavaScript se relit mieux qu'un
+  // to_char passé au travers du client.
+  const feteesAujourdhui = (toutesClientes ?? []).filter((c) =>
+    joursFetes.includes(c.date_naissance.slice(5)),
+  );
+
+  // La gérante est prévenue de tous les anniversaires, y compris ceux des
+  // clientes qui refusent les messages : le mot dit de vive voix ne dépend
+  // pas d'un consentement à recevoir du WhatsApp.
+  const anniversaires = feteesAujourdhui.map((c) => nomChaleureux(c));
+
   // Relances : dernière séance de chaque cliente, hors celles déjà attendues.
   const { data: dernieres } = await supabase
     .from("seances")
@@ -235,6 +282,7 @@ async function traiter(requete: Request) {
     remisesParCliente,
     aRelancer,
     seancesHier: seancesHier?.length ?? 0,
+    anniversaires,
     lectureIncertaine: Boolean(erreurRdv),
   });
 
@@ -280,6 +328,11 @@ async function traiter(requete: Request) {
           clientesBasculees: surInfobip ?? 0,
         },
       },
+      anniversaires: feteesAujourdhui.map(
+        (c) =>
+          `${nomChaleureux(c)} ${c.telephone}` +
+          `${c.rappels_whatsapp && c.anniversaire_whatsapp ? "" : " (voeux refuses)"}`,
+      ),
       destinataires: (destinataires ?? []).map(
         (d) => `${d.nom} ${d.telephone} (${d.notifications_infobip ? "infobip" : "wasender"})`,
       ),
@@ -298,6 +351,7 @@ async function traiter(requete: Request) {
           remisesParCliente,
           aRelancer,
           seancesHier: seancesHier?.length ?? 0,
+          anniversaires,
           lectureIncertaine: Boolean(erreurRdv),
         }),
       ),
@@ -387,6 +441,7 @@ async function traiter(requete: Request) {
             remisesParCliente,
             aRelancer,
             seancesHier: seancesHier?.length ?? 0,
+            anniversaires,
             lectureIncertaine: Boolean(erreurRdv),
           }),
         );
@@ -538,10 +593,59 @@ async function traiter(requete: Request) {
     if (!infobip) rappelsWasender += 1;
   }
 
+  /* ----------------------------------------------------- vœux d'anniversaire
+   * En dernier : ce sont les messages les moins urgents de la matinée. Si la
+   * fonction manque de temps, mieux vaut un vœu remis au passage suivant
+   * qu'un rappel de rendez-vous perdu.
+   */
+  let voeuxEnvoyes = 0;
+  let voeuxIgnores = 0;
+
+  for (const c of feteesAujourdhui) {
+    // Deux consentements distincts : le refus global de WhatsApp, et le refus
+    // des seuls vœux, qui relèvent du Marketing.
+    if (!c.rappels_whatsapp || !c.anniversaire_whatsapp) {
+      voeuxIgnores += 1;
+      continue;
+    }
+    if (Date.now() - debut > 50_000) {
+      voeuxIgnores += 1;
+      continue;
+    }
+
+    const nom = nomChaleureux(c);
+    await envoyerUneFois(
+      "anniversaire",
+      c.telephone,
+      nom,
+      async (): Promise<Envoi> => {
+        if (!c.rappels_infobip) {
+          return {
+            ...(await envoyerWhatsapp(c.telephone, construireAnniversaire(nom))),
+            canal: "wasender",
+          };
+        }
+        const modele = modeleAnniversaire(nom);
+        return {
+          ...(await envoyerModeleWhatsapp(
+            c.telephone,
+            modele.nom,
+            modele.placeholders,
+            LANGUE_MODELES,
+          )),
+          canal: "infobip",
+        };
+      },
+      c.rappels_infobip ? 400 : 5500,
+    );
+    voeuxEnvoyes += 1;
+  }
+
   return NextResponse.json({
     jour,
     rendezVous: rdvs?.length ?? 0,
     relances: aRelancer.length,
+    anniversaires: { envoyes: voeuxEnvoyes, ignores: voeuxIgnores },
     rappelsClientes: {
       envoyes: rappelsEnvoyes,
       dontInfobip: rappelsEnvoyes - rappelsWasender,

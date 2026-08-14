@@ -135,7 +135,9 @@ export async function enregistrerNouvelleFiche(payload: {
 
 export type IdentiteModifiable = Identite & {
   notes: string;
+  prenom_usuel: string;
   rappels_whatsapp: boolean;
+  anniversaire_whatsapp: boolean;
   rappels_infobip: boolean;
 };
 
@@ -166,7 +168,9 @@ export async function modifierCliente(
       telephone: identite.telephone.trim(),
       email: vide(identite.email),
       notes: vide(identite.notes),
+      prenom_usuel: vide(identite.prenom_usuel),
       rappels_whatsapp: identite.rappels_whatsapp,
+      anniversaire_whatsapp: identite.anniversaire_whatsapp,
       rappels_infobip: identite.rappels_infobip,
     })
     .eq("id", clienteId);

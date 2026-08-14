@@ -52,6 +52,15 @@ export default function FormulaireIdentite({
             onChange={(v) => maj("nom_complet", v)}
           />
         </Champ>
+        <Champ
+          label="Prénom d'usage"
+          aide="Facultatif. Employé dans les messages chaleureux — « Bonjour Amoin » plutôt que le nom complet. Laissé vide, c'est le nom complet qui sert."
+        >
+          <Texte
+            valeur={identite.prenom_usuel}
+            onChange={(v) => maj("prenom_usuel", v)}
+          />
+        </Champ>
         <Champ label="Date de naissance">
           <DateFr
             valeur={identite.date_naissance}
@@ -95,6 +104,16 @@ export default function FormulaireIdentite({
           <OuiNon
             valeur={identite.rappels_whatsapp}
             onChange={(v) => setIdentite((p) => ({ ...p, rappels_whatsapp: v }))}
+          />
+        </Champ>
+
+        <Champ
+          label="Vœux d'anniversaire"
+          aide="Un message le jour de son anniversaire. Se refuse indépendamment des rappels de rendez-vous."
+        >
+          <OuiNon
+            valeur={identite.anniversaire_whatsapp}
+            onChange={(v) => setIdentite((p) => ({ ...p, anniversaire_whatsapp: v }))}
           />
         </Champ>
 

@@ -10,8 +10,17 @@ export type Cliente = {
   email: string | null;
   notes: string | null;
   actif: boolean;
+  /**
+   * Prénom d'usage, facultatif. Nom et prénoms étant fusionnés, c'est le seul
+   * moyen de dire « Bonjour Amoin » plutôt que « Bonjour Konan Amoin ANge
+   * Marie ». Réservé aux messages chaleureux : l'identité de la fiche reste
+   * `nom_complet`.
+   */
+  prenom_usuel: string | null;
   /** Autorise les rappels de rendez-vous par WhatsApp. */
   rappels_whatsapp: boolean;
+  /** Autorise les vœux d'anniversaire. Distinct des rappels : c'est du Marketing. */
+  anniversaire_whatsapp: boolean;
   /** Ses rappels partent par Infobip, et non plus par WasenderAPI. */
   rappels_infobip: boolean;
   created_at: string;
@@ -181,6 +190,22 @@ export const HYDRATATION = [
   { valeur: "moins_1l", libelle: "Moins d'1 litre" },
   { valeur: "plus_1_5l", libelle: "Plus d'1,5 litre" },
 ] as const;
+
+/**
+ * Le nom à employer dans un message chaleureux.
+ *
+ * Le prénom d'usage s'il est renseigné, sinon le nom complet. On ne devine
+ * jamais le prénom en découpant `nom_complet` : les deux sont un seul champ,
+ * dont l'ordre varie d'une saisie à l'autre — « Bonjour Kouassi » adressé à
+ * quelqu'un dont Kouassi est le nom de famille est précisément l'erreur que
+ * la fusion des champs interdisait de détecter.
+ */
+export function nomChaleureux(c: {
+  nom_complet: string;
+  prenom_usuel?: string | null;
+}): string {
+  return c.prenom_usuel?.trim() || c.nom_complet;
+}
 
 /** Calcule l'âge à partir d'une date ISO, en tenant compte du jour anniversaire. */
 export function age(dateNaissance: string | null): number | null {

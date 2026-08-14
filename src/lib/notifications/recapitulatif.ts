@@ -38,6 +38,7 @@ export function construireRecapitulatif({
   remisesParCliente,
   aRelancer,
   seancesHier,
+  anniversaires,
   lectureIncertaine = false,
 }: {
   date: Date;
@@ -47,6 +48,8 @@ export function construireRecapitulatif({
   remisesParCliente: Map<string, number>;
   aRelancer: ARelancer[];
   seancesHier: number;
+  /** Clientes dont c'est l'anniversaire aujourd'hui. */
+  anniversaires: string[];
   /** La lecture des rendez-vous a échoué : ne pas affirmer qu'il n'y en a pas. */
   lectureIncertaine?: boolean;
 }): string {
@@ -88,6 +91,12 @@ export function construireRecapitulatif({
     }
   }
 
+  // Le message part tout seul, mais c'est le mot dit de vive voix qui compte :
+  // la gérante doit le savoir, surtout si la cliente vient aujourd'hui.
+  if (anniversaires.length > 0) {
+    lignes.push("", `🎂 Anniversaire : ${anniversaires.join(", ")}`);
+  }
+
   if (aRelancer.length > 0) {
     lignes.push(
       "",
@@ -126,6 +135,7 @@ export function partiesRecapitulatif({
   remisesParCliente,
   aRelancer,
   seancesHier,
+  anniversaires,
   lectureIncertaine = false,
 }: {
   /** `profiles.nom`, dont seul le premier mot est repris. */
@@ -136,6 +146,7 @@ export function partiesRecapitulatif({
   remisesParCliente: Map<string, number>;
   aRelancer: ARelancer[];
   seancesHier: number;
+  anniversaires: string[];
   lectureIncertaine?: boolean;
 }): { nom: string; date: string; rendezVous: string; aSignaler: string } {
   // Le personnel est saisi par la gérante elle-même, en « Prénom NOM », et
@@ -183,6 +194,7 @@ export function partiesRecapitulatif({
   ).length;
 
   const signaux = [
+    anniversaires.length > 0 && `anniversaire de ${anniversaires.join(" et ")}`,
     nbAlertes > 0 &&
       `${nbAlertes} contre-indication${nbAlertes > 1 ? "s" : ""} à vérifier`,
     nbRemises > 0 && `${nbRemises} remise${nbRemises > 1 ? "s" : ""} fidélité`,
@@ -277,6 +289,24 @@ export function construireRappelCliente(
     "En cas d'empêchement, merci de nous prévenir en répondant à ce message.",
     "",
     "À très bientôt 🌸",
+  ].join("\n");
+}
+
+/**
+ * Vœux d'anniversaire, en texte libre — canal WasenderAPI.
+ *
+ * Mot pour mot le modèle `anniversaire_cliente`, pour que la cliente reçoive
+ * la même chose quel que soit le canal par lequel elle passe.
+ */
+export function construireAnniversaire(nom: string): string {
+  return [
+    `Bonjour ${nom},`,
+    "",
+    "Toute l'équipe de *Chic Africa Beauty* vous souhaite un très joyeux anniversaire 🎂",
+    "",
+    "Belle journée à vous. Prenez le temps de vous faire du bien : c'est le plus beau des cadeaux.",
+    "",
+    "À très bientôt à l'institut 🌸",
   ].join("\n");
 }
 

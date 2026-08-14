@@ -45,6 +45,18 @@ export function modeleRecapitulatif(p: {
   };
 }
 
+/**
+ * Voeux d anniversaire.
+ *
+ * Volontairement sans offre : « 20 % pour votre anniversaire » entrerait en
+ * collision avec la remise de fidelite, et un voeu qui vend se lit comme un
+ * pretexte commercial — ce qui est exactement ce qui fait signaler un message
+ * et fait baisser la note de qualite du numero.
+ */
+export function modeleAnniversaire(nom: string): Modele {
+  return { nom: "anniversaire_cliente", placeholders: [nom] };
+}
+
 export function modeleRappel({
   nom,
   quand,
