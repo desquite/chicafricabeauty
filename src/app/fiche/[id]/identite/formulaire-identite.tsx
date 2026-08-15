@@ -117,6 +117,16 @@ export default function FormulaireIdentite({
           />
         </Champ>
 
+        <Champ
+          label="Offres et promotions"
+          aide="Messages commerciaux. Une cliente peut accepter les vœux et refuser les offres."
+        >
+          <OuiNon
+            valeur={identite.promotions_whatsapp}
+            onChange={(v) => setIdentite((p) => ({ ...p, promotions_whatsapp: v }))}
+          />
+        </Champ>
+
         {/* Bascule fiche par fiche, le temps de la migration : le message part
             alors du numéro officiel de l'institut, avec un modèle approuvé.
             Sans intérêt si la cliente ne veut pas de rappels du tout. */}

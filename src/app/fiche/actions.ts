@@ -138,6 +138,7 @@ export type IdentiteModifiable = Identite & {
   prenom_usuel: string;
   rappels_whatsapp: boolean;
   anniversaire_whatsapp: boolean;
+  promotions_whatsapp: boolean;
   rappels_infobip: boolean;
 };
 
@@ -171,6 +172,7 @@ export async function modifierCliente(
       prenom_usuel: vide(identite.prenom_usuel),
       rappels_whatsapp: identite.rappels_whatsapp,
       anniversaire_whatsapp: identite.anniversaire_whatsapp,
+      promotions_whatsapp: identite.promotions_whatsapp,
       rappels_infobip: identite.rappels_infobip,
     })
     .eq("id", clienteId);

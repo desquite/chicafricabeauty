@@ -65,6 +65,17 @@ const VARIABLES = {
     "Soin hydrafacial",
     "5",
   ],
+  anniversaire_cliente: ["Essai Chic Africa"],
+  promotion: [
+    "Essai Chic Africa",
+    "Jusqu'au 30 août, notre Soin du visage et du corps est à -15 % : 34 000 FCFA au lieu de 40 000 FCFA.",
+  ],
+  recapitulatif_gerante: [
+    "Essai",
+    "lundi 10 août",
+    "2 — 09:00 Cissé Bintou, Soin classique ⚠️ · 11:30 Mariam Kanté, Soin hydrafacial 🎁",
+    "1 contre-indication à vérifier, 1 remise fidélité",
+  ],
 };
 
 const placeholders = VARIABLES[modele];

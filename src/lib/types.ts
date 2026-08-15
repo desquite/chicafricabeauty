@@ -21,6 +21,8 @@ export type Cliente = {
   rappels_whatsapp: boolean;
   /** Autorise les vœux d'anniversaire. Distinct des rappels : c'est du Marketing. */
   anniversaire_whatsapp: boolean;
+  /** Autorise les offres commerciales. Un vœu n'est pas une promotion. */
+  promotions_whatsapp: boolean;
   /** Ses rappels partent par Infobip, et non plus par WasenderAPI. */
   rappels_infobip: boolean;
   created_at: string;

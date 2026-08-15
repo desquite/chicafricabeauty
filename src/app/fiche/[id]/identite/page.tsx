@@ -40,6 +40,7 @@ export default async function PageIdentite({
         prenom_usuel: cliente.prenom_usuel ?? "",
         rappels_whatsapp: cliente.rappels_whatsapp,
         anniversaire_whatsapp: cliente.anniversaire_whatsapp,
+        promotions_whatsapp: cliente.promotions_whatsapp,
         rappels_infobip: cliente.rappels_infobip,
       }}
     />
