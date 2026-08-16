@@ -27,6 +27,12 @@ const tous = args.includes("--tous");
 const gerantes = args.includes("--gerantes");
 const cible = args.find((a) => !a.startsWith("--"));
 
+// Le motif telephone n est pose que si la cible contient vraiment des
+// chiffres. Sinon « Mariam » donnerait le motif %%, qui accepte toute la
+// table : une cible nominative basculerait tout le fichier.
+const chiffresCible = cible ? String(cible).replace(/\D/g, "") : "";
+const motifTelephone = chiffresCible.length >= 4 ? `%${chiffresCible}%` : null;
+
 const racine = join(dirname(fileURLToPath(import.meta.url)), "..");
 const url = readFileSync(join(racine, ".db-url.txt"), "utf8").trim();
 
@@ -59,11 +65,31 @@ console.log(
 // Les gerantes ne recoivent pas des rappels mais le recapitulatif du matin,
 // et leur modele est distinct : elles se basculent a part.
 if (gerantes) {
-  const { rows } = await client.query(
-    `select id, nom, telephone, notifications_infobip from profiles
-     where actif and notifications_whatsapp and telephone is not null
-     order by nom`,
-  );
+  // Une seule gerante peut etre basculee avant l autre : le modele rend
+  // autrement que le texte libre, et c est le genre de changement qu on veut
+  // voir arriver sur son propre telephone avant celui de sa collegue.
+  const { rows } = cible
+    ? await client.query(
+        `select id, nom, telephone, notifications_infobip from profiles
+         where actif and notifications_whatsapp and telephone is not null
+           and (nom ilike $1
+                or ($2::text is not null
+                    and regexp_replace(telephone, '\\D', '', 'g') like $2))
+         order by nom`,
+        [`%${cible}%`, motifTelephone],
+      )
+    : await client.query(
+        `select id, nom, telephone, notifications_infobip from profiles
+         where actif and notifications_whatsapp and telephone is not null
+         order by nom`,
+      );
+
+  if (rows.length === 0) {
+    console.log("");
+    console.log("Aucune gerante ne correspond.");
+    await client.end();
+    process.exit(0);
+  }
   const vers = !retour;
   console.log("");
   console.log(`Gerantes vers ${vers ? "Infobip" : "WasenderAPI"} :`);
@@ -114,9 +140,11 @@ const { rows: concernees } = tous
     )
   : await client.query(
       `select id, nom_complet, telephone, rappels_infobip from clientes
-       where (nom_complet ilike $1 or regexp_replace(telephone, '\\D', '', 'g') like $2)
+       where (nom_complet ilike $1
+              or ($2::text is not null
+                  and regexp_replace(telephone, '\\D', '', 'g') like $2))
        order by nom_complet`,
-      [`%${cible}%`, `%${String(cible).replace(/\D/g, "")}%`],
+      [`%${cible}%`, motifTelephone],
     );
 
 if (concernees.length === 0) {
