@@ -22,6 +22,31 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 
+/**
+ * Verrou pose le 16 aout 2026.
+ *
+ * Le modele « promotion » approuve porte un numero de telephone errone : le
+ * numero personnel de la gerante, et non celui de l institut. Il est deja
+ * parti a 107 clientes. Tant que le modele corrige n est pas reapprouve par
+ * Meta, aucun envoi promotionnel supplementaire ne doit partir.
+ *
+ * Pour lever le verrou : remettre a false, apres avoir verifie dans la console
+ * Infobip que le modele affiche « Actif » et porte le bon numero.
+ */
+const ENVOIS_SUSPENDUS = true;
+
+if (ENVOIS_SUSPENDUS && process.argv.includes("--appliquer")) {
+  console.error("Envois promotionnels suspendus.");
+  console.error("");
+  console.error("Le modele « promotion » porte un numero errone, deja envoye a");
+  console.error("107 clientes. Corriger le modele dans la console Infobip, attendre");
+  console.error("sa reapprobation, puis remettre ENVOIS_SUSPENDUS a false en tete");
+  console.error("de ce fichier.");
+  console.error("");
+  console.error("L apercu reste disponible : relancer sans --appliquer.");
+  process.exit(1);
+}
+
 const racine = join(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 const appliquer = args.includes("--appliquer");
