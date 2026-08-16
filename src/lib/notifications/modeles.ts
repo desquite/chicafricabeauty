@@ -53,6 +53,21 @@ export function modeleRecapitulatif(p: {
  * pretexte commercial — ce qui est exactement ce qui fait signaler un message
  * et fait baisser la note de qualite du numero.
  */
+/**
+ * Offre commerciale.
+ *
+ * L offre elle-meme est une variable : le prix et la date changent sans
+ * repasser par l approbation de Meta, un seul modele sert toutes les
+ * campagnes.
+ */
+export function modelePromotion(
+  nom: string,
+  offre: string,
+  modele = "promotion",
+): Modele {
+  return { nom: modele, placeholders: [nom, offre] };
+}
+
 export function modeleAnniversaire(nom: string): Modele {
   return { nom: "anniversaire_cliente", placeholders: [nom] };
 }

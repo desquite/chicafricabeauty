@@ -28,7 +28,15 @@ const appliquer = args.includes("--appliquer");
 const toutes = args.includes("--toutes");
 const iTest = args.indexOf("--test");
 const numeroTest = iTest === -1 ? null : args[iTest + 1];
-const texte = args.find((a) => !a.startsWith("--") && a !== numeroTest);
+
+// Le texte peut venir d un fichier : passer des accents en argument depuis
+// PowerShell les deforme selon la page de code, et la deformation ne se voit
+// qu une fois le message arrive chez la cliente.
+const iFichier = args.indexOf("--fichier");
+const cheminTexte = iFichier === -1 ? null : args[iFichier + 1];
+const texte = cheminTexte
+  ? readFileSync(cheminTexte, "utf8").trim()
+  : args.find((a) => !a.startsWith("--") && a !== numeroTest && a !== cheminTexte);
 
 if (!texte) {
   console.error('Usage : node scripts/envoyer-promotion.mjs "<texte de l offre>" [options]');
@@ -66,7 +74,7 @@ if (manquantes.length) {
 const hote = env.INFOBIP_BASE_URL.replace(/^https?:\/\//, "").replace(/\/+$/, "");
 const chiffres = (s) => String(s).replace(/\D/g, "");
 
-async function envoyer(destinataire, nom) {
+async function unEnvoi(destinataire, nom) {
   const reponse = await fetch(`https://${hote}/whatsapp/1/message/template`, {
     method: "POST",
     headers: {
@@ -99,6 +107,28 @@ async function envoyer(destinataire, nom) {
     // 200 sans corps lisible : on ne transforme pas ce doute en echec.
   }
   return { ok: true };
+}
+
+/**
+ * Un alea reseau ne doit pas emporter la campagne.
+ *
+ * La premiere version laissait l exception de fetch remonter : un ECONNRESET
+ * sur le premier destinataire a tue le script avant meme d ecrire au journal,
+ * sans qu on puisse savoir si le message etait parti. L exception est
+ * desormais rattrapee, reessayee une fois, puis consignee comme un echec
+ * ordinaire — la campagne continue.
+ */
+async function envoyer(destinataire, nom) {
+  for (let essai = 1; essai <= 2; essai += 1) {
+    try {
+      return await unEnvoi(destinataire, nom);
+    } catch (e) {
+      const motif = e instanceof Error ? e.message : "erreur reseau";
+      if (essai === 2) return { ok: false, erreur: `reseau : ${motif}` };
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  return { ok: false, erreur: "reseau" };
 }
 
 const client = new pg.Client({

@@ -8,6 +8,7 @@ import {
 import {
   LANGUE_MODELES,
   modeleAnniversaire,
+  modelePromotion,
   modeleRappel,
   modeleRecapitulatif,
 } from "@/lib/notifications/modeles";
@@ -217,20 +218,23 @@ async function traiter(requete: Request) {
   const { data: toutesClientes } = await supabase
     .from("clientes")
     .select(
-      "id, nom_complet, prenom_usuel, telephone, date_naissance, actif, rappels_whatsapp, anniversaire_whatsapp, rappels_infobip",
+      "id, nom_complet, prenom_usuel, telephone, date_naissance, actif, rappels_whatsapp, anniversaire_whatsapp, promotions_whatsapp, rappels_infobip",
     )
+    // Pas de filtre sur la date de naissance : cette lecture sert aussi aux
+    // campagnes, et une cliente sans date renseignée doit recevoir les offres
+    // comme les autres.
     .eq("actif", true)
-    .not("date_naissance", "is", null)
     .returns<
       {
         id: string;
         nom_complet: string;
         prenom_usuel: string | null;
         telephone: string;
-        date_naissance: string;
+        date_naissance: string | null;
         actif: boolean;
         rappels_whatsapp: boolean;
         anniversaire_whatsapp: boolean;
+        promotions_whatsapp: boolean;
         rappels_infobip: boolean;
       }[]
     >();
@@ -238,8 +242,8 @@ async function traiter(requete: Request) {
   // Le filtre se fait ici plutôt qu'en SQL : la table tient en une centaine de
   // lignes, et une comparaison de chaînes en JavaScript se relit mieux qu'un
   // to_char passé au travers du client.
-  const feteesAujourdhui = (toutesClientes ?? []).filter((c) =>
-    joursFetes.includes(c.date_naissance.slice(5)),
+  const feteesAujourdhui = (toutesClientes ?? []).filter(
+    (c) => c.date_naissance && joursFetes.includes(c.date_naissance.slice(5)),
   );
 
   // La gérante est prévenue de tous les anniversaires, y compris ceux des
@@ -641,11 +645,93 @@ async function traiter(requete: Request) {
     voeuxEnvoyes += 1;
   }
 
+  /* --------------------------------------------------------------- campagnes
+   * Une promotion se répète pendant sa durée de validité, un jour fixe de la
+   * semaine, puis s'arrête d'elle-même à la date de fin. Traitée en dernier :
+   * c'est le message le moins urgent de la matinée, et le plus volumineux.
+   *
+   * Le cron repasse toutes les cinq minutes pendant l'heure de 7 h : ce qui
+   * n'a pas tenu dans le temps imparti part au passage suivant, le journal
+   * empêchant tout doublon.
+   */
+  let promosEnvoyees = 0;
+  let promosRestantes = 0;
+
+  const { data: campagnes } = await supabase
+    .from("campagnes")
+    .select("id, libelle, texte, cible, jour_semaine, debut, fin, modele")
+    .eq("actif", true)
+    .lte("debut", jour)
+    .gte("fin", jour)
+    .returns<
+      {
+        id: string;
+        libelle: string;
+        texte: string;
+        cible: "venues" | "toutes";
+        jour_semaine: number;
+        debut: string;
+        fin: string;
+        modele: string;
+      }[]
+    >();
+
+  const duJour = (campagnes ?? []).filter(
+    (c) => c.jour_semaine === maintenant.getUTCDay(),
+  );
+
+  for (const campagne of duJour) {
+    const cibles = (toutesClientes ?? []).filter(
+      (c) => c.rappels_whatsapp && c.promotions_whatsapp && c.rappels_infobip,
+    );
+
+    // La cible « venues » écarte celles qui ne sont jamais passées : une offre
+    // envoyée à qui ne connaît pas l'institut ressemble à du démarchage, et un
+    // message signalé fait baisser la note du numéro qui porte les rappels.
+    const { data: venues } =
+      campagne.cible === "venues"
+        ? await supabase.from("seances").select("cliente_id").returns<{ cliente_id: string }[]>()
+        : { data: null };
+    const dejaVenues = venues ? new Set(venues.map((s) => s.cliente_id)) : null;
+
+    for (const c of cibles) {
+      if (dejaVenues && !dejaVenues.has(c.id)) continue;
+      if (Date.now() - debut > 52_000) {
+        promosRestantes += 1;
+        continue;
+      }
+      const nom = nomChaleureux(c);
+      const modele = modelePromotion(nom, campagne.texte, campagne.modele);
+      await envoyerUneFois(
+        "promotion",
+        c.telephone,
+        nom,
+        async (): Promise<Envoi> => ({
+          ...(await envoyerModeleWhatsapp(
+            c.telephone,
+            modele.nom,
+            modele.placeholders,
+            LANGUE_MODELES,
+          )),
+          canal: "infobip",
+        }),
+        400,
+      );
+      promosEnvoyees += 1;
+    }
+  }
+
   return NextResponse.json({
     jour,
     rendezVous: rdvs?.length ?? 0,
     relances: aRelancer.length,
     anniversaires: { envoyes: voeuxEnvoyes, ignores: voeuxIgnores },
+    campagnes: {
+      actives: campagnes?.length ?? 0,
+      duJour: duJour.map((c) => c.libelle),
+      envoyees: promosEnvoyees,
+      restantes: promosRestantes,
+    },
     rappelsClientes: {
       envoyes: rappelsEnvoyes,
       dontInfobip: rappelsEnvoyes - rappelsWasender,
