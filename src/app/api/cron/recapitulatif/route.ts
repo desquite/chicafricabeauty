@@ -667,7 +667,8 @@ async function traiter(requete: Request) {
       {
         id: string;
         libelle: string;
-        texte: string;
+        /** Null quand l'offre est écrite en dur dans le modèle approuvé. */
+        texte: string | null;
         cible: "venues" | "toutes";
         jour_semaine: number;
         debut: string;

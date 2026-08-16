@@ -53,11 +53,9 @@ if (libelle) {
     : valeur("--texte");
   const fin = valeur("--fin");
 
-  if (!texte) {
-    console.error("Texte manquant : --fichier <chemin> ou --texte \"...\"");
-    process.exit(1);
-  }
-  if (/[\n\r\t]/.test(texte)) {
+  // Texte facultatif : sans lui, l offre est ecrite en dur dans le modele
+  // approuve, qui n a alors qu une seule variable — le nom de la cliente.
+  if (texte && /[\n\r\t]/.test(texte)) {
     console.error("Le texte doit tenir sur une seule ligne : pas de retour a la ligne.");
     process.exit(1);
   }
@@ -87,7 +85,7 @@ if (libelle) {
   console.log(`Campagne creee : ${c.id}`);
   console.log(`  chaque ${JOURS[c.jour_semaine]}, du ${c.debut} au ${c.fin}, cible ${c.cible}`);
   console.log(`  modele ${c.modele}`);
-  console.log(`  texte : ${texte}`);
+  console.log(`  texte : ${texte ?? "(dans le modele)"}`);
   await client.end();
   process.exit(0);
 }

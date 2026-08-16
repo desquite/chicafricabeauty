@@ -56,16 +56,25 @@ export function modeleRecapitulatif(p: {
 /**
  * Offre commerciale.
  *
- * L offre elle-meme est une variable : le prix et la date changent sans
- * repasser par l approbation de Meta, un seul modele sert toutes les
- * campagnes.
+ * Deux formes selon le modele approuve, et le nombre de variables envoyees
+ * doit correspondre exactement, sous peine de refus :
+ *
+ *   offre renseignee — le modele porte {{2}}, l offre change d une campagne
+ *   a l autre sans repasser par l approbation de Meta ;
+ *
+ *   offre absente — le prix et la date sont ecrits en dur dans le modele,
+ *   qui ne sert alors que pour cette promotion.
  */
 export function modelePromotion(
   nom: string,
-  offre: string,
+  offre: string | null,
   modele = "promotion",
 ): Modele {
-  return { nom: modele, placeholders: [nom, offre] };
+  const texte = offre?.trim();
+  return {
+    nom: modele,
+    placeholders: texte ? [nom, texte] : [nom],
+  };
 }
 
 export function modeleAnniversaire(nom: string): Modele {
