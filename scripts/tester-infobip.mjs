@@ -67,6 +67,7 @@ const VARIABLES = {
   ],
   anniversaire_cliente: ["Essai Chic Africa"],
   promotion: ["Essai Chic Africa"],
+  promotion_v2: ["Essai Chic Africa"],
   recapitulatif_gerante: [
     "Essai",
     "lundi 10 août",

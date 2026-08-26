@@ -1,14 +1,17 @@
 /**
- * Envoi d une promotion aux clientes, par le modele Infobip « promotion ».
+ * Envoi d une promotion aux clientes, par un modele Infobip approuve.
  *
  * Un script et non un ecran : une campagne part rarement, touche tout le
  * fichier d un coup et ne se rattrape pas. Mieux vaut une commande qui montre
  * la liste et exige --appliquer qu un bouton qu on presse par megarde.
  *
- *   node scripts/envoyer-promotion.mjs "Jusqu au 30 aout, ..."
- *   node scripts/envoyer-promotion.mjs "..." --toutes
- *   node scripts/envoyer-promotion.mjs "..." --test +2250709646096
- *   node scripts/envoyer-promotion.mjs "..." --appliquer
+ *   node scripts/envoyer-promotion.mjs --toutes
+ *   node scripts/envoyer-promotion.mjs --test +2250709646096 --appliquer
+ *   node scripts/envoyer-promotion.mjs --toutes --appliquer
+ *
+ * Le modele par defaut est promotion_v2, qui porte son offre en dur et n
+ * attend que le nom de la cliente. --modele <nom> vise un autre modele, et
+ * --fichier <chemin> fournit l offre quand le modele a une seconde variable.
  *
  * Par defaut la cible est --venues : les clientes ayant au moins une seance.
  * Une promotion envoyee a qui n est jamais venue ressemble a du demarchage,
@@ -22,35 +25,15 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 
-/**
- * Verrou pose le 16 aout 2026.
- *
- * Le modele « promotion » approuve porte un numero de telephone errone : le
- * numero personnel de la gerante, et non celui de l institut. Il est deja
- * parti a 107 clientes. Tant que le modele corrige n est pas reapprouve par
- * Meta, aucun envoi promotionnel supplementaire ne doit partir.
- *
- * Pour lever le verrou : remettre a false, apres avoir verifie dans la console
- * Infobip que le modele affiche « Actif » et porte le bon numero.
- */
-const ENVOIS_SUSPENDUS = true;
-
-if (ENVOIS_SUSPENDUS && process.argv.includes("--appliquer")) {
-  console.error("Envois promotionnels suspendus.");
-  console.error("");
-  console.error("Le modele « promotion » porte un numero errone, deja envoye a");
-  console.error("107 clientes. Corriger le modele dans la console Infobip, attendre");
-  console.error("sa reapprobation, puis remettre ENVOIS_SUSPENDUS a false en tete");
-  console.error("de ce fichier.");
-  console.error("");
-  console.error("L apercu reste disponible : relancer sans --appliquer.");
-  process.exit(1);
-}
-
 const racine = join(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
 const appliquer = args.includes("--appliquer");
 const toutes = args.includes("--toutes");
+// Le nom du modele approuve. Un modele ne se modifie pas sans repasser par
+// Meta : chaque correction en cree un nouveau, et le nom change.
+const iModele = args.indexOf("--modele");
+const modele = iModele === -1 ? "promotion_v2" : args[iModele + 1];
+
 const iTest = args.indexOf("--test");
 const numeroTest = iTest === -1 ? null : args[iTest + 1];
 
@@ -63,18 +46,16 @@ const texte = cheminTexte
   ? readFileSync(cheminTexte, "utf8").trim()
   : args.find((a) => !a.startsWith("--") && a !== numeroTest && a !== cheminTexte);
 
-if (!texte) {
-  console.error('Usage : node scripts/envoyer-promotion.mjs "<texte de l offre>" [options]');
-  process.exit(1);
-}
-
+// Texte facultatif : le modele promotion_v2 porte son offre en dur et n attend
+// que le nom de la cliente. Un modele qui recoit plus de variables qu il n en
+// attend refuse le message.
 // Une variable de modele n accepte ni retour a la ligne ni tabulation, et ne
 // peut jamais etre vide. Se tromper ici donne un rejet distant illisible.
-if (/[\n\r\t]/.test(texte)) {
+if (texte && /[\n\r\t]/.test(texte)) {
   console.error("Le texte doit tenir sur une seule ligne : pas de retour a la ligne.");
   process.exit(1);
 }
-if (texte.trim().length < 20) {
+if (texte && texte.trim().length < 20) {
   console.error("Texte trop court : ce serait un message vide de sens.");
   process.exit(1);
 }
@@ -113,8 +94,10 @@ async function unEnvoi(destinataire, nom) {
           from: chiffres(env.INFOBIP_SENDER),
           to: chiffres(destinataire),
           content: {
-            templateName: "promotion",
-            templateData: { body: { placeholders: [nom, texte] } },
+            templateName: modele,
+            templateData: {
+              body: { placeholders: texte ? [nom, texte] : [nom] },
+            },
             language: "fr",
           },
         },
@@ -165,8 +148,9 @@ await client.connect();
 // Un essai vers un seul numero, sans toucher a la base ni au journal.
 if (numeroTest) {
   console.log(`Essai vers ${numeroTest}`);
+  console.log(`  modele ${modele}`);
   console.log(`  {{1}} Essai Chic Africa`);
-  console.log(`  {{2}} ${texte}`);
+  if (texte) console.log(`  {{2}} ${texte}`);
   if (!appliquer) {
     console.log("\nApercu seulement. Relancer avec --appliquer pour envoyer.");
     await client.end();
@@ -201,8 +185,8 @@ const restants = cibles.filter((c) => !envoyes.has(c.telephone));
 console.log(`Cible : ${toutes ? "toutes les clientes" : "clientes deja venues"}`);
 console.log(`Destinataires : ${restants.length}${envoyes.size ? ` (${envoyes.size} deja servies aujourd hui)` : ""}`);
 console.log("");
-console.log("Message :");
-console.log(`  Bonjour <nom> 🌸 ... ${texte} ...`);
+console.log(`Modele : ${modele}`);
+if (texte) console.log(`Offre  : ${texte}`);
 console.log("");
 for (const c of restants.slice(0, 10)) {
   console.log(`  ${(c.prenom_usuel || c.nom_complet).padEnd(30)} ${c.telephone}`);
