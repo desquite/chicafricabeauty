@@ -66,10 +66,7 @@ const VARIABLES = {
     "5",
   ],
   anniversaire_cliente: ["Essai Chic Africa"],
-  promotion: [
-    "Essai Chic Africa",
-    "Jusqu'au 30 août, notre Soin du visage et du corps est à -15 % : 34 000 FCFA au lieu de 40 000 FCFA.",
-  ],
+  promotion: ["Essai Chic Africa"],
   recapitulatif_gerante: [
     "Essai",
     "lundi 10 août",
