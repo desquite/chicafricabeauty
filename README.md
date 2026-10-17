@@ -87,6 +87,20 @@ Données de santé. La RLS est active dès la première migration, sans phase
 `est_staff_actif()` : aucune donnée n'est lisible sans session d'un membre
 actif du personnel. Les clientes n'ont pas de compte.
 
+## Fiche à distance
+
+Depuis **Clientes → Lien à envoyer**, le personnel crée un lien que la cliente
+ouvre sur son téléphone (`/ma-fiche/<jeton>`) pour remplir sa fiche avant de
+venir : identité, bilan santé, habitudes, consentements et signature.
+
+- Un lien sert **une seule fois** et expire au bout de **trois jours**.
+- La table `liens_fiche` ne garde que l'empreinte SHA-256 du jeton : un lien
+  ne peut pas être réaffiché, il faut l'envoyer au moment de sa création.
+- La cliente n'a toujours pas de compte. La page vérifie le jeton côté
+  serveur puis écrit avec `SUPABASE_SERVICE_ROLE_KEY` ; aucune policy n'ouvre
+  la base au rôle `anon`.
+- Un numéro déjà connu est refusé sans révéler à qui il appartient.
+
 ## Récapitulatif quotidien
 
 Un cron Vercel appelle `/api/cron/recapitulatif` à 7 h et envoie aux gérantes,

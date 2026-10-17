@@ -12,8 +12,9 @@ import { createClient } from "@supabase/supabase-js";
  *   - jamais importé depuis un composant client, d'où le "server-only" ;
  *   - la clé vit uniquement dans les variables d'environnement du serveur,
  *     sans préfixe NEXT_PUBLIC qui l'enverrait au navigateur ;
- *   - à n'utiliser que dans /api/cron, nulle part ailleurs. Les écrans
- *     passent par le client à session, qui reste soumis à la RLS.
+ *   - à n'utiliser que dans /api/cron et derrière un lien de fiche dont le
+ *     jeton a été vérifié (/ma-fiche), nulle part ailleurs. Les écrans du
+ *     personnel passent par le client à session, qui reste soumis à la RLS.
  */
 export function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

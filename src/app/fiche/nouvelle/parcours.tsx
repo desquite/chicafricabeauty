@@ -12,6 +12,7 @@ import {
   TEXTE_CONSENTEMENT_SOIN,
 } from "@/lib/consentements";
 import { enregistrerNouvelleFiche, type Identite } from "../actions";
+import { enregistrerFicheParLien } from "@/app/ma-fiche/[jeton]/actions";
 import {
   EtapeBilanSante,
   EtapeHabitudes,
@@ -21,11 +22,28 @@ import {
 
 const ETAPES = ["Identité", "Bilan santé", "Habitudes", "Consentement"];
 
-export default function Parcours() {
+function versDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const lecteur = new FileReader();
+    lecteur.onload = () => resolve(lecteur.result as string);
+    lecteur.onerror = () => reject(lecteur.error);
+    lecteur.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Parcours d'accueil d'une nouvelle cliente.
+ *
+ * Sans `jeton` : sur la tablette, avec la session du personnel. Avec `jeton` :
+ * sur le telephone de la cliente, depuis un lien. Elle n'a alors aucun droit
+ * sur le stockage, la signature part donc au serveur avec la fiche.
+ */
+export default function Parcours({ jeton }: { jeton?: string } = {}) {
   const router = useRouter();
   const [etape, setEtape] = useState(0);
   const [enCours, demarrer] = useTransition();
   const [erreur, setErreur] = useState<string | null>(null);
+  const [envoyee, setEnvoyee] = useState(false);
 
   const [identite, setIdentite] = useState<Identite>({
     nom_complet: "",
@@ -60,6 +78,23 @@ export default function Parcours() {
     setErreur(null);
     let signaturePath: string | null = null;
 
+    if (jeton) {
+      if (!signature) return;
+      const r = await enregistrerFicheParLien(
+        jeton,
+        {
+          identite,
+          sante,
+          consentementSoin,
+          consentementPhoto: consentementPhoto ?? false,
+        },
+        await versDataUrl(signature),
+      );
+      if (r.ok) setEnvoyee(true);
+      else setErreur(r.erreur);
+      return;
+    }
+
     if (signature) {
       const supabase = createClient();
       const chemin = `${crypto.randomUUID()}.png`;
@@ -86,6 +121,18 @@ export default function Parcours() {
       return;
     }
     router.push(`/clientes/${r.id}`);
+  }
+
+  if (envoyee) {
+    return (
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-6 p-6 text-center">
+        <Logo className="h-16 w-16" />
+        <h1 className="text-2xl font-semibold text-brand-800">Merci !</h1>
+        <p className="text-lg text-brand-700">
+          Votre fiche est bien arrivée à l&apos;institut. À très bientôt.
+        </p>
+      </main>
+    );
   }
 
   return (
@@ -211,13 +258,16 @@ export default function Parcours() {
       </div>
 
       <div className="sticky bottom-0 mt-8 flex gap-3 border-t border-brand-100 bg-creme py-4">
-        <button
-          type="button"
-          onClick={() => (etape === 0 ? router.push("/clientes") : setEtape((e) => e - 1))}
-          className="h-touch flex-1 rounded-xl border border-brand-200 bg-white font-medium text-brand-700 hover:bg-brand-50"
-        >
-          {etape === 0 ? "Annuler" : "Retour"}
-        </button>
+        {/* Sur le lien, il n'y a rien a annuler : aucune liste ou revenir. */}
+        {!(jeton && etape === 0) && (
+          <button
+            type="button"
+            onClick={() => (etape === 0 ? router.push("/clientes") : setEtape((e) => e - 1))}
+            className="h-touch flex-1 rounded-xl border border-brand-200 bg-white font-medium text-brand-700 hover:bg-brand-50"
+          >
+            {etape === 0 ? "Annuler" : "Retour"}
+          </button>
+        )}
         <button
           type="button"
           disabled={!peutAvancer || enCours}

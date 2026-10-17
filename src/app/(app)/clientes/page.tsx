@@ -3,6 +3,7 @@ import { requireProfil } from "@/lib/auth";
 import { BoutonExport } from "@/components/bouton-export";
 import { createClient } from "@/lib/supabase/server";
 import { age, alertes, type Anamnese, type Cliente } from "@/lib/types";
+import { BoutonLienFiche } from "./lien-fiche";
 import { ListeClientes, type LigneCliente } from "./liste-clientes";
 
 export const metadata = { title: "Clientes — Chic Africa Beauty Online" };
@@ -46,8 +47,9 @@ export default async function PageClientes() {
     <div className="mx-auto max-w-4xl">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-3xl font-semibold text-brand-800">Clientes</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <BoutonExport href="/api/export/clientes" />
+          <BoutonLienFiche />
           <Link
             href="/fiche/nouvelle"
             className="flex h-touch items-center rounded-xl bg-brand-600 px-6 font-semibold text-white hover:bg-brand-700"
