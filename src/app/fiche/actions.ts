@@ -66,6 +66,24 @@ export async function enregistrerNouvelleFiche(
   return { ok: true, id: r.id };
 }
 
+/**
+ * Adresse a donner a la cliente. En production, toujours le domaine principal
+ * du projet, fourni par Vercel (un domaine personnalise des qu'il y en a un) :
+ * la tablette peut avoir ouvert l'app par une adresse de deploiement, bien
+ * plus longue et moins rassurante dans un message. En local, l'hote de la
+ * requete.
+ */
+async function adressePublique() {
+  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  if (process.env.VERCEL_ENV === "production" && production) {
+    return `https://${production}`;
+  }
+  const h = await headers();
+  const hote = h.get("x-forwarded-host") ?? h.get("host");
+  const protocole = h.get("x-forwarded-proto") ?? "https";
+  return `${protocole}://${hote}`;
+}
+
 export type LienCree =
   | { ok: true; url: string; expire_le: string }
   | { ok: false; erreur: string };
@@ -88,12 +106,9 @@ export async function creerLienFiche(): Promise<LienCree> {
   });
   if (error) return { ok: false, erreur: error.message };
 
-  const h = await headers();
-  const hote = h.get("x-forwarded-host") ?? h.get("host");
-  const protocole = h.get("x-forwarded-proto") ?? "https";
   return {
     ok: true,
-    url: `${protocole}://${hote}/ma-fiche/${jeton}`,
+    url: `${await adressePublique()}/ma-fiche/${jeton}`,
     expire_le: expire.toISOString(),
   };
 }
