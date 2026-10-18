@@ -11,7 +11,7 @@ import { VueAvenir } from "./vue-avenir";
 export const metadata = { title: "Rendez-vous — Chic Africa Beauty Online" };
 
 const CHAMPS_RDV =
-  "id, date_rdv, heure_rdv, duree_min, statut, notes, soin_id, clientes(id, nom_complet, telephone), soins_catalogue(libelle)";
+  "id, date_rdv, heure_rdv, duree_min, statut, notes, soin_id, source, clientes(id, nom_complet, telephone), soins_catalogue(libelle)";
 
 /** Dernier jour du mois, au format ISO. */
 function finDeMois(mois: string) {

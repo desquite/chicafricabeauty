@@ -20,6 +20,8 @@ export type RdvAffiche = {
   statut: "prevu" | "honore" | "annule" | "absent";
   notes: string | null;
   soin_id: string | null;
+  /** "en_ligne" : pris par la cliente depuis la page /rdv. */
+  source: "personnel" | "en_ligne";
   clientes: Pick<Cliente, "id" | "nom_complet" | "telephone"> | null;
   soins_catalogue: { libelle: string } | null;
   alertes: number;
@@ -288,6 +290,11 @@ export default function Agenda({
                       </Link>
                     ) : (
                       "Cliente inconnue"
+                    )}
+                    {r.source === "en_ligne" && (
+                      <span className="ml-2 rounded-full bg-brand-100 px-2 py-0.5 align-middle text-xs font-semibold text-brand-700">
+                        en ligne
+                      </span>
                     )}
                   </p>
                   <p className="text-sm text-brand-400">
