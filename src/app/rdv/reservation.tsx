@@ -5,13 +5,35 @@ import { Logo } from "@/components/logo";
 import { Rouet } from "@/components/attente";
 import type { JourCreneaux } from "@/lib/creneaux";
 import type { PrestationPublique } from "@/lib/reservation";
-import { lireCreneaux, reserver, type Recapitulatif } from "./actions";
+import type { EtatAcompte } from "@/lib/acompte";
+import {
+  lireCreneaux,
+  payerAcompte,
+  reserver,
+  suivreAcompte,
+  type Recapitulatif,
+} from "./actions";
 import { INSTITUT } from "./institut";
 import { fraunces } from "./polices";
 
 /** Les créneaux affichés sont relus toutes les 30 secondes : temps réel. */
 const RAFRAICHISSEMENT_MS = 30_000;
-const ETAPES = 3;
+/** Pendant un paiement, l'état est relu toutes les 4 secondes, 5 minutes au plus. */
+const SUIVI_PAIEMENT_MS = 4_000;
+const SUIVI_PAIEMENT_MAX_MS = 5 * 60_000;
+
+export type OffreAcompte = { montant: number; ussdOrange: string | null };
+
+type Paiement =
+  | { etat: EtatAcompte; orderId: string; lien: string | null; operateur: string }
+  | { etat: "erreur"; erreur: string };
+
+const OPERATEURS = [
+  { valeur: "orange", libelle: "Orange" },
+  { valeur: "mtn", libelle: "MTN" },
+  { valeur: "moov", libelle: "Moov" },
+  { valeur: "wave", libelle: "Wave" },
+] as const;
 
 const titre = `${fraunces.className} font-medium text-brand-800`;
 
@@ -58,10 +80,10 @@ function decalerMois(mois: string, n: number) {
 
 /* ------------------------------------------------------------- Composants */
 
-function Progression({ etape }: { etape: number }) {
+function Progression({ etape, total }: { etape: number; total: number }) {
   return (
-    <div className="flex gap-1.5" aria-label={`Étape ${etape + 1} sur ${ETAPES}`}>
-      {Array.from({ length: ETAPES }, (_, i) => (
+    <div className="flex gap-1.5" aria-label={`Étape ${etape + 1} sur ${total}`}>
+      {Array.from({ length: total }, (_, i) => (
         <span
           key={i}
           className={`h-1 w-10 rounded-full ${i <= etape ? "bg-brand-600" : "bg-brand-200"}`}
@@ -132,9 +154,96 @@ function IconeLieu() {
   );
 }
 
+/** Opérateur, numéro qui paie et, pour Orange, le code de paiement. */
+function ChoixPaiement({
+  montant,
+  ussdOrange,
+  operateur,
+  setOperateur,
+  telephone,
+  setTelephone,
+  otp,
+  setOtp,
+}: {
+  montant: number;
+  ussdOrange: string | null;
+  operateur: string;
+  setOperateur: (v: string) => void;
+  telephone: string;
+  setTelephone: (v: string) => void;
+  otp: string;
+  setOtp: (v: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3.5">
+      <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Opérateur Mobile Money">
+        {OPERATEURS.map((o) => (
+          <button
+            key={o.valeur}
+            type="button"
+            role="radio"
+            aria-checked={operateur === o.valeur}
+            onClick={() => setOperateur(o.valeur)}
+            className={`h-11 rounded-xl text-[13px] font-bold text-brand-800 ${
+              operateur === o.valeur
+                ? "border-2 border-brand-600 bg-brand-100"
+                : "border border-brand-200 bg-white"
+            }`}
+          >
+            {o.libelle}
+          </button>
+        ))}
+      </div>
+      <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-brand-800">
+        Numéro qui paie
+        <input
+          type="tel"
+          inputMode="tel"
+          value={telephone}
+          onChange={(e) => setTelephone(e.target.value)}
+          placeholder="07 00 00 00 00"
+          className="h-12 rounded-xl border border-brand-300 bg-white px-3.5 text-base text-brand-900 focus:border-brand-600 focus:outline-none"
+        />
+      </label>
+      {operateur === "orange" && (
+        <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-brand-800">
+          Code de paiement Orange Money
+          <span className="font-normal leading-snug text-brand-600">
+            {ussdOrange ? (
+              <>
+                Compose <strong className="font-bold">{ussdOrange}</strong> sur ce numéro pour obtenir ton code,
+                puis saisis-le ici.
+              </>
+            ) : (
+              "Génère un code de paiement depuis ton menu Orange Money, puis saisis-le ici."
+            )}
+          </span>
+          <input
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            className="h-12 rounded-xl border border-brand-300 bg-white px-3.5 text-base tracking-widest text-brand-900 focus:border-brand-600 focus:outline-none"
+          />
+        </label>
+      )}
+      <p className="text-xs text-brand-500">
+        Montant : {montant.toLocaleString("fr-FR")} F CFA, déduits du prix le jour du soin.
+      </p>
+    </div>
+  );
+}
+
 /* ----------------------------------------------------------------- Parcours */
 
-export default function Reservation({ prestations }: { prestations: PrestationPublique[] }) {
+export default function Reservation({
+  prestations,
+  acompte,
+}: {
+  prestations: PrestationPublique[];
+  acompte: OffreAcompte | null;
+}) {
+  const totalEtapes = acompte ? 4 : 3;
   const [etape, setEtape] = useState(0);
   const [soin, setSoin] = useState<PrestationPublique | null>(null);
   const [jours, setJours] = useState<JourCreneaux[] | null>(null);
@@ -149,6 +258,17 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
   const [recap, setRecap] = useState<Recapitulatif | null>(null);
   const [chargement, setChargement] = useState(false);
   const [enCours, demarrer] = useTransition();
+  const [payerMaintenant, setPayerMaintenant] = useState(true);
+  const [operateur, setOperateur] = useState("");
+  const [telPayeur, setTelPayeur] = useState("");
+  const [otp, setOtp] = useState("");
+  const [paiement, setPaiement] = useState<Paiement | null>(null);
+  const [attenteLongue, setAttenteLongue] = useState(false);
+
+  const paiementPret =
+    !!operateur &&
+    (telPayeur || telephone).replace(/\D/g, "").length >= 10 &&
+    (operateur !== "orange" || otp.replace(/\D/g, "").length >= 4);
 
   const parDate = useMemo(
     () => new Map((jours ?? []).map((j) => [j.date, j.creneaux])),
@@ -199,6 +319,17 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
     return () => clearInterval(minuteur);
   }, [etape, soin, appliquerCreneaux]);
 
+  /** Le rendez-vous existe déjà : un paiement qui échoue ne le remet pas en cause. */
+  async function lancerPaiement(rdvId: string) {
+    setAttenteLongue(false);
+    const p = await payerAcompte({ rdvId, operateur, telephone: telPayeur || telephone, otp });
+    setPaiement(
+      p.ok
+        ? { etat: p.etat, orderId: p.orderId, lien: p.lien, operateur }
+        : { etat: "erreur", erreur: p.erreur },
+    );
+  }
+
   function valider() {
     if (!soin) return;
     setErreur(null);
@@ -214,7 +345,8 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
       });
       if (r.ok) {
         setRecap(r.recap);
-        setEtape(3);
+        if (acompte && payerMaintenant) await lancerPaiement(r.recap.rdvId);
+        setEtape(4);
         window.scrollTo({ top: 0 });
         return;
       }
@@ -226,6 +358,25 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
       }
     });
   }
+
+  const enAttente = paiement?.etat === "en_attente" ? paiement.orderId : null;
+  useEffect(() => {
+    if (!enAttente) return;
+    const debut = Date.now();
+    const minuteur = setInterval(async () => {
+      if (Date.now() - debut > SUIVI_PAIEMENT_MAX_MS) {
+        clearInterval(minuteur);
+        setAttenteLongue(true);
+        return;
+      }
+      const etat = await suivreAcompte(enAttente);
+      if (etat && etat !== "en_attente") {
+        clearInterval(minuteur);
+        setPaiement((p) => (p && p.etat !== "erreur" ? { ...p, etat } : p));
+      }
+    }, SUIVI_PAIEMENT_MS);
+    return () => clearInterval(minuteur);
+  }, [enAttente]);
 
   /* ---------------------------------------------- 1. Choix de la prestation */
   if (etape === 0) {
@@ -243,7 +394,7 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
         </div>
 
         <div className="mt-6 flex justify-center">
-          <Progression etape={0} />
+          <Progression etape={0} total={totalEtapes} />
         </div>
 
         <section className="flex flex-col gap-3 px-5 pt-5 pb-10" aria-labelledby="titre-prestation">
@@ -296,7 +447,91 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
   }
 
   /* ------------------------------------------------------ 4. Confirmation */
-  if (etape === 3 && recap) {
+  if (etape === 4 && recap) {
+    const formulaireAcompte = acompte && (
+      <div className="flex flex-col gap-3.5">
+        <ChoixPaiement
+          montant={acompte.montant}
+          ussdOrange={acompte.ussdOrange}
+          operateur={operateur}
+          setOperateur={setOperateur}
+          telephone={telPayeur || telephone}
+          setTelephone={setTelPayeur}
+          otp={otp}
+          setOtp={setOtp}
+        />
+        <BoutonPrincipal
+          disabled={enCours || !paiementPret}
+          onClick={() => demarrer(() => lancerPaiement(recap.rdvId))}
+        >
+          {enCours && <Rouet />}
+          {enCours ? "Envoi…" : `Payer ${acompte.montant.toLocaleString("fr-FR")} F`}
+        </BoutonPrincipal>
+      </div>
+    );
+
+    let panneauAcompte: React.ReactNode = null;
+    if (acompte) {
+      if (paiement?.etat === "reussi") {
+        panneauAcompte = (
+          <p className="flex items-center justify-between gap-3 text-sm">
+            <span className="text-brand-500">Acompte</span>
+            <span className="rounded-full bg-[#e5f0e6] px-2.5 py-1 text-[13px] font-semibold text-[#2f5d3a]">
+              {acompte.montant.toLocaleString("fr-FR")} F payés
+            </span>
+          </p>
+        );
+      } else if (paiement?.etat === "en_attente") {
+        panneauAcompte = (
+          <div className="flex flex-col gap-3 text-sm" role="status">
+            <p className="flex items-center gap-2 font-semibold text-brand-800">
+              <Rouet /> Paiement de l&apos;acompte en cours…
+            </p>
+            {paiement.lien ? (
+              <a
+                href={paiement.lien}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-12 items-center justify-center rounded-full bg-[#1dc8ff] font-bold text-[#06283d]"
+              >
+                Payer avec Wave
+              </a>
+            ) : paiement.operateur === "orange" ? (
+              <p className="text-brand-600">Orange Money valide ton code, un instant.</p>
+            ) : (
+              <p className="text-brand-600">
+                Une demande de paiement arrive sur ton téléphone : valide-la avec ton code secret.
+              </p>
+            )}
+            {attenteLongue && (
+              <p className="text-brand-600">
+                La confirmation tarde. Si tu as payé, elle arrivera d&apos;elle-même ; sinon, tu
+                régleras l&apos;acompte à l&apos;institut. Ton rendez-vous est bien réservé.
+              </p>
+            )}
+          </div>
+        );
+      } else {
+        panneauAcompte = (
+          <div className="flex flex-col gap-3 text-sm">
+            {paiement ? (
+              <p role="alert" className="rounded-xl bg-red-50 px-3.5 py-2.5 text-red-800">
+                {paiement.etat === "erreur"
+                  ? paiement.erreur
+                  : "Le paiement n'a pas abouti."}{" "}
+                Ton rendez-vous reste réservé.
+              </p>
+            ) : (
+              <p className="text-brand-600">
+                Acompte non réglé : tu peux le payer maintenant, ou à l&apos;institut.
+              </p>
+            )}
+            {formulaireAcompte}
+          </div>
+        );
+      }
+    }
+
     return (
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center gap-[18px] px-5 pt-14 pb-8">
         <div className="flex h-[88px] w-[88px] items-center justify-center rounded-full bg-brand-600 text-white">
@@ -324,6 +559,7 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
             <dt className="text-brand-500">Prix</dt>
             <dd className="font-bold text-brand-500">{recap.prix}</dd>
           </div>
+          {panneauAcompte && <div className="border-t border-brand-100 pt-3.5">{panneauAcompte}</div>}
         </dl>
 
         <p className="flex items-start gap-1.5 text-center text-[13px] leading-snug text-brand-600">
@@ -362,14 +598,14 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
             setEtape((e) => e - 1);
           }}
         />
-        <Progression etape={etape} />
+        <Progression etape={etape} total={totalEtapes} />
       </div>
       {soin && (
         <div className="mx-5 mt-3 flex items-center justify-between gap-3 rounded-2xl bg-brand-100 px-[18px] py-3.5">
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="text-sm font-semibold">{soin.nom}</span>
             <span className="text-[13px] text-brand-600">
-              {etape === 2 && date && choixHeure
+              {etape >= 2 && date && choixHeure
                 ? `${dateCourte(date)} · ${heure(choixHeure)}`
                 : soin.duree}
             </span>
@@ -546,9 +782,112 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
     );
   }
 
+  /* ------------------------------------------------------------ 4. Acompte */
+  if (etape === 3 && acompte) {
+    const montant = `${acompte.montant.toLocaleString("fr-FR")} F CFA`;
+    return (
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col">
+        {entete}
+        <div className="flex flex-col gap-3.5 px-5 pt-5">
+          <h2 className={`${titre} mx-1 text-2xl leading-tight`}>
+            Veux-tu régler l&apos;acompte maintenant ?
+          </h2>
+          <p className="mx-1 text-sm leading-relaxed text-brand-600">
+            {montant}, déduits du prix le jour du soin. C&apos;est facultatif : ton rendez-vous est
+            réservé dans les deux cas.
+          </p>
+
+          <div
+            className={`flex flex-col gap-3.5 rounded-[18px] bg-white p-[18px] ${
+              payerMaintenant ? "border-2 border-brand-600" : "border border-brand-200"
+            }`}
+          >
+            <label className="flex items-start gap-3">
+              <input
+                type="radio"
+                name="acompte"
+                checked={payerMaintenant}
+                onChange={() => setPayerMaintenant(true)}
+                className="mt-0.5 h-[22px] w-[22px] accent-brand-600"
+              />
+              <span className="flex flex-col gap-0.5">
+                <span className="text-[15px] font-bold">Payer l&apos;acompte maintenant</span>
+                <span className="text-[13px] text-brand-600">Par Mobile Money, en quelques secondes</span>
+              </span>
+            </label>
+            {payerMaintenant && (
+              <ChoixPaiement
+                montant={acompte.montant}
+                ussdOrange={acompte.ussdOrange}
+                operateur={operateur}
+                setOperateur={setOperateur}
+                telephone={telPayeur || telephone}
+                setTelephone={setTelPayeur}
+                otp={otp}
+                setOtp={setOtp}
+              />
+            )}
+          </div>
+
+          <label
+            className={`flex items-start gap-3 rounded-[18px] bg-white p-[18px] ${
+              !payerMaintenant ? "border-2 border-brand-600" : "border border-brand-200"
+            }`}
+          >
+            <input
+              type="radio"
+              name="acompte"
+              checked={!payerMaintenant}
+              onChange={() => setPayerMaintenant(false)}
+              className="mt-0.5 h-[22px] w-[22px] accent-brand-600"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-[15px] font-bold">Réserver sans payer maintenant</span>
+              <span className="text-[13px] leading-snug text-brand-600">
+                Tu pourras régler l&apos;acompte à l&apos;institut.
+              </span>
+            </span>
+          </label>
+
+          <details className="px-1 text-[13px] leading-relaxed text-brand-600">
+            <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-brand-700">
+              Conditions de l&apos;acompte
+            </summary>
+            L&apos;acompte n&apos;est pas remboursable. Il est retenu en cas de retard de plus de 30
+            minutes, d&apos;annulation moins de 24 h avant le rendez-vous, ou d&apos;absence non
+            justifiée.
+          </details>
+
+          {erreur && <Alerte>{erreur}</Alerte>}
+        </div>
+
+        <Pied>
+          <BoutonPrincipal
+            disabled={enCours || (payerMaintenant && !paiementPret)}
+            onClick={valider}
+          >
+            {enCours && <Rouet />}
+            {enCours
+              ? "Réservation…"
+              : payerMaintenant
+                ? `Payer ${acompte.montant.toLocaleString("fr-FR")} F et confirmer`
+                : "Confirmer le rendez-vous"}
+          </BoutonPrincipal>
+        </Pied>
+      </main>
+    );
+  }
+
   /* ------------------------------------------------------- 3. Coordonnées */
   const champ =
     "h-[52px] w-full rounded-[14px] border border-brand-300 bg-white px-4 text-base text-brand-900 placeholder:text-brand-300 focus:border-brand-600 focus:outline-none";
+  const coordonneesPretes = nom.trim().length >= 2 && telephone.replace(/\D/g, "").length >= 10;
+  const suite = () => {
+    if (!acompte) return valider();
+    setErreur(null);
+    setEtape(3);
+    window.scrollTo({ top: 0 });
+  };
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col">
@@ -557,7 +896,7 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
         className="flex flex-col gap-[18px] px-5 pt-6"
         onSubmit={(e) => {
           e.preventDefault();
-          valider();
+          if (coordonneesPretes) suite();
         }}
       >
         <h2 className={`${titre} mx-1 text-[22px]`}>Tes coordonnées</h2>
@@ -628,12 +967,9 @@ export default function Reservation({ prestations }: { prestations: PrestationPu
       </form>
 
       <Pied>
-        <BoutonPrincipal
-          disabled={enCours || nom.trim().length < 2 || telephone.replace(/\D/g, "").length < 10}
-          onClick={valider}
-        >
+        <BoutonPrincipal disabled={enCours || !coordonneesPretes} onClick={suite}>
           {enCours && <Rouet />}
-          {enCours ? "Réservation…" : "Confirmer le rendez-vous"}
+          {enCours ? "Réservation…" : acompte ? "Continuer" : "Confirmer le rendez-vous"}
         </BoutonPrincipal>
         <p className="mt-3 text-center text-xs text-brand-500">
           {INSTITUT.nom} · {INSTITUT.telephone}

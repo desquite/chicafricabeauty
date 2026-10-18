@@ -1,6 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import {
+  etatAcompte,
+  initierAcompte,
+  type EtatAcompte,
+  type ResultatInitiation,
+} from "@/lib/acompte";
+import { OPERATEURS, type Operateur } from "@/lib/afribapay";
 import type { JourCreneaux } from "@/lib/creneaux";
 import { minutes, versHeure } from "@/lib/creneaux";
 import { fcfa, prixDuJour } from "@/lib/disponibilites";
@@ -25,6 +32,8 @@ export async function lireCreneaux(soinId: string): Promise<JourCreneaux[] | nul
 }
 
 export type Recapitulatif = {
+  /** Sert à régler l'acompte juste après ; aléatoire, donc impossible à deviner. */
+  rdvId: string;
   prestation: string;
   date: string;
   debut: string;
@@ -117,6 +126,7 @@ export async function reserver(saisie: {
   return {
     ok: true,
     recap: {
+      rdvId: resultat.id!,
       prestation: soin?.libelle_public || soin?.libelle || "",
       date: saisie.date,
       debut: saisie.heure,
@@ -125,4 +135,42 @@ export async function reserver(saisie: {
       nouvelle: cliente.nouvelle,
     },
   };
+}
+
+/* ------------------------------------------------------------------ Acompte */
+
+export async function payerAcompte(saisie: {
+  rdvId: string;
+  operateur: string;
+  telephone: string;
+  otp: string;
+}): Promise<ResultatInitiation> {
+  if (!UUID.test(saisie.rdvId)) return { ok: false, erreur: "Rendez-vous introuvable." };
+  if (!OPERATEURS.includes(saisie.operateur as Operateur)) {
+    return { ok: false, erreur: "Choisis ton opérateur Mobile Money." };
+  }
+  const telephone = chiffresIvoiriens(saisie.telephone);
+  if (!telephone) {
+    return { ok: false, erreur: "Le numéro qui paie doit compter 10 chiffres." };
+  }
+  const otp = saisie.otp.replace(/\D/g, "");
+  if (saisie.operateur === "orange" && !/^\d{4,8}$/.test(otp)) {
+    return { ok: false, erreur: "Indique le code de paiement Orange Money reçu sur ton téléphone." };
+  }
+
+  const r = await initierAcompte({
+    rdvId: saisie.rdvId,
+    operateur: saisie.operateur as Operateur,
+    telephone,
+    otp: saisie.operateur === "orange" ? otp : undefined,
+  });
+  if (r.ok) revalidatePath("/rendez-vous");
+  return r;
+}
+
+const ORDER_ID = /^CAB-[A-Z0-9]+-[A-F0-9]{12}$/;
+
+export async function suivreAcompte(orderId: string): Promise<EtatAcompte | null> {
+  if (!ORDER_ID.test(orderId)) return null;
+  return etatAcompte(orderId);
 }

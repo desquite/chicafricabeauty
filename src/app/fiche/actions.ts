@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
+import { adressePublique } from "@/lib/adresse";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfil } from "@/lib/auth";
 import { insererFiche, ligneAnamnese, type FicheComplete } from "@/lib/fiche";
@@ -64,24 +64,6 @@ export async function enregistrerNouvelleFiche(
   revalidatePath("/clientes");
   revalidatePath("/accueil");
   return { ok: true, id: r.id };
-}
-
-/**
- * Adresse a donner a la cliente. En production, toujours le domaine principal
- * du projet, fourni par Vercel (un domaine personnalise des qu'il y en a un) :
- * la tablette peut avoir ouvert l'app par une adresse de deploiement, bien
- * plus longue et moins rassurante dans un message. En local, l'hote de la
- * requete.
- */
-async function adressePublique() {
-  const production = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  if (process.env.VERCEL_ENV === "production" && production) {
-    return `https://${production}`;
-  }
-  const h = await headers();
-  const hote = h.get("x-forwarded-host") ?? h.get("host");
-  const protocole = h.get("x-forwarded-proto") ?? "https";
-  return `${protocole}://${hote}`;
 }
 
 export type LienCree =

@@ -22,6 +22,9 @@ export type RdvAffiche = {
   soin_id: string | null;
   /** "en_ligne" : pris par la cliente depuis la page /rdv. */
   source: "personnel" | "en_ligne";
+  /** Renseignés quand l'acompte a été payé en ligne. */
+  acompte_montant: number | null;
+  acompte_paye_le: string | null;
   clientes: Pick<Cliente, "id" | "nom_complet" | "telephone"> | null;
   soins_catalogue: { libelle: string } | null;
   alertes: number;
@@ -294,6 +297,11 @@ export default function Agenda({
                     {r.source === "en_ligne" && (
                       <span className="ml-2 rounded-full bg-brand-100 px-2 py-0.5 align-middle text-xs font-semibold text-brand-700">
                         en ligne
+                      </span>
+                    )}
+                    {r.acompte_paye_le && (
+                      <span className="ml-2 rounded-full bg-[#e5f0e6] px-2 py-0.5 align-middle text-xs font-semibold text-[#2f5d3a]">
+                        acompte {r.acompte_montant?.toLocaleString("fr-FR")} F payé
                       </span>
                     )}
                   </p>
