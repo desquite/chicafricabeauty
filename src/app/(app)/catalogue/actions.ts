@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfil } from "@/lib/auth";
+import { GROUPES } from "@/lib/disponibilites";
 
 export type Retour = { ok: boolean; erreur?: string };
 
@@ -31,6 +32,8 @@ export async function enregistrerSoin(saisie: {
   prix_promo: string;
   promo_debut: string;
   promo_fin: string;
+  description: string;
+  groupe: string;
 }): Promise<Retour> {
   await exigerGerante();
   const supabase = await createClient();
@@ -74,6 +77,8 @@ export async function enregistrerSoin(saisie: {
     prix_promo: prixPromo,
     promo_debut: prixPromo != null ? saisie.promo_debut : null,
     promo_fin: prixPromo != null ? saisie.promo_fin : null,
+    description: saisie.description.trim() || null,
+    groupe: GROUPES.some((g) => g.id === saisie.groupe) ? saisie.groupe : null,
   };
 
   const { error } = saisie.id

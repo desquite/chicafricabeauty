@@ -1,4 +1,12 @@
-import type { SoinCatalogue } from "@/lib/types";
+import type { GroupeSoin, SoinCatalogue } from "@/lib/types";
+
+/** Groupes de la page de réservation, dans l'ordre du menu de l'institut. */
+export const GROUPES: readonly { id: GroupeSoin; titre: string; anglais: string }[] = [
+  { id: "visage", titre: "Soins du visage", anglais: "Facial" },
+  { id: "corps", titre: "Soins du corps", anglais: "Body care" },
+  { id: "cire", titre: "Épilation à la cire chaude", anglais: "Warm wax" },
+  { id: "ongles", titre: "Onglerie", anglais: "Nail care" },
+];
 
 /** Ordre d'affichage : la semaine de l'institut commence le lundi. */
 export const JOURS_SEMAINE = [

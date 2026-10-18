@@ -6,6 +6,7 @@ import { Rouet } from "@/components/attente";
 import type { JourCreneaux } from "@/lib/creneaux";
 import type { PrestationPublique } from "@/lib/reservation";
 import type { EtatAcompte } from "@/lib/acompte";
+import { GROUPES } from "@/lib/disponibilites";
 import {
   lireCreneaux,
   payerAcompte,
@@ -265,6 +266,25 @@ export default function Reservation({
   const [paiement, setPaiement] = useState<Paiement | null>(null);
   const [attenteLongue, setAttenteLongue] = useState(false);
 
+  // Rubriques dans l'ordre du menu ; un soin sans groupe va dans « Autres ».
+  const groupes = useMemo(() => {
+    const liste = [
+      ...GROUPES.map((g) => ({ ...g, soins: prestations.filter((p) => p.groupe === g.id) })),
+      {
+        id: "autres",
+        titre: "Autres prestations",
+        anglais: "",
+        soins: prestations.filter((p) => !GROUPES.some((g) => g.id === p.groupe)),
+      },
+    ].filter((g) => g.soins.length > 0);
+    return liste.map((g) => {
+      const prix = g.soins.map((p) => p.prixValeur).filter((n): n is number => n != null);
+      return { ...g, minimum: prix.length ? Math.min(...prix) : null };
+    });
+  }, [prestations]);
+  const [groupeOuvert, setGroupeOuvert] = useState<string | null>(null);
+  const [descriptionOuverte, setDescriptionOuverte] = useState<string | null>(null);
+
   const paiementPret =
     !!operateur &&
     (telPayeur || telephone).replace(/\D/g, "").length >= 10 &&
@@ -410,37 +430,121 @@ export default function Reservation({
               .
             </p>
           )}
-          {prestations.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => void choisirSoin(p)}
-              className="flex items-center justify-between gap-3 rounded-[18px] bg-white px-[18px] py-4 text-left shadow-[0_1px_2px_rgba(74,35,28,0.06),0_4px_14px_rgba(74,35,28,0.05)] transition-transform active:scale-[0.99]"
-            >
-              <span className="flex min-w-0 flex-col gap-1">
-                <span className="text-[15px] leading-snug font-semibold text-brand-900">{p.nom}</span>
-                <span className="text-[13px] text-brand-500">{p.duree}</span>
-              </span>
-              <span className="flex shrink-0 flex-col items-end gap-0.5">
-                {p.prixBarre && (
-                  <span className="text-xs text-brand-400 line-through">{p.prixBarre}</span>
-                )}
-                <span className={`text-[15px] font-bold ${p.prixBarre ? "text-brand-500" : "text-brand-800"}`}>
-                  {p.prix}
-                </span>
-                {p.promoJusquau && (
-                  <span className="rounded-full bg-brand-500 px-2 py-0.5 text-[11px] font-semibold text-white">
-                    Offre jusqu&apos;au{" "}
-                    {enDate(p.promoJusquau).toLocaleDateString("fr-FR", {
-                      day: "numeric",
-                      month: "short",
-                      timeZone: "UTC",
-                    })}
+          {prestations.length > 0 && (
+            <p className="mx-1 -mt-2 mb-1 text-sm text-brand-600">
+              Touche une catégorie pour voir ses soins.
+            </p>
+          )}
+          {groupes.map((g) => {
+            const ouvert = groupeOuvert === g.id;
+            const enPromo = g.soins.some((p) => p.prixBarre);
+            return (
+              <div
+                key={g.id}
+                className="overflow-hidden rounded-[20px] bg-white shadow-[0_1px_2px_rgba(74,35,28,0.06),0_4px_14px_rgba(74,35,28,0.05)]"
+              >
+                <button
+                  type="button"
+                  aria-expanded={ouvert}
+                  aria-controls={`groupe-${g.id}`}
+                  onClick={() => setGroupeOuvert(ouvert ? null : g.id)}
+                  className="flex min-h-[76px] w-full items-center gap-3.5 px-[18px] py-4 text-left"
+                >
+                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="flex flex-wrap items-baseline gap-x-2">
+                      <span className={`${titre} text-xl`}>{g.titre}</span>
+                      {g.anglais && (
+                        <span className="text-[11px] font-bold tracking-wider text-brand-500 uppercase">
+                          {g.anglais}
+                        </span>
+                      )}
+                    </span>
+                    <span className="text-[13px] text-brand-500">
+                      {g.soins.length} soin{g.soins.length > 1 ? "s" : ""}
+                      {g.minimum != null && ` · dès ${g.minimum.toLocaleString("fr-FR")} F`}
+                      {enPromo && " · offre en cours"}
+                    </span>
                   </span>
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform duration-200 ${
+                      ouvert ? "rotate-180 bg-brand-600 text-white" : "bg-brand-100 text-brand-600"
+                    }`}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </span>
+                </button>
+
+                {ouvert && (
+                  <ul id={`groupe-${g.id}`} className="border-t border-brand-100">
+                    {g.soins.map((p) => {
+                      const descOuverte = descriptionOuverte === p.id;
+                      return (
+                        <li key={p.id} className="border-b border-brand-50 px-[18px] py-3.5 last:border-b-0">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="flex min-w-0 flex-col gap-1">
+                              <span className="text-[15px] leading-snug font-semibold text-brand-900">
+                                {p.nom}
+                              </span>
+                              <span className="text-[13px] text-brand-500">
+                                {p.duree} ·{" "}
+                                {p.prixBarre && (
+                                  <span className="mr-1 text-brand-400 line-through">{p.prixBarre}</span>
+                                )}
+                                <strong className={p.prixBarre ? "text-brand-500" : "text-brand-800"}>
+                                  {p.prix}
+                                </strong>
+                              </span>
+                              {p.promoJusquau && (
+                                <span className="self-start rounded-full bg-brand-500 px-2 py-0.5 text-[11px] font-semibold text-white">
+                                  Offre jusqu&apos;au{" "}
+                                  {enDate(p.promoJusquau).toLocaleDateString("fr-FR", {
+                                    day: "numeric",
+                                    month: "short",
+                                    timeZone: "UTC",
+                                  })}
+                                </span>
+                              )}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => void choisirSoin(p)}
+                              aria-label={`Choisir ${p.nom}`}
+                              className="h-10 shrink-0 rounded-full bg-brand-600 px-4 text-sm font-bold text-white hover:bg-brand-700"
+                            >
+                              Choisir
+                            </button>
+                          </div>
+                          {p.description && (
+                            <>
+                              <button
+                                type="button"
+                                aria-expanded={descOuverte}
+                                onClick={() => setDescriptionOuverte(descOuverte ? null : p.id)}
+                                className="mt-2 inline-flex h-9 items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-3 text-[13px] font-semibold text-brand-500"
+                              >
+                                {descOuverte ? "Moins" : "En savoir plus"}
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={descOuverte ? "rotate-180" : ""}>
+                                  <path d="M6 9l6 6 6-6" />
+                                </svg>
+                              </button>
+                              {descOuverte && (
+                                <p className="mt-2.5 rounded-xl bg-brand-50 px-3.5 py-3 text-sm leading-relaxed text-brand-700">
+                                  {p.description}
+                                </p>
+                              )}
+                            </>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
                 )}
-              </span>
-            </button>
-          ))}
+              </div>
+            );
+          })}
         </section>
       </main>
     );

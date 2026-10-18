@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculerCreneaux, ajouterJours, minutes, type JourCreneaux } from "@/lib/creneaux";
 import { dureeLisible, fcfa, prixDuJour } from "@/lib/disponibilites";
-import type { SoinCatalogue } from "@/lib/types";
+import type { GroupeSoin, SoinCatalogue } from "@/lib/types";
 
 /**
  * Lectures de la page publique /rdv.
@@ -21,6 +21,10 @@ export type PrestationPublique = {
   prixBarre: string | null;
   /** Dernier jour de la promotion en cours, sinon null. */
   promoJusquau: string | null;
+  /** Prix du jour en chiffres, pour le « dès … » des groupes. */
+  prixValeur: number | null;
+  description: string | null;
+  groupe: GroupeSoin | null;
 };
 
 export const aujourdhuiAbidjan = () => new Date().toISOString().slice(0, 10);
@@ -46,6 +50,9 @@ export async function prestationsEnLigne(): Promise<PrestationPublique[]> {
       prix: fcfa(prix),
       prixBarre: enPromo ? fcfa(s.prix) : null,
       promoJusquau: enPromo ? s.promo_fin : null,
+      prixValeur: prix,
+      description: s.description,
+      groupe: s.groupe,
     };
   });
 }

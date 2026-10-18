@@ -73,7 +73,12 @@ export type SoinCatalogue = {
   prix_promo: number | null;
   promo_debut: string | null;
   promo_fin: string | null;
+  /** Texte derrière « En savoir plus » sur la page de réservation. */
+  description: string | null;
+  groupe: GroupeSoin | null;
 };
+
+export type GroupeSoin = "visage" | "corps" | "cire" | "ongles";
 
 /** 0 = dimanche, conforme à `extract(dow)` et `Date.getDay()`. */
 export type HoraireJour = {

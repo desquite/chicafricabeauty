@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Champ, DateFr, OuiNon, Texte } from "@/components/champs";
+import { Champ, ChoixUnique, DateFr, OuiNon, Paragraphe, Texte } from "@/components/champs";
 import { Rouet } from "@/components/attente";
-import { dureeLisible, etatPromo, fcfa } from "@/lib/disponibilites";
-import type { SoinCatalogue } from "@/lib/types";
+import { dureeLisible, etatPromo, fcfa, GROUPES } from "@/lib/disponibilites";
+import type { GroupeSoin, SoinCatalogue } from "@/lib/types";
 import { basculerSoin, enregistrerSoin } from "./actions";
 
 const vierge = {
@@ -19,6 +19,8 @@ const vierge = {
   prix_promo: "",
   promo_debut: "",
   promo_fin: "",
+  description: "",
+  groupe: "",
 };
 
 /** "2026-11-01" → "1 nov." */
@@ -70,6 +72,8 @@ export default function Editeur({
             prix_promo: s.prix_promo?.toString() ?? "",
             promo_debut: s.promo_debut ?? "",
             promo_fin: s.promo_fin ?? "",
+            description: s.description ?? "",
+            groupe: s.groupe ?? "",
           }
         : vierge,
     );
@@ -145,6 +149,23 @@ export default function Editeur({
                 onChange={(v) => maj("libelle_public", v)}
               />
             </Champ>
+          )}
+          {saisie.en_ligne && (
+            <>
+              <Champ label="Groupe" aide="La rubrique où le soin apparaît sur la page de réservation">
+                <ChoixUnique
+                  options={GROUPES.map((g) => ({ valeur: g.id, libelle: g.titre }))}
+                  valeur={(saisie.groupe || null) as GroupeSoin | null}
+                  onChange={(v) => maj("groupe", v)}
+                />
+              </Champ>
+              <Champ label="Description" aide="Affichée derrière « En savoir plus ». Vide : pas de bouton.">
+                <Paragraphe
+                  valeur={saisie.description}
+                  onChange={(v) => maj("description", v)}
+                />
+              </Champ>
+            </>
           )}
 
           <h3 className="mt-2 mb-1 border-t border-brand-100 pt-5 text-lg font-semibold text-brand-800">
