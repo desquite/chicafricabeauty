@@ -6,6 +6,7 @@ import { Rouet } from "@/components/attente";
 import type { JourCreneaux } from "@/lib/creneaux";
 import type { PrestationPublique } from "@/lib/reservation";
 import { GROUPES } from "@/lib/disponibilites";
+import { INDICATIF_DEFAUT, listeIndicatifs, normaliserNumero } from "@/lib/indicatifs";
 import { montantAcompte, veilleLimite } from "@/lib/regles-acompte";
 import { lireCreneaux, reserver, type Recapitulatif } from "./actions";
 import { INSTITUT } from "./institut";
@@ -158,6 +159,8 @@ export default function Reservation({
   const [choixHeure, setChoixHeure] = useState("");
   const [nom, setNom] = useState("");
   const [telephone, setTelephone] = useState("");
+  const [indicatif, setIndicatif] = useState(INDICATIF_DEFAUT);
+  const pays = useMemo(() => listeIndicatifs(), []);
   const [email, setEmail] = useState("");
   const [site, setSite] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -165,7 +168,8 @@ export default function Reservation({
   const [chargement, setChargement] = useState(false);
   const [enCours, demarrer] = useTransition();
   const [payerMaintenant, setPayerMaintenant] = useState(true);
-  const paiement = usePaiement(telephone);
+  // Mobile Money ivoirien seulement : un numero etranger ne preremplit pas.
+  const paiement = usePaiement(indicatif === INDICATIF_DEFAUT ? telephone : "");
 
   // Rubriques dans l'ordre du menu ; un soin sans groupe va dans « Autres ».
   const groupes = useMemo(() => {
@@ -253,6 +257,7 @@ export default function Reservation({
         heure: choixHeure,
         nom,
         telephone,
+        indicatif,
         email,
         site,
         acompteMaintenant: Boolean(acompte) && payerTout,
@@ -861,7 +866,7 @@ export default function Reservation({
   /* ------------------------------------------------------- 3. Coordonnées */
   const champ =
     "h-[52px] w-full rounded-[14px] border border-brand-300 bg-white px-4 text-base text-brand-900 placeholder:text-brand-300 focus:border-brand-600 focus:outline-none";
-  const coordonneesPretes = nom.trim().length >= 2 && telephone.replace(/\D/g, "").length >= 10;
+  const coordonneesPretes = nom.trim().length >= 2 && normaliserNumero(indicatif, telephone) !== null;
   const suite = () => {
     if (!acompte) return valider();
     setErreur(null);
@@ -895,18 +900,48 @@ export default function Reservation({
           />
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm font-semibold text-brand-800">
-          Numéro WhatsApp
+        {/* Deux champs, l'indicatif et le numero : un div, pas un label qui ne
+            peut en designer qu'un. */}
+        <div className="flex flex-col gap-1.5 text-sm font-semibold text-brand-800">
+          <label htmlFor="telephone">Numéro WhatsApp</label>
           <span className="flex gap-2">
-            <span className="flex h-[52px] items-center rounded-[14px] border border-brand-300 bg-brand-50 px-3.5 text-base font-semibold">
-              +225
+            {/* Le select natif, invisible, couvre la pastille : la liste des
+                pays s'ouvre comme sur n'importe quel telephone, et seul
+                l'indicatif s'affiche dans le champ. */}
+            <span className="relative flex h-[52px] shrink-0 items-center gap-1 rounded-[14px] border border-brand-300 bg-brand-50 pr-2.5 pl-3.5 text-base font-semibold">
+              +{indicatif}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="text-brand-500">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+              <select
+                aria-label="Indicatif du pays"
+                value={indicatif}
+                onChange={(e) => setIndicatif(e.target.value)}
+                className="absolute inset-0 cursor-pointer opacity-0"
+              >
+                <optgroup label="Fréquents">
+                  {pays.frequents.map((p) => (
+                    <option key={`f-${p.iso}`} value={p.indicatif}>
+                      {p.nom} (+{p.indicatif})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Tous les pays">
+                  {pays.autres.map((p) => (
+                    <option key={p.iso} value={p.indicatif}>
+                      {p.nom} (+{p.indicatif})
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
             </span>
             <input
+              id="telephone"
               className={`${champ} min-w-0 flex-1`}
               type="tel"
               inputMode="tel"
               autoComplete="tel-national"
-              placeholder="07 00 00 00 00"
+              placeholder={indicatif === INDICATIF_DEFAUT ? "07 00 00 00 00" : "Numéro"}
               value={telephone}
               onChange={(e) => setTelephone(e.target.value)}
               required
@@ -915,7 +950,7 @@ export default function Reservation({
           <span className="text-[13px] font-normal text-brand-600">
             C&apos;est ici que l&apos;institut te contactera.
           </span>
-        </label>
+        </div>
 
         <label className="flex flex-col gap-1.5 text-sm font-semibold text-brand-800">
           E-mail <span className="font-normal text-brand-500">(facultatif)</span>

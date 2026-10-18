@@ -139,10 +139,6 @@ export function chiffresIvoiriens(saisie: string) {
   return /^\d{10}$/.test(c) ? c : null;
 }
 
-/** "0701020304" → "+225 07 01 02 03 04", la forme saisie sur la tablette. */
-export const telephoneAffiche = (c: string) =>
-  `+225 ${c.match(/.{2}/g)!.join(" ")}`;
-
 /**
  * Retrouve la cliente par son numéro, sinon la crée. Les numéros déjà en base
  * ont été saisis sous toutes les formes : seuls les 8 derniers chiffres
@@ -150,11 +146,14 @@ export const telephoneAffiche = (c: string) =>
  */
 export async function clientePourReservation(saisie: {
   nom: string;
-  chiffres: string;
+  /** Chiffres internationaux, indicatif compris (2250701020304). */
+  international: string;
+  /** Forme enregistrée sur la fiche (+225 07 01 02 03 04). */
+  affiche: string;
   email: string;
 }): Promise<{ id: string; nouvelle: boolean } | { erreur: string }> {
   const admin = createAdminClient();
-  const fin = saisie.chiffres.slice(-8);
+  const fin = saisie.international.slice(-8);
 
   const { data: candidates, error } = await admin
     .from("clientes")
@@ -174,7 +173,7 @@ export async function clientePourReservation(saisie: {
     .from("clientes")
     .insert({
       nom_complet: saisie.nom,
-      telephone: telephoneAffiche(saisie.chiffres),
+      telephone: saisie.affiche,
       email: saisie.email || null,
     })
     .select("id")

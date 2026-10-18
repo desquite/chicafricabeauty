@@ -13,12 +13,8 @@ import { OPERATEURS, paiementConfigure, type Operateur } from "@/lib/afribapay";
 import type { JourCreneaux } from "@/lib/creneaux";
 import { minutes, versHeure } from "@/lib/creneaux";
 import { fcfa, prixDuJour } from "@/lib/disponibilites";
-import {
-  chiffresIvoiriens,
-  clientePourReservation,
-  creneauxLibres,
-  telephoneAffiche,
-} from "@/lib/reservation";
+import { INDICATIF_DEFAUT, normaliserNumero } from "@/lib/indicatifs";
+import { chiffresIvoiriens, clientePourReservation, creneauxLibres } from "@/lib/reservation";
 import { envoyerMessageAcompte } from "@/lib/notifications/acompte";
 import {
   acompteDuRdv,
@@ -71,6 +67,8 @@ export async function reserver(saisie: {
   heure: string;
   nom: string;
   telephone: string;
+  /** Indicatif choisi, sans le +. 225 par défaut. */
+  indicatif: string;
   email: string;
   /** Champ invisible : seul un robot le remplit. */
   site: string;
@@ -86,16 +84,27 @@ export async function reserver(saisie: {
   if (nom.length < 2 || nom.length > 100) {
     return { ok: false, erreur: "Indique ton nom et tes prénoms." };
   }
-  const chiffres = chiffresIvoiriens(saisie.telephone);
-  if (!chiffres) {
-    return { ok: false, erreur: "Le numéro WhatsApp doit compter 10 chiffres, par exemple 07 00 00 00 00." };
+  const numero = normaliserNumero(saisie.indicatif || INDICATIF_DEFAUT, saisie.telephone);
+  if (!numero) {
+    return {
+      ok: false,
+      erreur:
+        (saisie.indicatif || INDICATIF_DEFAUT) === INDICATIF_DEFAUT
+          ? "Le numéro WhatsApp doit compter 10 chiffres, par exemple 07 00 00 00 00."
+          : "Ce numéro ne semble pas valable pour le pays choisi.",
+    };
   }
   const email = saisie.email.trim().toLowerCase();
   if (email && (email.length > 200 || !EMAIL.test(email))) {
     return { ok: false, erreur: "L'adresse e-mail ne semble pas valide." };
   }
 
-  const cliente = await clientePourReservation({ nom, chiffres, email });
+  const cliente = await clientePourReservation({
+    nom,
+    international: numero.international,
+    affiche: numero.affiche,
+    email,
+  });
   if ("erreur" in cliente) {
     return { ok: false, erreur: "La réservation n'a pas pu aboutir. Réessaie dans un instant." };
   }
@@ -171,7 +180,7 @@ export async function reserver(saisie: {
       await envoyerMessageAcompte(rdvId, "lien").catch(() => null);
     }
     await alerterGerantes(
-      `Nouveau rendez-vous en ligne : ${nom} (${telephoneAffiche(chiffres)}) · ${nomSoin} · ${quand}` +
+      `Nouveau rendez-vous en ligne : ${nom} (${numero.affiche}) · ${nomSoin} · ${quand}` +
         (requis ? " · acompte à régler" : "") +
         (cliente.nouvelle ? " · nouvelle cliente, fiche santé à remplir" : ""),
     ).catch(() => null);
