@@ -118,7 +118,14 @@ export async function initierAcompte(p: {
       .from("paiements_acompte")
       .update({ statut: "echoue", detail: r.erreur.slice(0, 500) })
       .eq("order_id", orderId);
-    return { ok: false, erreur: "Le paiement n'a pas pu démarrer. Vérifie le numéro et l'opérateur, puis réessaie." };
+    // Identifiants refuses : la cliente n'y peut rien, inutile de lui faire
+    // verifier son numero.
+    return {
+      ok: false,
+      erreur: r.acces
+        ? "Le paiement en ligne est momentanément indisponible. Ton créneau reste retenu : réessaie un peu plus tard, ou règle l'acompte à l'institut."
+        : "Le paiement n'a pas pu démarrer. Vérifie le numéro et l'opérateur, puis réessaie.",
+    };
   }
 
   await admin

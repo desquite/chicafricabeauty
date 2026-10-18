@@ -38,6 +38,12 @@ function config(): Config | null {
 
 export const paiementConfigure = () => config() !== null;
 
+/**
+ * Identifiants refusés par AfribaPay (401 ou 403 sur le jeton) : mauvaise
+ * clé, ou clé d'essai sur l'adresse de production et inversement.
+ */
+class ErreurAcces extends Error {}
+
 /* ------------------------------------------------------- Jeton d'accès */
 
 // Valable 24 h : on le garde le temps de l'instance plutôt que d'en
@@ -57,7 +63,7 @@ async function jetonAcces(c: Config, forcer = false) {
   const corps = await reponse.json().catch(() => null);
   const valeur = corps?.data?.access_token;
   if (!reponse.ok || typeof valeur !== "string") {
-    throw new Error(`AfribaPay a refusé l'authentification (${reponse.status}).`);
+    throw new ErreurAcces(`AfribaPay a refusé l'authentification (${reponse.status}).`);
   }
   const duree = Number(corps.data.expires_in) || 3600;
   jetonEnCache = { valeur, expire: Date.now() + (duree - 300) * 1000 };
@@ -97,7 +103,8 @@ function messageErreur(corps: unknown, statut: number) {
 
 export type ResultatPayin =
   | { ok: true; statut: StatutAfriba; transactionId: string | null; lien: string | null }
-  | { ok: false; erreur: string };
+  /** acces : identifiants refusés ; rien à voir avec la cliente. */
+  | { ok: false; erreur: string; acces?: boolean };
 
 export async function lancerPayin(p: {
   operateur: Operateur;
@@ -142,7 +149,11 @@ export async function lancerPayin(p: {
       lien: typeof data.provider_link === "string" ? data.provider_link : null,
     };
   } catch (e) {
-    return { ok: false, erreur: e instanceof Error ? e.message : "Erreur réseau" };
+    return {
+      ok: false,
+      erreur: e instanceof Error ? e.message : "Erreur réseau",
+      acces: e instanceof ErreurAcces,
+    };
   }
 }
 

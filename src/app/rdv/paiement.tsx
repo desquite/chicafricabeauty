@@ -229,8 +229,9 @@ export function SuiviPaiement({
     <div className="flex flex-col gap-3 text-sm">
       {paiement ? (
         <p role="alert" className="rounded-xl bg-red-50 px-3.5 py-2.5 text-red-800">
-          {paiement.etat === "erreur" ? paiement.erreur : "Le paiement n'a pas abouti."} Tu peux
-          réessayer.
+          {paiement.etat === "erreur"
+            ? paiement.erreur
+            : "Le paiement n'a pas abouti. Tu peux réessayer."}
         </p>
       ) : (
         <p className="text-brand-600">{invitation}</p>
