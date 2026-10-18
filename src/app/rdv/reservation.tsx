@@ -430,8 +430,11 @@ export default function Reservation({
   /* ------------------------------------------------------ 4. Confirmation */
   if (etape === 4 && recap) {
     const paye = paiement.paiement?.etat === "reussi";
+    // Paiement lance mais pas encore abouti : rien n'est confirme a l'ecran,
+    // meme quand l'acompte est facultatif.
+    const paiementEnCours = paiement.paiement?.etat === "en_attente";
     // Acompte requis et pas encore regle : le creneau est retenu, pas confirme.
-    const enSuspens = Boolean(acompte && recap.acompteRequis && !paye);
+    const enSuspens = Boolean(acompte && !paye && (recap.acompteRequis || paiementEnCours));
     const echeance = recap.echeance ? new Date(recap.echeance) : null;
     const limiteTexte = echeance
       ? recap.immediat
@@ -478,12 +481,14 @@ export default function Reservation({
           {enSuspens ? "Plus qu'une étape !" : paye ? "C'est confirmé !" : "C'est réservé !"}
         </h1>
         <p className="text-center text-[15px] leading-relaxed text-brand-700">
-          {enSuspens ? (
+          {enSuspens && recap.acompteRequis ? (
             <>
               Ton créneau est retenu. Règle l&apos;acompte {limiteTexte} pour le confirmer : sans
               acompte, le rendez-vous est annulé automatiquement.
               {!recap.immediat && " Le lien de paiement t'a aussi été envoyé sur WhatsApp."}
             </>
+          ) : enSuspens ? (
+            <>Ton créneau est retenu. Termine le paiement de l&apos;acompte pour le confirmer.</>
           ) : (
             <>
               À très vite{nom.trim() ? `, ${nom.trim().split(" ")[0]}` : ""}. Garde bien ce
