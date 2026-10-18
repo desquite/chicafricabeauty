@@ -67,6 +67,35 @@ export type SoinCatalogue = {
   prix: number | null;
   actif: boolean;
   ordre: number;
+  /** Nom montré sur la page de réservation ; à défaut, le libellé. */
+  libelle_public: string | null;
+  en_ligne: boolean;
+  prix_promo: number | null;
+  promo_debut: string | null;
+  promo_fin: string | null;
+};
+
+/** 0 = dimanche, conforme à `extract(dow)` et `Date.getDay()`. */
+export type HoraireJour = {
+  jour: number;
+  ouvert: boolean;
+  /** HH:MM:SS tel que Postgres le renvoie. */
+  ouverture: string | null;
+  fermeture: string | null;
+};
+
+export type Fermeture = {
+  id: string;
+  date_debut: string;
+  date_fin: string;
+  heure_debut: string | null;
+  heure_fin: string | null;
+  motif: string | null;
+};
+
+export type ReglagesRdv = {
+  horizon_jours: number;
+  acompte_montant: number;
 };
 
 export type Seance = {

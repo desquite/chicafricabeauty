@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireProfil } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { alertes, type Anamnese, type Cliente, type SoinCatalogue } from "@/lib/types";
@@ -140,7 +141,15 @@ export default async function PageRendezVous({
   return (
     <div className="mx-auto max-w-4xl">
       <header className="mb-6">
-        <h1 className="text-3xl font-semibold text-brand-800">Rendez-vous</h1>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-3xl font-semibold text-brand-800">Rendez-vous</h1>
+          <Link
+            href="/rendez-vous/disponibilites"
+            className="flex h-touch items-center rounded-xl border border-brand-200 bg-white px-5 font-medium text-brand-700 hover:bg-brand-50"
+          >
+            Disponibilités
+          </Link>
+        </div>
         {vue === "jour" && <NavigationJour jour={jour} />}
         {vue === "mois" && <NavigationMois mois={mois} />}
       </header>

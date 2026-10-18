@@ -23,7 +23,8 @@ export default async function PageCatalogue() {
       <header className="mb-2">
         <h1 className="text-3xl font-semibold text-brand-800">Catalogue des soins</h1>
         <p className="mt-1 text-brand-400">
-          Cette liste alimente la saisie des séances et les statistiques.
+          Cette liste alimente la saisie des séances, les statistiques et la réservation
+          en ligne.
         </p>
       </header>
 
@@ -33,7 +34,11 @@ export default async function PageCatalogue() {
           : "Seule la gérante peut modifier le catalogue."}
       </p>
 
-      <Editeur soins={soins} modifiable={profil.role === "gerante"} />
+      <Editeur
+        soins={soins}
+        modifiable={profil.role === "gerante"}
+        aujourdhui={new Date().toISOString().slice(0, 10)}
+      />
     </div>
   );
 }

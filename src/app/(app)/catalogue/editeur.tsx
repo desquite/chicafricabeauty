@@ -2,29 +2,56 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Champ, Texte } from "@/components/champs";
+import { Champ, DateFr, OuiNon, Texte } from "@/components/champs";
 import { Rouet } from "@/components/attente";
+import { dureeLisible, etatPromo, fcfa } from "@/lib/disponibilites";
 import type { SoinCatalogue } from "@/lib/types";
 import { basculerSoin, enregistrerSoin } from "./actions";
 
-const vierge = { libelle: "", categorie: "", duree_std: "", prix: "", ordre: "" };
+const vierge = {
+  libelle: "",
+  categorie: "",
+  duree_std: "",
+  prix: "",
+  ordre: "",
+  libelle_public: "",
+  en_ligne: false,
+  prix_promo: "",
+  promo_debut: "",
+  promo_fin: "",
+};
+
+/** "2026-11-01" → "1 nov." */
+const jourMois = (iso: string | null) =>
+  iso
+    ? new Date(`${iso}T00:00:00Z`).toLocaleDateString("fr-FR", {
+        day: "numeric",
+        month: "short",
+        timeZone: "UTC",
+      })
+    : "";
 
 export default function Editeur({
   soins,
   modifiable,
+  aujourdhui,
 }: {
   soins: SoinCatalogue[];
   modifiable: boolean;
+  aujourdhui: string;
 }) {
   const router = useRouter();
   const [ouvert, setOuvert] = useState(false);
   const [edite, setEdite] = useState<string | undefined>();
   const [saisie, setSaisie] = useState(vierge);
+  // Les champs de date gardent leur texte en interne : le formulaire est
+  // remonte a chaque ouverture et a chaque retrait de promotion.
+  const [formulaire, setFormulaire] = useState(0);
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();
   const [enAttente, setEnAttente] = useState<string | null>(null);
 
-  const maj = (cle: keyof typeof vierge, v: string) =>
+  const maj = <K extends keyof typeof vierge>(cle: K, v: (typeof vierge)[K]) =>
     setSaisie((p) => ({ ...p, [cle]: v }));
 
   const ouvrir = (s?: SoinCatalogue) => {
@@ -38,10 +65,21 @@ export default function Editeur({
             duree_std: s.duree_std?.toString() ?? "",
             prix: s.prix?.toString() ?? "",
             ordre: s.ordre.toString(),
+            libelle_public: s.libelle_public ?? "",
+            en_ligne: s.en_ligne,
+            prix_promo: s.prix_promo?.toString() ?? "",
+            promo_debut: s.promo_debut ?? "",
+            promo_fin: s.promo_fin ?? "",
           }
         : vierge,
     );
+    setFormulaire((n) => n + 1);
     setOuvert(true);
+  };
+
+  const retirerPromo = () => {
+    setSaisie((p) => ({ ...p, prix_promo: "", promo_debut: "", promo_fin: "" }));
+    setFormulaire((n) => n + 1);
   };
 
   const enregistrer = () =>
@@ -67,7 +105,7 @@ export default function Editeur({
       )}
 
       {ouvert && (
-        <div className="mb-6 rounded-2xl border-2 border-brand-200 bg-white p-6">
+        <div key={formulaire} className="mb-6 rounded-2xl border-2 border-brand-200 bg-white p-6">
           <h2 className="mb-4 text-xl font-semibold text-brand-800">
             {edite ? "Modifier le soin" : "Nouveau soin"}
           </h2>
@@ -92,6 +130,53 @@ export default function Editeur({
               <Texte type="number" valeur={saisie.ordre} onChange={(v) => maj("ordre", v)} />
             </Champ>
           </div>
+
+          <h3 className="mt-2 mb-3 border-t border-brand-100 pt-5 text-lg font-semibold text-brand-800">
+            Réservation en ligne
+          </h3>
+          <Champ label="Proposé sur la page de réservation">
+            <OuiNon valeur={saisie.en_ligne} onChange={(v) => maj("en_ligne", v)} />
+          </Champ>
+          {saisie.en_ligne && (
+            <Champ label="Nom affiché aux clientes" aide="Vide : le libellé ci-dessus">
+              <Texte
+                valeur={saisie.libelle_public}
+                placeholder={saisie.libelle}
+                onChange={(v) => maj("libelle_public", v)}
+              />
+            </Champ>
+          )}
+
+          <h3 className="mt-2 mb-1 border-t border-brand-100 pt-5 text-lg font-semibold text-brand-800">
+            Promotion
+          </h3>
+          <p className="mb-3 text-sm text-brand-400">
+            Le prix promo s&apos;applique entre ces deux dates, puis le prix normal revient seul.
+          </p>
+          <div className="grid gap-x-4 sm:grid-cols-3">
+            <Champ label="Prix promo (FCFA)">
+              <Texte
+                type="number"
+                valeur={saisie.prix_promo}
+                onChange={(v) => maj("prix_promo", v)}
+              />
+            </Champ>
+            <Champ label="Du">
+              <DateFr valeur={saisie.promo_debut} onChange={(v) => maj("promo_debut", v)} />
+            </Champ>
+            <Champ label="Au (inclus)">
+              <DateFr valeur={saisie.promo_fin} onChange={(v) => maj("promo_fin", v)} />
+            </Champ>
+          </div>
+          {(saisie.prix_promo || saisie.promo_debut || saisie.promo_fin) && (
+            <button
+              type="button"
+              onClick={retirerPromo}
+              className="mb-4 h-11 rounded-lg border border-brand-200 px-4 text-sm font-medium text-brand-700 hover:bg-brand-50"
+            >
+              Retirer la promotion
+            </button>
+          )}
           {erreur && (
             <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-red-700">
               {erreur}
@@ -143,6 +228,7 @@ export default function Editeur({
                   .filter(Boolean)
                   .join(" · ") || "Aucun détail"}
               </p>
+              <Pastilles soin={s} aujourdhui={aujourdhui} />
             </div>
             {modifiable && (
               <div className="flex gap-2">
@@ -176,5 +262,36 @@ export default function Editeur({
         ))}
       </ul>
     </>
+  );
+}
+
+/** Ce que la cliente voit de ce soin : en ligne ou non, et sa promotion. */
+function Pastilles({ soin, aujourdhui }: { soin: SoinCatalogue; aujourdhui: string }) {
+  const promo = etatPromo(soin, aujourdhui);
+  if (!soin.en_ligne && (promo === "aucune" || promo === "terminee")) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+      {soin.en_ligne && (
+        <span className="rounded-full bg-brand-100 px-2.5 py-1 text-brand-700">
+          En ligne
+          {soin.libelle_public && soin.libelle_public !== soin.libelle
+            ? ` : « ${soin.libelle_public} »`
+            : ""}
+          {` · ${dureeLisible(soin.duree_std)}`}
+        </span>
+      )}
+      {promo === "en_cours" && (
+        <span className="rounded-full bg-brand-600 px-2.5 py-1 text-white">
+          Promo {fcfa(soin.prix_promo)} jusqu&apos;au {jourMois(soin.promo_fin)}
+        </span>
+      )}
+      {promo === "a_venir" && (
+        <span className="rounded-full border border-brand-300 px-2.5 py-1 text-brand-700">
+          Promo {fcfa(soin.prix_promo)} du {jourMois(soin.promo_debut)} au{" "}
+          {jourMois(soin.promo_fin)}
+        </span>
+      )}
+    </div>
   );
 }
