@@ -408,7 +408,7 @@ export default function Reservation({
                                 </svg>
                               </button>
                               {descOuverte && (
-                                <p className="mt-2.5 rounded-xl bg-brand-50 px-3.5 py-3 text-sm leading-relaxed text-brand-700">
+                                <p className="mt-2.5 rounded-xl bg-brand-50 px-3.5 py-3 text-sm leading-relaxed whitespace-pre-line text-brand-700">
                                   {p.description}
                                 </p>
                               )}
