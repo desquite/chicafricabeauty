@@ -458,7 +458,9 @@ export default function Reservation({
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center gap-[18px] px-5 pt-14 pb-8">
         <div
           className={`flex h-[88px] w-[88px] items-center justify-center rounded-full text-white ${
-            enSuspens ? "bg-brand-400" : "bg-brand-600"
+            // Vert : reserve et confirme. Le brun clair reste pour l'attente
+            // de l'acompte, qui n'est pas encore une confirmation.
+            enSuspens ? "bg-brand-400" : "bg-[#2f7d4f]"
           }`}
         >
           {enSuspens ? (
