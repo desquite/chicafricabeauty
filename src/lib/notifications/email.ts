@@ -42,6 +42,8 @@ export async function envoyerEmail(p: {
   paragraphes: string[];
   /** Bouton principal, s'il y en a un. */
   bouton?: { libelle: string; url: string };
+  /** Pièces jointes, par exemple le rendez-vous au format agenda (.ics). */
+  pieces?: { nom: string; contenu: string; type: string }[];
 }): Promise<ResultatEnvoi> {
   if (!emailConfigure()) return { ok: false, erreur: "GMAIL_USER ou GMAIL_APP_PASSWORD manquant" };
   if (!EMAIL.test(p.a)) return { ok: false, erreur: `Adresse invalide : ${p.a}` };
@@ -80,6 +82,7 @@ ${
       subject: p.sujet,
       text: texte,
       html,
+      attachments: p.pieces?.map((x) => ({ filename: x.nom, content: x.contenu, contentType: x.type })),
     });
     return { ok: true };
   } catch (e) {

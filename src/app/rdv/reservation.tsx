@@ -6,7 +6,7 @@ import { Rouet } from "@/components/attente";
 import type { JourCreneaux } from "@/lib/creneaux";
 import type { PrestationPublique } from "@/lib/reservation";
 import { GROUPES } from "@/lib/disponibilites";
-import { veilleLimite } from "@/lib/regles-acompte";
+import { montantAcompte, veilleLimite } from "@/lib/regles-acompte";
 import { lireCreneaux, reserver, type Recapitulatif } from "./actions";
 import { INSTITUT } from "./institut";
 import { ChoixPaiement, SuiviPaiement, usePaiement, type OffreAcompte } from "./paiement";
@@ -240,6 +240,8 @@ export default function Reservation({
   const obligatoire = !!acompte?.obligatoire;
   const immediat = obligatoire && !!date && new Date() >= veilleLimite(date);
   const payerTout = payerMaintenant || immediat;
+  // Jamais plus que le prix du soin : une pedicure a 5 000 F se regle 5 000 F.
+  const montantSoin = acompte ? montantAcompte(acompte.montant, soin?.prixValeur ?? null) : 0;
 
   function valider() {
     if (!soin) return;
@@ -441,12 +443,12 @@ export default function Reservation({
     const panneauAcompte = acompte && (
       <SuiviPaiement
         code={recap.code}
-        montant={acompte.montant}
+        montant={recap.acompte || montantSoin}
         ussdOrange={acompte.ussdOrange}
         p={paiement}
         invitation={
           recap.acompteRequis
-            ? `Acompte de ${acompte.montant.toLocaleString("fr-FR")} F à régler ${limiteTexte}. Tu peux le payer maintenant.`
+            ? `Acompte de ${(recap.acompte || montantSoin).toLocaleString("fr-FR")} F à régler ${limiteTexte}. Tu peux le payer maintenant.`
             : "Acompte non réglé : tu peux le payer maintenant, ou à l'institut."
         }
       />
@@ -736,7 +738,7 @@ export default function Reservation({
 
   /* ------------------------------------------------------------ 4. Acompte */
   if (etape === 3 && acompte) {
-    const montant = `${acompte.montant.toLocaleString("fr-FR")} F CFA`;
+    const montant = `${montantSoin.toLocaleString("fr-FR")} F CFA`;
     const limite = date ? jourLimite(veilleLimite(date)) : "";
     const plusTardPossible = !immediat;
     const maintenant = payerTout;
@@ -789,7 +791,7 @@ export default function Reservation({
               </span>
             </label>
             {maintenant && (
-              <ChoixPaiement montant={acompte.montant} ussdOrange={acompte.ussdOrange} p={paiement} />
+              <ChoixPaiement montant={montantSoin} ussdOrange={acompte.ussdOrange} p={paiement} />
             )}
           </div>
 
@@ -839,7 +841,7 @@ export default function Reservation({
             {enCours
               ? "Réservation…"
               : maintenant
-                ? `Payer ${acompte.montant.toLocaleString("fr-FR")} F et réserver`
+                ? `Payer ${montantSoin.toLocaleString("fr-FR")} F et réserver`
                 : obligatoire
                   ? "Réserver et recevoir le lien"
                   : "Confirmer le rendez-vous"}

@@ -12,6 +12,8 @@
  * Miroir exact de la fonction SQL echeance_acompte. Abidjan est en UTC.
  */
 
+import { prixDuJour, type PrixSoin } from "@/lib/disponibilites";
+
 export type Source = "personnel" | "en_ligne";
 
 export type RdvAcompte = {
@@ -50,6 +52,23 @@ export function paiementImmediat(rdv: Pick<RdvAcompte, "date_rdv" | "created_at"
 }
 
 const doitPayer = (rdv: RdvAcompte) => rdv.acompte_requis && !rdv.acompte_paye_le;
+
+/**
+ * Montant de l'acompte pour un soin : celui du réglage, mais jamais plus que
+ * le prix du soin ce jour-là. Une pédicure à 5 000 F se règle 5 000 F, pas
+ * 10 000. Sans prix connu, le montant du réglage.
+ */
+export function montantAcompte(acompteReglage: number, prixSoin: number | null) {
+  return prixSoin != null && prixSoin > 0 ? Math.min(acompteReglage, prixSoin) : acompteReglage;
+}
+
+/** Acompte d'un rendez-vous : prix du soin le jour du rendez-vous, promotion comprise. */
+export function acompteDuRdv(acompteReglage: number, soin: PrixSoin | null, dateRdv: string) {
+  return montantAcompte(acompteReglage, soin ? prixDuJour(soin, dateRdv) : null);
+}
+
+/** Champs du soin à lire avec le rendez-vous pour calculer son acompte. */
+export const CHAMPS_PRIX_SOIN = "prix, prix_promo, promo_debut, promo_fin";
 
 /** Échéance dépassée sans paiement : le créneau ne bloque plus l'agenda. */
 export function estExpire(rdv: RdvAcompte, maintenant: Date) {

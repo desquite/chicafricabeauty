@@ -1,6 +1,7 @@
 import "server-only";
 import { etatAcompte } from "@/lib/acompte";
 import { envoyerMessageAcompte } from "@/lib/notifications/acompte";
+import { alerterGerantesRdv } from "@/lib/notifications/gerantes";
 import { aAnnuler, messageDuMatin, type RdvAcompte } from "@/lib/regles-acompte";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -87,6 +88,7 @@ export async function annulerAcomptesEchus(maintenant = new Date(), apercu = fal
     if (!annule?.length) continue;
 
     resultats.push({ rdv: rdv.id, action: "annulé", ...(await envoyerMessageAcompte(rdv.id, "annule")) });
+    await alerterGerantesRdv(rdv.id, "Annulé automatiquement, acompte non réglé").catch(() => null);
   }
   return resultats;
 }

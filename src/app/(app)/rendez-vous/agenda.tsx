@@ -321,9 +321,11 @@ export default function Agenda({
                         })()}
                       </span>
                     )}
-                    {r.annulation_motif === "acompte_non_regle" && (
+                    {r.annulation_motif && (
                       <span className="ml-2 rounded-full bg-red-50 px-2 py-0.5 align-middle text-xs font-semibold text-red-700">
-                        annulé : acompte non réglé
+                        {r.annulation_motif === "cliente"
+                          ? "annulé par la cliente"
+                          : "annulé : acompte non réglé"}
                       </span>
                     )}
                   </p>

@@ -3,7 +3,9 @@ import { randomBytes } from "node:crypto";
 import { lancerPayin, statutPayin, type Operateur, type StatutAfriba } from "@/lib/afribapay";
 import { adressePublique } from "@/lib/adresse";
 import { envoyerMessageAcompte } from "@/lib/notifications/acompte";
-import { estExpire, type RdvAcompte } from "@/lib/regles-acompte";
+import { alerterGerantesRdv } from "@/lib/notifications/gerantes";
+import type { PrixSoin } from "@/lib/disponibilites";
+import { acompteDuRdv, CHAMPS_PRIX_SOIN, estExpire, type RdvAcompte } from "@/lib/regles-acompte";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -42,9 +44,18 @@ export async function initierAcompte(p: {
   const [{ data: rdv }, { data: reglages }] = await Promise.all([
     admin
       .from("rendez_vous")
-      .select("id, date_rdv, created_at, statut, source, acompte_requis, acompte_paye_le, remplace_par")
+      .select(
+        `id, date_rdv, created_at, statut, source, acompte_requis, acompte_paye_le, remplace_par, soins_catalogue(${CHAMPS_PRIX_SOIN})`,
+      )
       .eq("code_acompte", p.code)
-      .maybeSingle<RdvAcompte & { id: string; statut: string; remplace_par: string | null }>(),
+      .maybeSingle<
+        RdvAcompte & {
+          id: string;
+          statut: string;
+          remplace_par: string | null;
+          soins_catalogue: PrixSoin | null;
+        }
+      >(),
     admin.from("reglages_rdv").select("acompte_montant").maybeSingle(),
   ]);
 
@@ -64,7 +75,8 @@ export async function initierAcompte(p: {
     return { ok: false, erreur: "Le délai pour régler l'acompte est dépassé : ce rendez-vous va être annulé." };
   }
 
-  const montant = reglages?.acompte_montant ?? 0;
+  // Jamais plus que le prix du soin : une pedicure a 5 000 F se regle 5 000 F.
+  const montant = acompteDuRdv(reglages?.acompte_montant ?? 0, rdv.soins_catalogue, rdv.date_rdv);
   if (montant <= 0) return { ok: false, erreur: "Aucun acompte n'est demandé pour le moment." };
 
   const { data: enCours } = await admin
@@ -147,6 +159,10 @@ export async function appliquerStatut(
       // l'API de statut peuvent toutes deux annoncer la meme reussite.
       if (premiere?.length) {
         await envoyerMessageAcompte(paiement.rendez_vous_id, "recu").catch(() => null);
+        await alerterGerantesRdv(
+          paiement.rendez_vous_id,
+          `Acompte de ${paiement.montant.toLocaleString("fr-FR")} F reçu`,
+        ).catch(() => null);
       }
     }
     return "reussi";

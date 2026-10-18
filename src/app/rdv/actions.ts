@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { alerterGerantes } from "@/lib/notifications/gerantes";
 import {
   etatAcompte,
   initierAcompte,
@@ -15,9 +17,16 @@ import {
   chiffresIvoiriens,
   clientePourReservation,
   creneauxLibres,
+  telephoneAffiche,
 } from "@/lib/reservation";
 import { envoyerMessageAcompte } from "@/lib/notifications/acompte";
-import { echeanceAcompte, paiementImmediat, type RdvAcompte } from "@/lib/regles-acompte";
+import {
+  acompteDuRdv,
+  echeanceAcompte,
+  paiementImmediat,
+  quandLisible,
+  type RdvAcompte,
+} from "@/lib/regles-acompte";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SoinCatalogue } from "@/lib/types";
 import { INSTITUT } from "./institut";
@@ -48,6 +57,8 @@ export type Recapitulatif = {
   echeance: string | null;
   /** Réservé après la veille 18h : l'acompte se paie maintenant. */
   immediat: boolean;
+  /** Montant de l'acompte de ce soin : jamais plus que son prix. */
+  acompte: number;
 };
 
 export type ResultatReservation =
@@ -123,13 +134,14 @@ export async function reserver(saisie: {
     };
   }
 
-  const [{ data: soin }, { data: rdv }] = await Promise.all([
+  const [{ data: soin }, { data: rdv }, { data: reglages }] = await Promise.all([
     admin.from("soins_catalogue").select("*").eq("id", saisie.soinId).single<SoinCatalogue>(),
     admin
       .from("rendez_vous")
       .select("date_rdv, created_at, source, acompte_requis, acompte_paye_le")
       .eq("id", resultat.id!)
       .single<RdvAcompte>(),
+    admin.from("reglages_rdv").select("acompte_montant").maybeSingle<{ acompte_montant: number }>(),
   ]);
 
   // Garde-fou : sans AfribaPay configure, la cliente ne pourrait pas payer et
@@ -142,12 +154,28 @@ export async function reserver(saisie: {
   const echeance = rdv?.acompte_requis ? echeanceAcompte(rdv) : null;
   const immediat = rdv ? paiementImmediat(rdv) : false;
 
-  // Payer plus tard : le lien part tout de suite, sur WhatsApp et par e-mail.
-  // Un echec d'envoi ne remet pas la reservation en cause : le lien est aussi
-  // sur l'ecran de confirmation.
-  if (rdv?.acompte_requis && !saisie.acompteMaintenant && !immediat) {
-    await envoyerMessageAcompte(resultat.id!, "lien").catch(() => null);
-  }
+  // Les messages partent apres la reponse : la cliente n'attend pas WhatsApp.
+  // Un echec d'envoi ne remet pas la reservation en cause, l'ecran de
+  // confirmation porte deja tout.
+  //   sans acompte a regler   confirmation (avec le lien pour annuler)
+  //   payer plus tard         le lien de paiement, qui vaut confirmation
+  //   payer maintenant        le recu partira a la reussite du paiement
+  const rdvId = resultat.id!;
+  const requis = Boolean(rdv?.acompte_requis);
+  const quand = quandLisible(saisie.date, saisie.heure);
+  const nomSoin = soin?.libelle_public || soin?.libelle || "soin";
+  after(async () => {
+    if (!requis) {
+      await envoyerMessageAcompte(rdvId, "confirmation").catch(() => null);
+    } else if (!saisie.acompteMaintenant && !immediat) {
+      await envoyerMessageAcompte(rdvId, "lien").catch(() => null);
+    }
+    await alerterGerantes(
+      `Nouveau rendez-vous en ligne : ${nom} (${telephoneAffiche(chiffres)}) · ${nomSoin} · ${quand}` +
+        (requis ? " · acompte à régler" : "") +
+        (cliente.nouvelle ? " · nouvelle cliente, fiche santé à remplir" : ""),
+    ).catch(() => null);
+  });
 
   revalidatePath("/rendez-vous");
   revalidatePath("/accueil");
@@ -166,6 +194,7 @@ export async function reserver(saisie: {
       acompteRequis: Boolean(rdv?.acompte_requis),
       echeance: echeance?.toISOString() ?? null,
       immediat,
+      acompte: acompteDuRdv(reglages?.acompte_montant ?? 0, soin, saisie.date),
     },
   };
 }

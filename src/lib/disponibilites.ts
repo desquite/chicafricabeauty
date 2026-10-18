@@ -31,8 +31,10 @@ export function heureLisible(t: string | null) {
 
 export type EtatPromo = "aucune" | "a_venir" | "en_cours" | "terminee";
 
+export type PrixSoin = Pick<SoinCatalogue, "prix" | "prix_promo" | "promo_debut" | "promo_fin">;
+
 /** Dates ISO comparées en texte : AAAA-MM-JJ se trie comme une date. */
-export function etatPromo(soin: SoinCatalogue, jour: string): EtatPromo {
+export function etatPromo(soin: PrixSoin, jour: string): EtatPromo {
   if (soin.prix_promo == null || !soin.promo_debut || !soin.promo_fin) return "aucune";
   if (jour < soin.promo_debut) return "a_venir";
   if (jour > soin.promo_fin) return "terminee";
@@ -43,7 +45,7 @@ export function etatPromo(soin: SoinCatalogue, jour: string): EtatPromo {
  * Prix demandé à la cliente ce jour-là. La promotion s'applique d'elle-même
  * entre ses deux dates, et le prix normal revient sans que personne y pense.
  */
-export function prixDuJour(soin: SoinCatalogue, jour: string) {
+export function prixDuJour(soin: PrixSoin, jour: string) {
   return etatPromo(soin, jour) === "en_cours" ? soin.prix_promo : soin.prix;
 }
 
