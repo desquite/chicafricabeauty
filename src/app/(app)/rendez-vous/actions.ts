@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfil } from "@/lib/auth";
+import { paiementConfigure } from "@/lib/afribapay";
+import { envoyerMessageAcompte } from "@/lib/notifications/acompte";
+import { lienASaisie, type RdvAcompte } from "@/lib/regles-acompte";
 
 export type Retour = { ok: boolean; erreur?: string };
 
@@ -39,11 +42,38 @@ export async function enregistrerRdv(saisie: {
       .eq("id", saisie.id);
     if (error) return { ok: false, erreur: error.message };
   } else {
+    // Un rendez-vous reprogramme garde l'acompte deja regle sur l'ancien : la
+    // cliente ne le paie pas deux fois.
+    const [{ data: ancien }, { data: reglages }] = await Promise.all([
+      saisie.remplace
+        ? supabase
+            .from("rendez_vous")
+            .select("acompte_montant, acompte_paye_le")
+            .eq("id", saisie.remplace)
+            .maybeSingle<{ acompte_montant: number | null; acompte_paye_le: string | null }>()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from("reglages_rdv")
+        .select("acompte_obligatoire, acompte_montant")
+        .maybeSingle<{ acompte_obligatoire: boolean; acompte_montant: number }>(),
+    ]);
+    const acompteRequis =
+      Boolean(reglages?.acompte_obligatoire) &&
+      (reglages?.acompte_montant ?? 0) > 0 &&
+      paiementConfigure();
+
     const { data: cree, error } = await supabase
       .from("rendez_vous")
-      .insert({ ...valeurs, cree_par: profil.id })
-      .select("id")
-      .single();
+      .insert({
+        ...valeurs,
+        cree_par: profil.id,
+        acompte_requis: acompteRequis,
+        ...(ancien?.acompte_paye_le
+          ? { acompte_montant: ancien.acompte_montant, acompte_paye_le: ancien.acompte_paye_le }
+          : {}),
+      })
+      .select("id, date_rdv, created_at, source, acompte_requis, acompte_paye_le")
+      .single<RdvAcompte & { id: string }>();
     if (error || !cree) {
       return { ok: false, erreur: error?.message ?? "Enregistrement impossible." };
     }
@@ -55,6 +85,12 @@ export async function enregistrerRdv(saisie: {
         .from("rendez_vous")
         .update({ remplace_par: cree.id })
         .eq("id", saisie.remplace);
+    }
+
+    // Rendez-vous a moins de deux jours : la tache du matin a deja manque son
+    // tour, le lien part tout de suite.
+    if (lienASaisie(cree, new Date())) {
+      await envoyerMessageAcompte(cree.id, "lien").catch(() => null);
     }
   }
 

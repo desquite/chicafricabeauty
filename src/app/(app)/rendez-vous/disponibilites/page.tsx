@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { requireProfil } from "@/lib/auth";
+import { paiementConfigure } from "@/lib/afribapay";
 import { createClient } from "@/lib/supabase/server";
 import type { Fermeture, HoraireJour, ReglagesRdv } from "@/lib/types";
 import { Fermetures, Horaires, Reglages } from "./editeurs";
@@ -24,7 +25,7 @@ export default async function PageDisponibilites() {
       .returns<Fermeture[]>(),
     supabase
       .from("reglages_rdv")
-      .select("horizon_jours, acompte_montant")
+      .select("horizon_jours, acompte_montant, acompte_obligatoire")
       .maybeSingle<ReglagesRdv>(),
   ]);
 
@@ -59,8 +60,11 @@ export default async function PageDisponibilites() {
           aujourdhui={aujourdhui}
         />
         <Reglages
-          reglages={reglages.data ?? { horizon_jours: 60, acompte_montant: 10000 }}
+          reglages={
+            reglages.data ?? { horizon_jours: 60, acompte_montant: 10000, acompte_obligatoire: false }
+          }
           modifiable={modifiable}
+          paiementPret={paiementConfigure()}
         />
       </div>
     </div>

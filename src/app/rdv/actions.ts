@@ -7,7 +7,7 @@ import {
   type EtatAcompte,
   type ResultatInitiation,
 } from "@/lib/acompte";
-import { OPERATEURS, type Operateur } from "@/lib/afribapay";
+import { OPERATEURS, paiementConfigure, type Operateur } from "@/lib/afribapay";
 import type { JourCreneaux } from "@/lib/creneaux";
 import { minutes, versHeure } from "@/lib/creneaux";
 import { fcfa, prixDuJour } from "@/lib/disponibilites";
@@ -16,6 +16,8 @@ import {
   clientePourReservation,
   creneauxLibres,
 } from "@/lib/reservation";
+import { envoyerMessageAcompte } from "@/lib/notifications/acompte";
+import { echeanceAcompte, paiementImmediat, type RdvAcompte } from "@/lib/regles-acompte";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SoinCatalogue } from "@/lib/types";
 import { INSTITUT } from "./institut";
@@ -32,14 +34,20 @@ export async function lireCreneaux(soinId: string): Promise<JourCreneaux[] | nul
 }
 
 export type Recapitulatif = {
-  /** Sert à régler l'acompte juste après ; aléatoire, donc impossible à deviner. */
-  rdvId: string;
+  /** Code du lien de paiement /a/<code> ; aléatoire, donc impossible à deviner. */
+  code: string;
   prestation: string;
   date: string;
   debut: string;
   fin: string;
   prix: string;
   nouvelle: boolean;
+  /** L'acompte est obligatoire pour ce rendez-vous. */
+  acompteRequis: boolean;
+  /** Échéance ISO du paiement, si l'acompte est requis. */
+  echeance: string | null;
+  /** Réservé après la veille 18h : l'acompte se paie maintenant. */
+  immediat: boolean;
 };
 
 export type ResultatReservation =
@@ -55,6 +63,8 @@ export async function reserver(saisie: {
   email: string;
   /** Champ invisible : seul un robot le remplit. */
   site: string;
+  /** Faux quand la cliente choisit de régler l'acompte plus tard. */
+  acompteMaintenant: boolean;
 }): Promise<ResultatReservation> {
   if (saisie.site) return { ok: false, erreur: "La réservation n'a pas pu aboutir." };
   if (!UUID.test(saisie.soinId) || !DATE.test(saisie.date) || !HEURE.test(saisie.heure)) {
@@ -90,7 +100,7 @@ export async function reserver(saisie: {
     return { ok: false, erreur: "La réservation n'a pas pu aboutir. Réessaie dans un instant." };
   }
 
-  const resultat = data as { id?: string; erreur?: string };
+  const resultat = data as { id?: string; code?: string; erreur?: string };
   if (resultat.erreur) {
     if (resultat.erreur === "trop") {
       return {
@@ -113,11 +123,31 @@ export async function reserver(saisie: {
     };
   }
 
-  const { data: soin } = await admin
-    .from("soins_catalogue")
-    .select("*")
-    .eq("id", saisie.soinId)
-    .single<SoinCatalogue>();
+  const [{ data: soin }, { data: rdv }] = await Promise.all([
+    admin.from("soins_catalogue").select("*").eq("id", saisie.soinId).single<SoinCatalogue>(),
+    admin
+      .from("rendez_vous")
+      .select("date_rdv, created_at, source, acompte_requis, acompte_paye_le")
+      .eq("id", resultat.id!)
+      .single<RdvAcompte>(),
+  ]);
+
+  // Garde-fou : sans AfribaPay configure, la cliente ne pourrait pas payer et
+  // serait annulee. L'acompte n'est alors pas exige.
+  if (rdv?.acompte_requis && !paiementConfigure()) {
+    await admin.from("rendez_vous").update({ acompte_requis: false }).eq("id", resultat.id!);
+    rdv.acompte_requis = false;
+  }
+
+  const echeance = rdv?.acompte_requis ? echeanceAcompte(rdv) : null;
+  const immediat = rdv ? paiementImmediat(rdv) : false;
+
+  // Payer plus tard : le lien part tout de suite, sur WhatsApp et par e-mail.
+  // Un echec d'envoi ne remet pas la reservation en cause : le lien est aussi
+  // sur l'ecran de confirmation.
+  if (rdv?.acompte_requis && !saisie.acompteMaintenant && !immediat) {
+    await envoyerMessageAcompte(resultat.id!, "lien").catch(() => null);
+  }
 
   revalidatePath("/rendez-vous");
   revalidatePath("/accueil");
@@ -126,26 +156,31 @@ export async function reserver(saisie: {
   return {
     ok: true,
     recap: {
-      rdvId: resultat.id!,
+      code: resultat.code!,
       prestation: soin?.libelle_public || soin?.libelle || "",
       date: saisie.date,
       debut: saisie.heure,
       fin: versHeure(debut + (soin?.duree_std ?? 60)),
       prix: soin ? fcfa(prixDuJour(soin, saisie.date)) : "",
       nouvelle: cliente.nouvelle,
+      acompteRequis: Boolean(rdv?.acompte_requis),
+      echeance: echeance?.toISOString() ?? null,
+      immediat,
     },
   };
 }
 
 /* ------------------------------------------------------------------ Acompte */
 
+const CODE = /^[0-9a-f]{12}$/;
+
 export async function payerAcompte(saisie: {
-  rdvId: string;
+  code: string;
   operateur: string;
   telephone: string;
   otp: string;
 }): Promise<ResultatInitiation> {
-  if (!UUID.test(saisie.rdvId)) return { ok: false, erreur: "Rendez-vous introuvable." };
+  if (!CODE.test(saisie.code)) return { ok: false, erreur: "Rendez-vous introuvable." };
   if (!OPERATEURS.includes(saisie.operateur as Operateur)) {
     return { ok: false, erreur: "Choisis ton opérateur Mobile Money." };
   }
@@ -159,7 +194,7 @@ export async function payerAcompte(saisie: {
   }
 
   const r = await initierAcompte({
-    rdvId: saisie.rdvId,
+    code: saisie.code,
     operateur: saisie.operateur as Operateur,
     telephone,
     otp: saisie.operateur === "orange" ? otp : undefined,

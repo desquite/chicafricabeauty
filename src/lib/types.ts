@@ -101,6 +101,8 @@ export type Fermeture = {
 export type ReglagesRdv = {
   horizon_jours: number;
   acompte_montant: number;
+  /** Acompte exigé, sous peine d'annulation la veille à 18h. */
+  acompte_obligatoire: boolean;
 };
 
 export type Seance = {

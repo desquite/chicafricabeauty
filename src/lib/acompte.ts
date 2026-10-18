@@ -2,6 +2,8 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { lancerPayin, statutPayin, type Operateur, type StatutAfriba } from "@/lib/afribapay";
 import { adressePublique } from "@/lib/adresse";
+import { envoyerMessageAcompte } from "@/lib/notifications/acompte";
+import { estExpire, type RdvAcompte } from "@/lib/regles-acompte";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -28,7 +30,8 @@ export type ResultatInitiation =
   | { ok: false; erreur: string };
 
 export async function initierAcompte(p: {
-  rdvId: string;
+  /** Code du lien de paiement, le seul identifiant que voit la cliente. */
+  code: string;
   operateur: Operateur;
   telephone: string;
   otp?: string;
@@ -39,18 +42,27 @@ export async function initierAcompte(p: {
   const [{ data: rdv }, { data: reglages }] = await Promise.all([
     admin
       .from("rendez_vous")
-      .select("id, date_rdv, statut, source, acompte_paye_le")
-      .eq("id", p.rdvId)
-      .maybeSingle(),
+      .select("id, date_rdv, created_at, statut, source, acompte_requis, acompte_paye_le, remplace_par")
+      .eq("code_acompte", p.code)
+      .maybeSingle<RdvAcompte & { id: string; statut: string; remplace_par: string | null }>(),
     admin.from("reglages_rdv").select("acompte_montant").maybeSingle(),
   ]);
 
-  // L'identifiant vient du navigateur : seul un rendez-vous en ligne, à venir
-  // et pas encore réglé peut recevoir un acompte.
-  if (!rdv || rdv.source !== "en_ligne" || rdv.statut !== "prevu" || rdv.date_rdv < aujourdhui) {
+  // Le code vient du navigateur : seul un rendez-vous à venir, encore prévu,
+  // pris en ligne ou soumis à l'acompte, peut en recevoir un.
+  if (
+    !rdv ||
+    rdv.statut !== "prevu" ||
+    rdv.remplace_par ||
+    rdv.date_rdv < aujourdhui ||
+    (rdv.source !== "en_ligne" && !rdv.acompte_requis)
+  ) {
     return { ok: false, erreur: "Ce rendez-vous ne peut pas recevoir d'acompte en ligne." };
   }
   if (rdv.acompte_paye_le) return { ok: false, erreur: "L'acompte de ce rendez-vous est déjà réglé." };
+  if (estExpire(rdv, new Date())) {
+    return { ok: false, erreur: "Le délai pour régler l'acompte est dépassé : ce rendez-vous va être annulé." };
+  }
 
   const montant = reglages?.acompte_montant ?? 0;
   if (montant <= 0) return { ok: false, erreur: "Aucun acompte n'est demandé pour le moment." };
@@ -125,11 +137,17 @@ export async function appliquerStatut(
       .select("rendez_vous_id, montant")
       .single();
     if (paiement) {
-      await admin
+      const { data: premiere } = await admin
         .from("rendez_vous")
         .update({ acompte_montant: paiement.montant, acompte_paye_le: new Date().toISOString() })
         .eq("id", paiement.rendez_vous_id)
-        .is("acompte_paye_le", null);
+        .is("acompte_paye_le", null)
+        .select("id");
+      // Le recu ne part qu'a la premiere confirmation : la notification et
+      // l'API de statut peuvent toutes deux annoncer la meme reussite.
+      if (premiere?.length) {
+        await envoyerMessageAcompte(paiement.rendez_vous_id, "recu").catch(() => null);
+      }
     }
     return "reussi";
   }

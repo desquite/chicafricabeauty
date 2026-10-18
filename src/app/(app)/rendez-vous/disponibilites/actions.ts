@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfil } from "@/lib/auth";
+import { paiementConfigure } from "@/lib/afribapay";
 
 export type Retour = { ok: boolean; erreur?: string; avertissement?: string };
 
@@ -125,6 +126,7 @@ export async function supprimerFermeture(id: string): Promise<Retour> {
 export async function enregistrerReglages(saisie: {
   horizon_jours: string;
   acompte_montant: string;
+  acompte_obligatoire: boolean;
 }): Promise<Retour> {
   await exigerGerante();
   const horizon = Number(saisie.horizon_jours);
@@ -135,11 +137,22 @@ export async function enregistrerReglages(saisie: {
   if (!Number.isInteger(acompte) || acompte < 0) {
     return { ok: false, erreur: "Le montant de l'acompte est invalide." };
   }
+  // Exiger un acompte que personne ne peut payer reviendrait a annuler toutes
+  // les clientes : il faut AfribaPay et un montant.
+  if (saisie.acompte_obligatoire && (!paiementConfigure() || acompte <= 0)) {
+    return {
+      ok: false,
+      erreur: "L'acompte obligatoire demande un montant et le paiement AfribaPay configuré.",
+    };
+  }
 
   const supabase = await createClient();
-  const { error } = await supabase
-    .from("reglages_rdv")
-    .upsert({ id: true, horizon_jours: horizon, acompte_montant: acompte });
+  const { error } = await supabase.from("reglages_rdv").upsert({
+    id: true,
+    horizon_jours: horizon,
+    acompte_montant: acompte,
+    acompte_obligatoire: saisie.acompte_obligatoire,
+  });
   if (error) return { ok: false, erreur: error.message };
 
   revalidatePath("/rendez-vous/disponibilites");

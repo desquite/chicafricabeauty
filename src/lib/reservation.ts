@@ -2,6 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculerCreneaux, ajouterJours, minutes, type JourCreneaux } from "@/lib/creneaux";
 import { dureeLisible, fcfa, prixDuJour } from "@/lib/disponibilites";
+import { estExpire, type RdvAcompte } from "@/lib/regles-acompte";
 import type { GroupeSoin, SoinCatalogue } from "@/lib/types";
 
 /**
@@ -87,7 +88,9 @@ export async function creneauxLibres(soinId: string): Promise<JourCreneaux[] | n
       .gte("date_fin", debut),
     admin
       .from("rendez_vous")
-      .select("date_rdv, heure_rdv, duree_min, soins_catalogue(duree_std)")
+      .select(
+        "date_rdv, heure_rdv, duree_min, created_at, source, acompte_requis, acompte_paye_le, soins_catalogue(duree_std)",
+      )
       .eq("statut", "prevu")
       .is("remplace_par", null)
       .is("masque_le", null)
@@ -95,12 +98,11 @@ export async function creneauxLibres(soinId: string): Promise<JourCreneaux[] | n
       .gte("date_rdv", debut)
       .lte("date_rdv", fin)
       .returns<
-        {
-          date_rdv: string;
+        (RdvAcompte & {
           heure_rdv: string;
           duree_min: number | null;
           soins_catalogue: { duree_std: number | null } | null;
-        }[]
+        })[]
       >(),
   ]);
 
@@ -110,8 +112,9 @@ export async function creneauxLibres(soinId: string): Promise<JourCreneaux[] | n
   return calculerCreneaux({
     horaires: horaires.data ?? [],
     fermetures: fermetures.data ?? [],
-    // Même repli que reserver_en_ligne : sans durée connue, une heure.
-    occupations: (rdvs.data ?? []).map((r) => {
+    // Même repli que reserver_en_ligne : sans durée connue, une heure. Un
+    // acompte requis et non payé à l'échéance ne bloque plus le créneau.
+    occupations: (rdvs.data ?? []).filter((r) => !estExpire(r, maintenant)).map((r) => {
       const d = minutes(r.heure_rdv);
       return {
         date: r.date_rdv,

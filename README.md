@@ -101,6 +101,27 @@ venir : identité, bilan santé, habitudes, consentements et signature.
   la base au rôle `anon`.
 - Un numéro déjà connu est refusé sans révéler à qui il appartient.
 
+## Acompte obligatoire
+
+Réglage **Disponibilités → Acompte obligatoire**, éteint par défaut. Allumé,
+il s'applique aux rendez-vous pris ensuite : l'acompte se règle au plus tard
+**la veille à 18h**, sinon le rendez-vous est annulé et le créneau libéré.
+
+| | En ligne (`/rdv`) | Saisi à la tablette |
+|---|---|---|
+| Lien de paiement | à la réservation, ou payé sur-le-champ | à J-2 (tout de suite si plus proche) |
+| Rappels | J-3, J-2, matin de J-1 | matin de J-1 |
+| Réservé après la veille 18h | paiement immédiat, 30 min | pas d'échéance, réglé sur place |
+
+- Le lien `/a/<code>` ne permet que de payer cet acompte : pas de compte.
+- Cron 7h (récapitulatif) : liens et rappels. Cron 18h (`/api/cron/acomptes`) :
+  annulations, après avoir vérifié auprès d'AfribaPay qu'aucun paiement n'a
+  abouti entre-temps. `?apercu=1` liste sans annuler.
+- Messages : modèles Meta `acompte_lien`, `acompte_rappel`, `acompte_recu`,
+  `rdv_annule_acompte`, détaillés dans `src/lib/notifications/acompte.ts`, et
+  e-mail par Gmail (`GMAIL_USER`, `GMAIL_APP_PASSWORD`).
+- Le réglage refuse de s'allumer sans AfribaPay configuré.
+
 ## Récapitulatif quotidien
 
 Un cron Vercel appelle `/api/cron/recapitulatif` à 7 h et envoie aux gérantes,

@@ -23,6 +23,7 @@ import {
 } from "@/lib/notifications/recapitulatif";
 import { alertes, nomChaleureux, type Anamnese } from "@/lib/types";
 import { ouvreDroit, rangSeance } from "@/lib/fidelite";
+import { annulerAcomptesEchus, envoyerMessagesDuMatin } from "@/lib/taches-acompte";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -85,6 +86,21 @@ async function traiter(requete: Request) {
   // silencieusement se lit comme « aucune donnée », ce qui est indiscernable
   // d'une base vide et impossible à diagnostiquer à distance.
   const erreurs: string[] = [];
+
+  // Acompte obligatoire : liens et rappels du matin, et annulation des
+  // paiements immediats manques. En premier, pour ne pas etre coupe par la
+  // limite de 60 s quand le reste du passage est charge.
+  let acomptes: { envois: unknown[]; annulations: unknown[] } | { erreur: string } | null = null;
+  if (!apercu) {
+    try {
+      acomptes = {
+        envois: await envoyerMessagesDuMatin(maintenant),
+        annulations: await annulerAcomptesEchus(maintenant),
+      };
+    } catch (e) {
+      acomptes = { erreur: e instanceof Error ? e.message : "Erreur inattendue" };
+    }
+  }
 
   /**
    * Rejoue une requête une fois avant d'abandonner.
@@ -738,6 +754,7 @@ async function traiter(requete: Request) {
       dontInfobip: rappelsEnvoyes - rappelsWasender,
       ignores: rappelsIgnores,
     },
+    acomptes,
     resultats,
   });
 }

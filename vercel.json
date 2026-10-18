@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/recapitulatif",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/acomptes",
+      "schedule": "0 18 * * *"
     }
   ]
 }

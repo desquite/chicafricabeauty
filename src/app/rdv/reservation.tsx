@@ -5,36 +5,21 @@ import { Logo } from "@/components/logo";
 import { Rouet } from "@/components/attente";
 import type { JourCreneaux } from "@/lib/creneaux";
 import type { PrestationPublique } from "@/lib/reservation";
-import type { EtatAcompte } from "@/lib/acompte";
 import { GROUPES } from "@/lib/disponibilites";
-import {
-  lireCreneaux,
-  payerAcompte,
-  reserver,
-  suivreAcompte,
-  type Recapitulatif,
-} from "./actions";
+import { veilleLimite } from "@/lib/regles-acompte";
+import { lireCreneaux, reserver, type Recapitulatif } from "./actions";
 import { INSTITUT } from "./institut";
+import { ChoixPaiement, SuiviPaiement, usePaiement, type OffreAcompte } from "./paiement";
 import { fraunces } from "./polices";
+
+export type { OffreAcompte };
 
 /** Les créneaux affichés sont relus toutes les 30 secondes : temps réel. */
 const RAFRAICHISSEMENT_MS = 30_000;
-/** Pendant un paiement, l'état est relu toutes les 4 secondes, 5 minutes au plus. */
-const SUIVI_PAIEMENT_MS = 4_000;
-const SUIVI_PAIEMENT_MAX_MS = 5 * 60_000;
 
-export type OffreAcompte = { montant: number; ussdOrange: string | null };
-
-type Paiement =
-  | { etat: EtatAcompte; orderId: string; lien: string | null; operateur: string }
-  | { etat: "erreur"; erreur: string };
-
-const OPERATEURS = [
-  { valeur: "orange", libelle: "Orange" },
-  { valeur: "mtn", libelle: "MTN" },
-  { valeur: "moov", libelle: "Moov" },
-  { valeur: "wave", libelle: "Wave" },
-] as const;
+/** « lundi 19 octobre » : le jour limite de l'acompte. */
+const jourLimite = (d: Date) =>
+  d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 
 const titre = `${fraunces.className} font-medium text-brand-800`;
 
@@ -155,86 +140,6 @@ function IconeLieu() {
   );
 }
 
-/** Opérateur, numéro qui paie et, pour Orange, le code de paiement. */
-function ChoixPaiement({
-  montant,
-  ussdOrange,
-  operateur,
-  setOperateur,
-  telephone,
-  setTelephone,
-  otp,
-  setOtp,
-}: {
-  montant: number;
-  ussdOrange: string | null;
-  operateur: string;
-  setOperateur: (v: string) => void;
-  telephone: string;
-  setTelephone: (v: string) => void;
-  otp: string;
-  setOtp: (v: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-3.5">
-      <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label="Opérateur Mobile Money">
-        {OPERATEURS.map((o) => (
-          <button
-            key={o.valeur}
-            type="button"
-            role="radio"
-            aria-checked={operateur === o.valeur}
-            onClick={() => setOperateur(o.valeur)}
-            className={`h-11 rounded-xl text-[13px] font-bold text-brand-800 ${
-              operateur === o.valeur
-                ? "border-2 border-brand-600 bg-brand-100"
-                : "border border-brand-200 bg-white"
-            }`}
-          >
-            {o.libelle}
-          </button>
-        ))}
-      </div>
-      <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-brand-800">
-        Numéro qui paie
-        <input
-          type="tel"
-          inputMode="tel"
-          value={telephone}
-          onChange={(e) => setTelephone(e.target.value)}
-          placeholder="07 00 00 00 00"
-          className="h-12 rounded-xl border border-brand-300 bg-white px-3.5 text-base text-brand-900 focus:border-brand-600 focus:outline-none"
-        />
-      </label>
-      {operateur === "orange" && (
-        <label className="flex flex-col gap-1.5 text-[13px] font-semibold text-brand-800">
-          Code de paiement Orange Money
-          <span className="font-normal leading-snug text-brand-600">
-            {ussdOrange ? (
-              <>
-                Compose <strong className="font-bold">{ussdOrange}</strong> sur ce numéro pour obtenir ton code,
-                puis saisis-le ici.
-              </>
-            ) : (
-              "Génère un code de paiement depuis ton menu Orange Money, puis saisis-le ici."
-            )}
-          </span>
-          <input
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            className="h-12 rounded-xl border border-brand-300 bg-white px-3.5 text-base tracking-widest text-brand-900 focus:border-brand-600 focus:outline-none"
-          />
-        </label>
-      )}
-      <p className="text-xs text-brand-500">
-        Montant : {montant.toLocaleString("fr-FR")} F CFA, déduits du prix le jour du soin.
-      </p>
-    </div>
-  );
-}
-
 /* ----------------------------------------------------------------- Parcours */
 
 export default function Reservation({
@@ -260,11 +165,7 @@ export default function Reservation({
   const [chargement, setChargement] = useState(false);
   const [enCours, demarrer] = useTransition();
   const [payerMaintenant, setPayerMaintenant] = useState(true);
-  const [operateur, setOperateur] = useState("");
-  const [telPayeur, setTelPayeur] = useState("");
-  const [otp, setOtp] = useState("");
-  const [paiement, setPaiement] = useState<Paiement | null>(null);
-  const [attenteLongue, setAttenteLongue] = useState(false);
+  const paiement = usePaiement(telephone);
 
   // Rubriques dans l'ordre du menu ; un soin sans groupe va dans « Autres ».
   const groupes = useMemo(() => {
@@ -284,11 +185,6 @@ export default function Reservation({
   }, [prestations]);
   const [groupeOuvert, setGroupeOuvert] = useState<string | null>(null);
   const [descriptionOuverte, setDescriptionOuverte] = useState<string | null>(null);
-
-  const paiementPret =
-    !!operateur &&
-    (telPayeur || telephone).replace(/\D/g, "").length >= 10 &&
-    (operateur !== "orange" || otp.replace(/\D/g, "").length >= 4);
 
   const parDate = useMemo(
     () => new Map((jours ?? []).map((j) => [j.date, j.creneaux])),
@@ -339,16 +235,11 @@ export default function Reservation({
     return () => clearInterval(minuteur);
   }, [etape, soin, appliquerCreneaux]);
 
-  /** Le rendez-vous existe déjà : un paiement qui échoue ne le remet pas en cause. */
-  async function lancerPaiement(rdvId: string) {
-    setAttenteLongue(false);
-    const p = await payerAcompte({ rdvId, operateur, telephone: telPayeur || telephone, otp });
-    setPaiement(
-      p.ok
-        ? { etat: p.etat, orderId: p.orderId, lien: p.lien, operateur }
-        : { etat: "erreur", erreur: p.erreur },
-    );
-  }
+  // Rendez-vous apres la veille 18h : plus de « payer plus tard ». Calcule ici
+  // pour l'affichage ; le serveur tranche avec sa propre horloge.
+  const obligatoire = !!acompte?.obligatoire;
+  const immediat = obligatoire && !!date && new Date() >= veilleLimite(date);
+  const payerTout = payerMaintenant || immediat;
 
   function valider() {
     if (!soin) return;
@@ -362,10 +253,13 @@ export default function Reservation({
         telephone,
         email,
         site,
+        acompteMaintenant: Boolean(acompte) && payerTout,
       });
       if (r.ok) {
         setRecap(r.recap);
-        if (acompte && payerMaintenant) await lancerPaiement(r.recap.rdvId);
+        // Le rendez-vous existe deja : un paiement qui echoue ne le remet pas
+        // en cause, la cliente peut reessayer depuis la confirmation.
+        if (acompte && payerTout) await paiement.lancer(r.recap.code);
         setEtape(4);
         window.scrollTo({ top: 0 });
         return;
@@ -378,25 +272,6 @@ export default function Reservation({
       }
     });
   }
-
-  const enAttente = paiement?.etat === "en_attente" ? paiement.orderId : null;
-  useEffect(() => {
-    if (!enAttente) return;
-    const debut = Date.now();
-    const minuteur = setInterval(async () => {
-      if (Date.now() - debut > SUIVI_PAIEMENT_MAX_MS) {
-        clearInterval(minuteur);
-        setAttenteLongue(true);
-        return;
-      }
-      const etat = await suivreAcompte(enAttente);
-      if (etat && etat !== "en_attente") {
-        clearInterval(minuteur);
-        setPaiement((p) => (p && p.etat !== "erreur" ? { ...p, etat } : p));
-      }
-    }, SUIVI_PAIEMENT_MS);
-    return () => clearInterval(minuteur);
-  }, [enAttente]);
 
   /* ---------------------------------------------- 1. Choix de la prestation */
   if (etape === 0) {
@@ -552,100 +427,65 @@ export default function Reservation({
 
   /* ------------------------------------------------------ 4. Confirmation */
   if (etape === 4 && recap) {
-    const formulaireAcompte = acompte && (
-      <div className="flex flex-col gap-3.5">
-        <ChoixPaiement
-          montant={acompte.montant}
-          ussdOrange={acompte.ussdOrange}
-          operateur={operateur}
-          setOperateur={setOperateur}
-          telephone={telPayeur || telephone}
-          setTelephone={setTelPayeur}
-          otp={otp}
-          setOtp={setOtp}
-        />
-        <BoutonPrincipal
-          disabled={enCours || !paiementPret}
-          onClick={() => demarrer(() => lancerPaiement(recap.rdvId))}
-        >
-          {enCours && <Rouet />}
-          {enCours ? "Envoi…" : `Payer ${acompte.montant.toLocaleString("fr-FR")} F`}
-        </BoutonPrincipal>
-      </div>
-    );
+    const paye = paiement.paiement?.etat === "reussi";
+    // Acompte requis et pas encore regle : le creneau est retenu, pas confirme.
+    const enSuspens = Boolean(acompte && recap.acompteRequis && !paye);
+    const echeance = recap.echeance ? new Date(recap.echeance) : null;
+    const limiteTexte = echeance
+      ? recap.immediat
+        ? `avant ${echeance.getUTCHours()}h${String(echeance.getUTCMinutes()).padStart(2, "0")}`
+        : `au plus tard le ${jourLimite(echeance)} à 18h`
+      : "";
+    const lienAcompte = `/a/${recap.code}`;
 
-    let panneauAcompte: React.ReactNode = null;
-    if (acompte) {
-      if (paiement?.etat === "reussi") {
-        panneauAcompte = (
-          <p className="flex items-center justify-between gap-3 text-sm">
-            <span className="text-brand-500">Acompte</span>
-            <span className="rounded-full bg-[#e5f0e6] px-2.5 py-1 text-[13px] font-semibold text-[#2f5d3a]">
-              {acompte.montant.toLocaleString("fr-FR")} F payés
-            </span>
-          </p>
-        );
-      } else if (paiement?.etat === "en_attente") {
-        panneauAcompte = (
-          <div className="flex flex-col gap-3 text-sm" role="status">
-            <p className="flex items-center gap-2 font-semibold text-brand-800">
-              <Rouet /> Paiement de l&apos;acompte en cours…
-            </p>
-            {paiement.lien ? (
-              <a
-                href={paiement.lien}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-12 items-center justify-center rounded-full bg-[#1dc8ff] font-bold text-[#06283d]"
-              >
-                Payer avec Wave
-              </a>
-            ) : paiement.operateur === "orange" ? (
-              <p className="text-brand-600">Orange Money valide ton code, un instant.</p>
-            ) : (
-              <p className="text-brand-600">
-                Une demande de paiement arrive sur ton téléphone : valide-la avec ton code secret.
-              </p>
-            )}
-            {attenteLongue && (
-              <p className="text-brand-600">
-                La confirmation tarde. Si tu as payé, elle arrivera d&apos;elle-même ; sinon, tu
-                régleras l&apos;acompte à l&apos;institut. Ton rendez-vous est bien réservé.
-              </p>
-            )}
-          </div>
-        );
-      } else {
-        panneauAcompte = (
-          <div className="flex flex-col gap-3 text-sm">
-            {paiement ? (
-              <p role="alert" className="rounded-xl bg-red-50 px-3.5 py-2.5 text-red-800">
-                {paiement.etat === "erreur"
-                  ? paiement.erreur
-                  : "Le paiement n'a pas abouti."}{" "}
-                Ton rendez-vous reste réservé.
-              </p>
-            ) : (
-              <p className="text-brand-600">
-                Acompte non réglé : tu peux le payer maintenant, ou à l&apos;institut.
-              </p>
-            )}
-            {formulaireAcompte}
-          </div>
-        );
-      }
-    }
+    const panneauAcompte = acompte && (
+      <SuiviPaiement
+        code={recap.code}
+        montant={acompte.montant}
+        ussdOrange={acompte.ussdOrange}
+        p={paiement}
+        invitation={
+          recap.acompteRequis
+            ? `Acompte de ${acompte.montant.toLocaleString("fr-FR")} F à régler ${limiteTexte}. Tu peux le payer maintenant.`
+            : "Acompte non réglé : tu peux le payer maintenant, ou à l'institut."
+        }
+      />
+    );
 
     return (
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center gap-[18px] px-5 pt-14 pb-8">
-        <div className="flex h-[88px] w-[88px] items-center justify-center rounded-full bg-brand-600 text-white">
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M5 13l4 4L19 7" />
-          </svg>
+        <div
+          className={`flex h-[88px] w-[88px] items-center justify-center rounded-full text-white ${
+            enSuspens ? "bg-brand-400" : "bg-brand-600"
+          }`}
+        >
+          {enSuspens ? (
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+          ) : (
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M5 13l4 4L19 7" />
+            </svg>
+          )}
         </div>
-        <h1 className={`${titre} mt-1 text-[30px]`}>C&apos;est réservé !</h1>
+        <h1 className={`${titre} mt-1 text-center text-[30px]`}>
+          {enSuspens ? "Plus qu'une étape !" : paye ? "C'est confirmé !" : "C'est réservé !"}
+        </h1>
         <p className="text-center text-[15px] leading-relaxed text-brand-700">
-          À très vite{nom.trim() ? `, ${nom.trim().split(" ")[0]}` : ""}. Garde bien ce récapitulatif.
+          {enSuspens ? (
+            <>
+              Ton créneau est retenu. Règle l&apos;acompte {limiteTexte} pour le confirmer : sans
+              acompte, le rendez-vous est annulé automatiquement.
+              {!recap.immediat && " Le lien de paiement t'a aussi été envoyé sur WhatsApp."}
+            </>
+          ) : (
+            <>
+              À très vite{nom.trim() ? `, ${nom.trim().split(" ")[0]}` : ""}. Garde bien ce
+              récapitulatif.
+            </>
+          )}
         </p>
 
         <dl className="flex w-full flex-col gap-3.5 rounded-[20px] bg-white p-5 text-sm shadow-[0_4px_14px_rgba(74,35,28,0.06)]">
@@ -680,6 +520,14 @@ export default function Reservation({
           >
             Voir l&apos;itinéraire
           </a>
+          {enSuspens && (
+            <p className="mt-1 text-center text-[13px] text-brand-600">
+              Pour payer plus tard, garde ce lien :{" "}
+              <a href={lienAcompte} className="font-semibold break-all underline">
+                {typeof window === "undefined" ? lienAcompte : `${window.location.origin}${lienAcompte}`}
+              </a>
+            </p>
+          )}
           <p className="mt-2 text-center text-[13px] text-brand-600">
             Un empêchement ? Appelle-nous au{" "}
             <a href={INSTITUT.telephoneLien} className="font-semibold underline">
@@ -889,28 +737,49 @@ export default function Reservation({
   /* ------------------------------------------------------------ 4. Acompte */
   if (etape === 3 && acompte) {
     const montant = `${acompte.montant.toLocaleString("fr-FR")} F CFA`;
+    const limite = date ? jourLimite(veilleLimite(date)) : "";
+    const plusTardPossible = !immediat;
+    const maintenant = payerTout;
     return (
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col">
         {entete}
         <div className="flex flex-col gap-3.5 px-5 pt-5">
-          <h2 className={`${titre} mx-1 text-2xl leading-tight`}>
-            Veux-tu régler l&apos;acompte maintenant ?
-          </h2>
-          <p className="mx-1 text-sm leading-relaxed text-brand-600">
-            {montant}, déduits du prix le jour du soin. C&apos;est facultatif : ton rendez-vous est
-            réservé dans les deux cas.
-          </p>
+          {obligatoire ? (
+            <>
+              <h2 className={`${titre} mx-1 text-2xl leading-tight`}>Régler l&apos;acompte</h2>
+              <p className="mx-1 text-sm leading-relaxed text-brand-600">
+                L&apos;acompte de {montant} confirme ton rendez-vous. Il est déduit du prix le jour du
+                soin.
+              </p>
+              {immediat && (
+                <p className="rounded-2xl bg-brand-100 px-4 py-3 text-sm leading-relaxed text-brand-800">
+                  Ton rendez-vous est très proche : l&apos;acompte se règle maintenant pour le
+                  confirmer. Sans paiement dans les 30 minutes, le créneau est libéré.
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <h2 className={`${titre} mx-1 text-2xl leading-tight`}>
+                Veux-tu régler l&apos;acompte maintenant ?
+              </h2>
+              <p className="mx-1 text-sm leading-relaxed text-brand-600">
+                {montant}, déduits du prix le jour du soin. C&apos;est facultatif : ton rendez-vous
+                est réservé dans les deux cas.
+              </p>
+            </>
+          )}
 
           <div
             className={`flex flex-col gap-3.5 rounded-[18px] bg-white p-[18px] ${
-              payerMaintenant ? "border-2 border-brand-600" : "border border-brand-200"
+              maintenant ? "border-2 border-brand-600" : "border border-brand-200"
             }`}
           >
             <label className="flex items-start gap-3">
               <input
                 type="radio"
                 name="acompte"
-                checked={payerMaintenant}
+                checked={maintenant}
                 onChange={() => setPayerMaintenant(true)}
                 className="mt-0.5 h-[22px] w-[22px] accent-brand-600"
               />
@@ -919,44 +788,43 @@ export default function Reservation({
                 <span className="text-[13px] text-brand-600">Par Mobile Money, en quelques secondes</span>
               </span>
             </label>
-            {payerMaintenant && (
-              <ChoixPaiement
-                montant={acompte.montant}
-                ussdOrange={acompte.ussdOrange}
-                operateur={operateur}
-                setOperateur={setOperateur}
-                telephone={telPayeur || telephone}
-                setTelephone={setTelPayeur}
-                otp={otp}
-                setOtp={setOtp}
-              />
+            {maintenant && (
+              <ChoixPaiement montant={acompte.montant} ussdOrange={acompte.ussdOrange} p={paiement} />
             )}
           </div>
 
-          <label
-            className={`flex items-start gap-3 rounded-[18px] bg-white p-[18px] ${
-              !payerMaintenant ? "border-2 border-brand-600" : "border border-brand-200"
-            }`}
-          >
-            <input
-              type="radio"
-              name="acompte"
-              checked={!payerMaintenant}
-              onChange={() => setPayerMaintenant(false)}
-              className="mt-0.5 h-[22px] w-[22px] accent-brand-600"
-            />
-            <span className="flex flex-col gap-0.5">
-              <span className="text-[15px] font-bold">Réserver sans payer maintenant</span>
-              <span className="text-[13px] leading-snug text-brand-600">
-                Tu pourras régler l&apos;acompte à l&apos;institut.
+          {plusTardPossible && (
+            <label
+              className={`flex items-start gap-3 rounded-[18px] bg-white p-[18px] ${
+                !maintenant ? "border-2 border-brand-600" : "border border-brand-200"
+              }`}
+            >
+              <input
+                type="radio"
+                name="acompte"
+                checked={!maintenant}
+                onChange={() => setPayerMaintenant(false)}
+                className="mt-0.5 h-[22px] w-[22px] accent-brand-600"
+              />
+              <span className="flex flex-col gap-0.5">
+                <span className="text-[15px] font-bold">
+                  {obligatoire ? "Payer plus tard" : "Réserver sans payer maintenant"}
+                </span>
+                <span className="text-[13px] leading-snug text-brand-600">
+                  {obligatoire
+                    ? `Tu reçois le lien de paiement sur WhatsApp. À régler au plus tard le ${limite} à 18h, sinon le rendez-vous est annulé automatiquement.`
+                    : "Tu pourras régler l'acompte à l'institut."}
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+          )}
 
           <details className="px-1 text-[13px] leading-relaxed text-brand-600">
             <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-brand-700">
               Conditions de l&apos;acompte
             </summary>
+            {obligatoire &&
+              "L'acompte est obligatoire et se règle au plus tard la veille du rendez-vous à 18h ; sans acompte à cette heure-là, le rendez-vous est annulé automatiquement. "}
             L&apos;acompte n&apos;est pas remboursable. Il est retenu en cas de retard de plus de 30
             minutes, d&apos;annulation moins de 24 h avant le rendez-vous, ou d&apos;absence non
             justifiée.
@@ -966,16 +834,15 @@ export default function Reservation({
         </div>
 
         <Pied>
-          <BoutonPrincipal
-            disabled={enCours || (payerMaintenant && !paiementPret)}
-            onClick={valider}
-          >
+          <BoutonPrincipal disabled={enCours || (maintenant && !paiement.pret)} onClick={valider}>
             {enCours && <Rouet />}
             {enCours
               ? "Réservation…"
-              : payerMaintenant
-                ? `Payer ${acompte.montant.toLocaleString("fr-FR")} F et confirmer`
-                : "Confirmer le rendez-vous"}
+              : maintenant
+                ? `Payer ${acompte.montant.toLocaleString("fr-FR")} F et réserver`
+                : obligatoire
+                  ? "Réserver et recevoir le lien"
+                  : "Confirmer le rendez-vous"}
           </BoutonPrincipal>
         </Pied>
       </main>

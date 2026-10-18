@@ -7,6 +7,7 @@ import { Champ, DateFr, HeureFr, Paragraphe, Texte } from "@/components/champs";
 import { Rouet } from "@/components/attente";
 import type { Cliente, SoinCatalogue } from "@/lib/types";
 import { REMISE_POURCENT } from "@/lib/fidelite";
+import { echeanceAcompte } from "@/lib/regles-acompte";
 import { changerStatut, enregistrerRdv, masquerRdv } from "./actions";
 
 /** Durée de l'effacement, à garder alignée sur la transition CSS ci-dessous. */
@@ -25,6 +26,12 @@ export type RdvAffiche = {
   /** Renseignés quand l'acompte a été payé en ligne. */
   acompte_montant: number | null;
   acompte_paye_le: string | null;
+  /** Acompte exigé, sous peine d'annulation la veille à 18h. */
+  acompte_requis: boolean;
+  created_at: string;
+  /** « acompte_non_regle » pour une annulation automatique. */
+  annulation_motif: string | null;
+  code_acompte: string;
   clientes: Pick<Cliente, "id" | "nom_complet" | "telephone"> | null;
   soins_catalogue: { libelle: string } | null;
   alertes: number;
@@ -302,6 +309,21 @@ export default function Agenda({
                     {r.acompte_paye_le && (
                       <span className="ml-2 rounded-full bg-[#e5f0e6] px-2 py-0.5 align-middle text-xs font-semibold text-[#2f5d3a]">
                         acompte {r.acompte_montant?.toLocaleString("fr-FR")} F payé
+                      </span>
+                    )}
+                    {r.statut === "prevu" && r.acompte_requis && !r.acompte_paye_le && (
+                      <span className="ml-2 rounded-full border border-brand-300 px-2 py-0.5 align-middle text-xs font-semibold text-brand-600">
+                        {(() => {
+                          const e = echeanceAcompte(r);
+                          return e
+                            ? `acompte à régler avant ${e.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", timeZone: "UTC" })} ${e.getUTCHours()}h${String(e.getUTCMinutes()).padStart(2, "0")}`
+                            : "acompte à régler sur place";
+                        })()}
+                      </span>
+                    )}
+                    {r.annulation_motif === "acompte_non_regle" && (
+                      <span className="ml-2 rounded-full bg-red-50 px-2 py-0.5 align-middle text-xs font-semibold text-red-700">
+                        annulé : acompte non réglé
                       </span>
                     )}
                   </p>

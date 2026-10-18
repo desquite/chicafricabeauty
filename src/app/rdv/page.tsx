@@ -12,11 +12,15 @@ async function offreAcompte(): Promise<OffreAcompte | null> {
   if (!paiementConfigure()) return null;
   const { data } = await createAdminClient()
     .from("reglages_rdv")
-    .select("acompte_montant")
-    .maybeSingle<{ acompte_montant: number }>();
+    .select("acompte_montant, acompte_obligatoire")
+    .maybeSingle<{ acompte_montant: number; acompte_obligatoire: boolean }>();
   const montant = data?.acompte_montant ?? 0;
   if (montant <= 0) return null;
-  return { montant, ussdOrange: await codeUssdOrange() };
+  return {
+    montant,
+    ussdOrange: await codeUssdOrange(),
+    obligatoire: Boolean(data?.acompte_obligatoire),
+  };
 }
 
 export default async function PageRdv() {

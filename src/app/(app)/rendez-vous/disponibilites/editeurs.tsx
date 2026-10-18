@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Champ, ChoixUnique, DateFr, HeureFr, Texte } from "@/components/champs";
+import { Champ, ChoixUnique, DateFr, HeureFr, OuiNon, Texte } from "@/components/champs";
 import { Rouet } from "@/components/attente";
 import { heureLisible, hhmm, JOURS_SEMAINE } from "@/lib/disponibilites";
 import type { Fermeture, HoraireJour, ReglagesRdv } from "@/lib/types";
@@ -351,14 +351,18 @@ export function Fermetures({
 export function Reglages({
   reglages,
   modifiable,
+  paiementPret,
 }: {
   reglages: ReglagesRdv;
   modifiable: boolean;
+  /** AfribaPay configuré : sans lui, l'acompte ne peut pas être exigé. */
+  paiementPret: boolean;
 }) {
   const router = useRouter();
   const [saisie, setSaisie] = useState({
     horizon_jours: String(reglages.horizon_jours),
     acompte_montant: String(reglages.acompte_montant),
+    acompte_obligatoire: reglages.acompte_obligatoire,
   });
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -390,7 +394,7 @@ export function Reglages({
             <p className="text-brand-800">{reglages.horizon_jours} jours</p>
           )}
         </Champ>
-        <Champ label="Acompte (F CFA)" aide="Facultatif pour la cliente, déduit du prix">
+        <Champ label="Acompte (F CFA)" aide="Déduit du prix le jour du soin">
           {modifiable ? (
             <Texte
               type="number"
@@ -402,6 +406,25 @@ export function Reglages({
           )}
         </Champ>
       </div>
+      <Champ
+        label="Acompte obligatoire"
+        aide="À régler au plus tard la veille à 18h, sinon le rendez-vous est annulé automatiquement. N'allumez qu'une fois les modèles WhatsApp approuvés par Meta : ce sont eux qui préviennent les clientes. Ne concerne que les rendez-vous pris après l'allumage."
+      >
+        {modifiable ? (
+          <OuiNon
+            valeur={saisie.acompte_obligatoire}
+            onChange={(v) => setSaisie((p) => ({ ...p, acompte_obligatoire: v }))}
+          />
+        ) : (
+          <p className="text-brand-800">{reglages.acompte_obligatoire ? "Oui" : "Non"}</p>
+        )}
+      </Champ>
+      {modifiable && !paiementPret && (
+        <p className="mb-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700">
+          Le paiement AfribaPay n&apos;est pas encore configuré : l&apos;acompte ne peut pas être
+          exigé pour le moment.
+        </p>
+      )}
       <Message erreur={erreur} info={info} />
       {modifiable && (
         <div className="mt-2 flex justify-end">
