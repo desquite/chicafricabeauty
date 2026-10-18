@@ -270,7 +270,7 @@ async function traiter(requete: Request) {
   // Relances : dernière séance de chaque cliente, hors celles déjà attendues.
   const { data: dernieres } = await supabase
     .from("seances")
-    .select("cliente_id, date_seance, delai_recommande, clientes(nom_complet)")
+    .select("cliente_id, date_seance, delai_recommande, clientes(nom_complet, relancee_le)")
     .order("date_seance", { ascending: false })
     .limit(500)
     .returns<
@@ -278,7 +278,7 @@ async function traiter(requete: Request) {
         cliente_id: string;
         date_seance: string;
         delai_recommande: string | null;
-        clientes: { nom_complet: string } | null;
+        clientes: { nom_complet: string; relancee_le: string | null } | null;
       }[]
     >();
 

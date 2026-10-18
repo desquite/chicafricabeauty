@@ -310,23 +310,32 @@ export function construireAnniversaire(nom: string): string {
   ].join("\n");
 }
 
+/** Une cliente contactée ne réapparaît pas dans les relances avant ce délai. */
+export const JOURS_APRES_CONTACT = 14;
+
 /**
  * Clientes dont le délai recommandé est dépassé de plus d'une semaine.
  *
  * La marge d'une semaine évite de relancer quelqu'un qui a simplement décalé
  * de deux jours : une relance trop prompte se retourne contre l'institut.
+ * Une cliente déjà contactée récemment est laissée tranquille.
+ *
+ * Chaque relance garde sa ligne de séance d'origine (`seance`), pour que
+ * l'écran des relances affiche le téléphone et le délai sans relire la base.
  */
-export function calculerRelances(
-  dernieresSeances: {
+export function calculerRelances<
+  T extends {
     cliente_id: string;
     date_seance: string;
     delai_recommande: string | null;
-    clientes: { nom_complet: string } | null;
-  }[],
+    clientes: { nom_complet: string; relancee_le?: string | null } | null;
+  },
+>(
+  dernieresSeances: T[],
   clientesAvecRdv: Set<string>,
   aujourdhui: Date,
-): ARelancer[] {
-  const relances: ARelancer[] = [];
+): (ARelancer & { seance: T })[] {
+  const relances: (ARelancer & { seance: T })[] = [];
   const vues = new Set<string>();
 
   for (const s of dernieresSeances) {
@@ -335,6 +344,14 @@ export function calculerRelances(
     if (clientesAvecRdv.has(s.cliente_id)) continue;
     if (!s.delai_recommande) continue;
 
+    const contact = s.clientes?.relancee_le;
+    if (
+      contact &&
+      aujourdhui.getTime() - new Date(contact).getTime() < JOURS_APRES_CONTACT * 86_400_000
+    ) {
+      continue;
+    }
+
     const attendu = JOURS_PAR_DELAI[s.delai_recommande];
     if (!attendu) continue;
 
@@ -342,7 +359,7 @@ export function calculerRelances(
       (aujourdhui.getTime() - new Date(s.date_seance).getTime()) / 86_400_000,
     );
     if (jours > attendu + 7 && s.clientes) {
-      relances.push({ nom_complet: s.clientes.nom_complet, jours });
+      relances.push({ nom_complet: s.clientes.nom_complet, jours, seance: s });
     }
   }
 
