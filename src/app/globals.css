@@ -57,14 +57,25 @@ button,
 [role="button"] {
   transition:
     transform 80ms ease-out,
-    opacity 80ms ease-out;
+    opacity 80ms ease-out,
+    filter 80ms ease-out;
 }
 
 a:active,
 button:not(:disabled):active,
 [role="button"]:active {
-  transform: scale(0.985);
-  opacity: 0.9;
+  transform: scale(0.97);
+  opacity: 0.75;
+}
+
+/* Les grands blocs cliquables (cartes, lignes de liste) : un rétrécissement
+   aussi marqué que sur un bouton les ferait sauter, on les assombrit plutôt. */
+a.block:active,
+a.flex:active:not(.h-touch),
+a.grid:active {
+  transform: scale(0.99);
+  opacity: 1;
+  filter: brightness(0.95);
 }
 
 button:disabled {

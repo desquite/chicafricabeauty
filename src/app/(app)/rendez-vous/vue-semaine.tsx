@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signalerChargement } from "@/components/attente";
 import type { RdvAffiche } from "./agenda";
 
 /**
@@ -197,7 +198,10 @@ export function VueSemaine({
                       key={m}
                       type="button"
                       aria-label={`Nouveau rendez-vous le ${j} à ${lisible(m)}`}
-                      onClick={() => router.push(`/rendez-vous?jour=${j}&heure=${versHeure(m)}`)}
+                      onClick={() => {
+                        signalerChargement();
+                        router.push(`/rendez-vous?jour=${j}&heure=${versHeure(m)}`);
+                      }}
                       className={`group absolute inset-x-0 ${trait} hover:bg-brand-50`}
                       style={style}
                     >

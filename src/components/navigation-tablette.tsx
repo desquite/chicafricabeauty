@@ -1,7 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
+import { Rouet } from "@/components/attente";
 
 const ENTREES = [
   { href: "/accueil", libelle: "Accueil", icone: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z" },
@@ -30,6 +32,15 @@ function Icone({ d }: { d: string }) {
   );
 }
 
+/**
+ * L'icône de l'entrée, remplacée par un rouet tant que la page demandée n'est
+ * pas arrivée. useLinkStatus ne se lit que sous le Link concerné.
+ */
+function IconeOuRouet({ d }: { d: string }) {
+  const { pending } = useLinkStatus();
+  return pending ? <Rouet className="h-6 w-6 shrink-0" /> : <Icone d={d} />;
+}
+
 /** Nombre affiché à côté d'une entrée, par adresse : « /rendez-vous » → 4. */
 type Pastilles = Record<string, number>;
 
@@ -54,7 +65,14 @@ export function NavigationTablette({
   pastilles?: Pastilles;
 }) {
   const chemin = usePathname();
-  const estActif = (href: string) => chemin === href || chemin.startsWith(href + "/");
+  // Entrée touchée : allumée dès l'appui, sans attendre la page. Elle ne vaut
+  // que pour l'adresse d'où elle a été touchée, et s'efface donc d'elle-même
+  // à l'arrivée sur la nouvelle page.
+  const [vise, setVise] = useState<{ href: string; depuis: string } | null>(null);
+  const cible = vise?.depuis === chemin ? vise.href : null;
+  const estActif = (href: string) =>
+    cible ? cible === href : chemin === href || chemin.startsWith(href + "/");
+  const toucher = (href: string) => setVise({ href, depuis: chemin });
 
   if (variante === "basse") {
     return (
@@ -64,11 +82,15 @@ export function NavigationTablette({
             key={e.href}
             href={e.href}
             aria-current={estActif(e.href) ? "page" : undefined}
+            onClick={() => toucher(e.href)}
             className={`relative flex h-touch flex-col items-center justify-center gap-1 text-[11px] ${
-              estActif(e.href) ? "text-brand-600" : "text-brand-400"
+              estActif(e.href) ? "font-semibold text-brand-600" : "text-brand-400"
             }`}
           >
-            <Icone d={e.icone} />
+            {estActif(e.href) && (
+              <span className="absolute top-0 left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-b-full bg-brand-600" />
+            )}
+            <IconeOuRouet d={e.icone} />
             {e.libelle}
             {pastilles[e.href] ? (
               <span className="absolute top-1 right-[18%] flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white">
@@ -88,13 +110,14 @@ export function NavigationTablette({
           key={e.href}
           href={e.href}
           aria-current={estActif(e.href) ? "page" : undefined}
+          onClick={() => toucher(e.href)}
           className={`flex h-touch items-center gap-3 rounded-xl px-4 text-[15px] font-medium transition-colors ${
             estActif(e.href)
               ? "bg-brand-600 text-white"
               : "text-brand-800 hover:bg-brand-50"
           }`}
         >
-          <Icone d={e.icone} />
+          <IconeOuRouet d={e.icone} />
           {e.libelle}
           <Pastille n={pastilles[e.href]} actif={estActif(e.href)} />
         </Link>

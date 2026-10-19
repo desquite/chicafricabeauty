@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { signalerChargement } from "@/components/attente";
 
 /**
  * Navigation dans le temps, pilotée côté navigateur.
@@ -36,6 +37,7 @@ export function NavigationJour({ jour }: { jour: string }) {
 
   const aller = (cible: string) => {
     setCourant(cible);
+    signalerChargement();
     demarrer(() => router.push(`/rendez-vous?jour=${cible}`));
   };
 
@@ -81,6 +83,7 @@ export function NavigationMois({ mois }: { mois: string }) {
 
   const aller = (cible: string) => {
     setCourant(cible);
+    signalerChargement();
     demarrer(() => router.push(`/rendez-vous?mois=${cible}`));
   };
 
@@ -152,6 +155,7 @@ export function NavigationSemaine({ lundi }: { lundi: string }) {
 
   const aller = (cible: string) => {
     setCourant(cible);
+    signalerChargement();
     demarrer(() => router.push(`/rendez-vous?semaine=${cible}`));
   };
 
