@@ -33,7 +33,7 @@ export type RdvAffiche = {
   annulation_motif: string | null;
   code_acompte: string;
   clientes: Pick<Cliente, "id" | "nom_complet" | "telephone"> | null;
-  soins_catalogue: { libelle: string } | null;
+  soins_catalogue: { libelle: string; duree_std?: number | null } | null;
   alertes: number;
   /** Rang de la venue quand elle ouvre droit à la remise fidélité, sinon null. */
   remise: number | null;
@@ -62,6 +62,7 @@ export default function Agenda({
   soins,
   jour,
   clienteOuverte = null,
+  heureOuverte = null,
 }: {
   rdvs: RdvAffiche[];
   clientes: Pick<Cliente, "id" | "nom_complet" | "telephone">[];
@@ -69,11 +70,19 @@ export default function Agenda({
   jour: string;
   /** Depuis la fiche d'une cliente : le formulaire s'ouvre, elle déjà choisie. */
   clienteOuverte?: string | null;
+  /** Depuis un créneau libre de la semaine : le formulaire s'ouvre à cette heure. */
+  heureOuverte?: string | null;
 }) {
   const router = useRouter();
   const ouvrirPour = clienteOuverte && clientes.some((c) => c.id === clienteOuverte) ? clienteOuverte : null;
-  const [ouvert, setOuvert] = useState(Boolean(ouvrirPour));
-  const [saisie, setSaisie] = useState({ ...vierge, date_rdv: jour, cliente_id: ouvrirPour ?? "" });
+  const heure = heureOuverte && /^\d{2}:\d{2}$/.test(heureOuverte) ? heureOuverte : "";
+  const [ouvert, setOuvert] = useState(Boolean(ouvrirPour || heure));
+  const [saisie, setSaisie] = useState({
+    ...vierge,
+    date_rdv: jour,
+    cliente_id: ouvrirPour ?? "",
+    heure_rdv: heure,
+  });
   const [filtre, setFiltre] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();

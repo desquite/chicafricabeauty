@@ -4,14 +4,15 @@ import { createClient } from "@/lib/supabase/server";
 import { alertes, type Anamnese, type Cliente, type SoinCatalogue } from "@/lib/types";
 import { ouvreDroit, rangSeance } from "@/lib/fidelite";
 import Agenda, { type RdvAffiche } from "./agenda";
-import { NavigationJour, NavigationMois } from "./navigation";
+import { NavigationJour, NavigationMois, NavigationSemaine, OngletsVues } from "./navigation";
+import { VueSemaine, type FermetureSemaine, type HoraireSemaine } from "./vue-semaine";
 import { VueMois, type JourDuMois } from "./vue-mois";
 import { VueAvenir } from "./vue-avenir";
 
 export const metadata = { title: "Rendez-vous — Chic Africa Beauty Online" };
 
 const CHAMPS_RDV =
-  "id, date_rdv, heure_rdv, duree_min, statut, notes, soin_id, source, acompte_montant, acompte_paye_le, acompte_requis, created_at, annulation_motif, code_acompte, clientes(id, nom_complet, telephone), soins_catalogue(libelle)";
+  "id, date_rdv, heure_rdv, duree_min, statut, notes, soin_id, source, acompte_montant, acompte_paye_le, acompte_requis, created_at, annulation_motif, code_acompte, clientes(id, nom_complet, telephone), soins_catalogue(libelle, duree_std)";
 
 /** Dernier jour du mois, au format ISO. */
 function finDeMois(mois: string) {
@@ -19,10 +20,29 @@ function finDeMois(mois: string) {
   return new Date(Date.UTC(a, m, 0)).toISOString().slice(0, 10);
 }
 
+function plusJours(iso: string, n: number) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Lundi de la semaine d'une date : la semaine de l'institut commence le lundi. */
+function lundiDe(iso: string) {
+  const jourSemaine = new Date(`${iso}T00:00:00Z`).getUTCDay();
+  return plusJours(iso, -((jourSemaine + 6) % 7));
+}
+
 export default async function PageRendezVous({
   searchParams,
 }: {
-  searchParams: Promise<{ jour?: string; mois?: string; vue?: string; cliente?: string }>;
+  searchParams: Promise<{
+    jour?: string;
+    mois?: string;
+    vue?: string;
+    cliente?: string;
+    semaine?: string;
+    heure?: string;
+  }>;
 }) {
   await requireProfil();
   const params = await searchParams;
@@ -32,19 +52,29 @@ export default async function PageRendezVous({
   const maintenant = new Date();
   const aujourdhui = maintenant.toISOString().slice(0, 10);
 
-  // Le mois est la vue par défaut : elle donne le nombre de rendez-vous de
-  // chaque jour d'un coup d'œil, ce que la vue jour ne permettait pas.
-  const vue = params.jour ? "jour" : params.vue === "avenir" ? "avenir" : "mois";
+  // La semaine en colonnes horaires est la vue par défaut : ce qui est pris,
+  // libre ou fermé s'y voit d'un coup d'œil. Le mois reste à un onglet.
+  const vue = params.jour
+    ? "jour"
+    : params.vue === "avenir"
+      ? "avenir"
+      : params.mois || params.vue === "mois"
+        ? "mois"
+        : "semaine";
   const jour = params.jour ?? aujourdhui;
   const mois = params.mois ?? jour.slice(0, 7);
+  const lundi = lundiDe(params.semaine && /^\d{4}-\d{2}-\d{2}$/.test(params.semaine) ? params.semaine : aujourdhui);
 
-  const debut = vue === "jour" ? jour : vue === "mois" ? `${mois}-01` : aujourdhui;
+  const debut =
+    vue === "jour" ? jour : vue === "mois" ? `${mois}-01` : vue === "semaine" ? lundi : aujourdhui;
   const fin =
     vue === "jour"
       ? jour
       : vue === "mois"
         ? finDeMois(mois)
-        : new Date(maintenant.getTime() + 30 * 86_400_000).toISOString().slice(0, 10);
+        : vue === "semaine"
+          ? plusJours(lundi, 6)
+          : new Date(maintenant.getTime() + 30 * 86_400_000).toISOString().slice(0, 10);
 
   // Un rendez-vous reprogrammé n'a plus rien à faire dans l'agenda : il a été
   // remplacé. Il reste en base et continue d'alimenter le taux d'absence.
@@ -138,9 +168,26 @@ export default async function PageRendezVous({
     parJour.set(r.date_rdv, c);
   }
 
+  // Horaires et fermetures : la semaine grise ce qui n'est pas réservable.
+  const [horaires, fermetures] =
+    vue === "semaine"
+      ? await Promise.all([
+          supabase
+            .from("horaires_semaine")
+            .select("jour, ouvert, ouverture, fermeture")
+            .returns<HoraireSemaine[]>(),
+          supabase
+            .from("fermetures")
+            .select("date_debut, date_fin, heure_debut, heure_fin, motif")
+            .lte("date_debut", fin)
+            .gte("date_fin", debut)
+            .returns<FermetureSemaine[]>(),
+        ])
+      : [{ data: [] as HoraireSemaine[] }, { data: [] as FermetureSemaine[] }];
+
   return (
-    <div className="mx-auto max-w-4xl">
-      <header className="mb-6">
+    <div className={`mx-auto ${vue === "semaine" ? "max-w-7xl" : "max-w-4xl"}`}>
+      <header className="mb-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-3xl font-semibold text-brand-800">Rendez-vous</h1>
           <Link
@@ -150,10 +197,22 @@ export default async function PageRendezVous({
             Disponibilités
           </Link>
         </div>
+        <OngletsVues vue={vue} jour={jour} />
         {vue === "jour" && <NavigationJour jour={jour} />}
         {vue === "mois" && <NavigationMois mois={mois} />}
+        {vue === "semaine" && <NavigationSemaine lundi={lundi} />}
       </header>
 
+      {vue === "semaine" && (
+        <VueSemaine
+          lundi={lundi}
+          aujourdhui={aujourdhui}
+          rdvs={enrichis}
+          horaires={horaires.data ?? []}
+          fermetures={fermetures.data ?? []}
+          minuteActuelle={maintenant.getUTCHours() * 60 + maintenant.getUTCMinutes()}
+        />
+      )}
       {vue === "mois" && (
         <VueMois mois={mois} jours={parJour} aujourdhui={aujourdhui} />
       )}
@@ -165,6 +224,7 @@ export default async function PageRendezVous({
           soins={soins ?? []}
           jour={jour}
           clienteOuverte={params.cliente ?? null}
+          heureOuverte={params.heure ?? null}
         />
       )}
     </div>
