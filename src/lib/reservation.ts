@@ -1,6 +1,12 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { calculerCreneaux, ajouterJours, minutes, type JourCreneaux } from "@/lib/creneaux";
+import {
+  BATTEMENT_DEFAUT,
+  calculerCreneaux,
+  ajouterJours,
+  minutes,
+  type JourCreneaux,
+} from "@/lib/creneaux";
 import { dureeLisible, fcfa, prixDuJour } from "@/lib/disponibilites";
 import { estExpire, type RdvAcompte } from "@/lib/regles-acompte";
 import type { GroupeSoin, SoinCatalogue } from "@/lib/types";
@@ -72,7 +78,10 @@ export async function creneauxLibres(soinId: string): Promise<JourCreneaux[] | n
       .eq("actif", true)
       .eq("en_ligne", true)
       .maybeSingle<{ duree_std: number | null }>(),
-    admin.from("reglages_rdv").select("horizon_jours").maybeSingle<{ horizon_jours: number }>(),
+    admin
+      .from("reglages_rdv")
+      .select("horizon_jours, battement_min")
+      .maybeSingle<{ horizon_jours: number; battement_min: number }>(),
     admin.from("horaires_semaine").select("jour, ouvert, ouverture, fermeture"),
   ]);
   if (!soin.data?.duree_std) return null;
@@ -125,6 +134,7 @@ export async function creneauxLibres(soinId: string): Promise<JourCreneaux[] | n
     duree: soin.data.duree_std,
     maintenant,
     horizonJours: horizon,
+    battement: reglages.data?.battement_min ?? BATTEMENT_DEFAUT,
   });
 }
 

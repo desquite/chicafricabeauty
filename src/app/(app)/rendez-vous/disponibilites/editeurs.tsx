@@ -361,6 +361,7 @@ export function Reglages({
   const router = useRouter();
   const [saisie, setSaisie] = useState({
     horizon_jours: String(reglages.horizon_jours),
+    battement_min: String(reglages.battement_min),
     acompte_montant: String(reglages.acompte_montant),
     acompte_obligatoire: reglages.acompte_obligatoire,
   });
@@ -392,6 +393,20 @@ export function Reglages({
             />
           ) : (
             <p className="text-brand-800">{reglages.horizon_jours} jours</p>
+          )}
+        </Champ>
+        <Champ
+          label="Écart entre deux rendez-vous (min)"
+          aide="Temps de préparation de la salle, en ligne comme sur la tablette"
+        >
+          {modifiable ? (
+            <Texte
+              type="number"
+              valeur={saisie.battement_min}
+              onChange={(v) => setSaisie((p) => ({ ...p, battement_min: v }))}
+            />
+          ) : (
+            <p className="text-brand-800">{reglages.battement_min} min</p>
           )}
         </Champ>
         <Champ label="Acompte (F CFA)" aide="Déduit du prix le jour du soin">

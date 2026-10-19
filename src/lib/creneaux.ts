@@ -48,6 +48,21 @@ export function ajouterJours(iso: string, n: number) {
 
 const chevauche = (a: number, b: number, c: number, d: number) => a < d && c < b;
 
+/** Minutes de préparation de la salle entre deux rendez-vous, par défaut. */
+export const BATTEMENT_DEFAUT = 30;
+
+/**
+ * Le créneau [debut, fin[ laisse-t-il trop peu de temps avec l'occupation o ?
+ * Il faut battement minutes entre la fin de l'un et le début de l'autre,
+ * dans les deux sens. Même règle que reserver_en_ligne.
+ */
+export const tropProche = (
+  debut: number,
+  fin: number,
+  o: { debut: number; fin: number },
+  battement: number,
+) => chevauche(debut, fin + battement, o.debut, o.fin + battement);
+
 export function calculerCreneaux({
   horaires,
   fermetures,
@@ -55,6 +70,7 @@ export function calculerCreneaux({
   duree,
   maintenant,
   horizonJours,
+  battement = 0,
 }: {
   horaires: HoraireCreneaux[];
   fermetures: FermetureCreneaux[];
@@ -63,6 +79,8 @@ export function calculerCreneaux({
   duree: number;
   maintenant: Date;
   horizonJours: number;
+  /** Minutes à laisser libres avant et après chaque rendez-vous pris. */
+  battement?: number;
 }): JourCreneaux[] {
   const parJour = new Map(horaires.map((h) => [h.jour, h]));
   const aujourdhui = maintenant.toISOString().slice(0, 10);
@@ -79,6 +97,7 @@ export function calculerCreneaux({
       const fermeture = minutes(horaire.fermeture);
 
       const bloques: [number, number][] = [];
+      const pris: Occupation[] = [];
       let journeeFermee = false;
       for (const f of fermetures) {
         if (date < f.date_debut || date > f.date_fin) continue;
@@ -89,7 +108,7 @@ export function calculerCreneaux({
         bloques.push([minutes(f.heure_debut), minutes(f.heure_fin)]);
       }
       for (const o of occupations) {
-        if (o.date === date) bloques.push([o.debut, o.fin]);
+        if (o.date === date) pris.push(o);
       }
 
       if (!journeeFermee) {
@@ -100,6 +119,7 @@ export function calculerCreneaux({
           if (date === aujourdhui && debut <= minuteActuelle) continue;
           const fin = debut + duree;
           if (bloques.some(([a, b]) => chevauche(debut, fin, a, b))) continue;
+          if (pris.some((o) => tropProche(debut, fin, o, battement))) continue;
           creneaux.push(versHeure(debut));
         }
       }

@@ -103,6 +103,8 @@ export type ReglagesRdv = {
   acompte_montant: number;
   /** Acompte exigé, sous peine d'annulation la veille à 18h. */
   acompte_obligatoire: boolean;
+  /** Minutes de préparation de la salle entre deux rendez-vous. */
+  battement_min: number;
 };
 
 export type Seance = {

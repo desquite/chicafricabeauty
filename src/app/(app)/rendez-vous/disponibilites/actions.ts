@@ -125,14 +125,19 @@ export async function supprimerFermeture(id: string): Promise<Retour> {
 
 export async function enregistrerReglages(saisie: {
   horizon_jours: string;
+  battement_min: string;
   acompte_montant: string;
   acompte_obligatoire: boolean;
 }): Promise<Retour> {
   await exigerGerante();
   const horizon = Number(saisie.horizon_jours);
   const acompte = Number(saisie.acompte_montant);
+  const battement = Number(saisie.battement_min);
   if (!Number.isInteger(horizon) || horizon < 1 || horizon > 365) {
     return { ok: false, erreur: "La réservation à l'avance doit aller de 1 à 365 jours." };
+  }
+  if (!Number.isInteger(battement) || battement < 0 || battement > 120) {
+    return { ok: false, erreur: "L'écart entre deux rendez-vous doit aller de 0 à 120 minutes." };
   }
   if (!Number.isInteger(acompte) || acompte < 0) {
     return { ok: false, erreur: "Le montant de l'acompte est invalide." };
@@ -150,6 +155,7 @@ export async function enregistrerReglages(saisie: {
   const { error } = await supabase.from("reglages_rdv").upsert({
     id: true,
     horizon_jours: horizon,
+    battement_min: battement,
     acompte_montant: acompte,
     acompte_obligatoire: saisie.acompte_obligatoire,
   });

@@ -25,7 +25,7 @@ export default async function PageDisponibilites() {
       .returns<Fermeture[]>(),
     supabase
       .from("reglages_rdv")
-      .select("horizon_jours, acompte_montant, acompte_obligatoire")
+      .select("horizon_jours, acompte_montant, acompte_obligatoire, battement_min")
       .maybeSingle<ReglagesRdv>(),
   ]);
 
@@ -61,7 +61,12 @@ export default async function PageDisponibilites() {
         />
         <Reglages
           reglages={
-            reglages.data ?? { horizon_jours: 60, acompte_montant: 10000, acompte_obligatoire: false }
+            reglages.data ?? {
+              horizon_jours: 60,
+              acompte_montant: 10000,
+              acompte_obligatoire: false,
+              battement_min: 30,
+            }
           }
           modifiable={modifiable}
           paiementPret={paiementConfigure()}
