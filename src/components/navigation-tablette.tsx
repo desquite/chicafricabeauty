@@ -58,7 +58,7 @@ export function NavigationTablette({
 
   if (variante === "basse") {
     return (
-      <nav className="no-print grid grid-cols-7 border-t border-brand-100 bg-white md:hidden">
+      <nav className="no-print fixed inset-x-0 bottom-0 z-40 grid grid-cols-7 border-t border-brand-100 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_12px_rgba(0,0,0,0.04)] md:hidden">
         {ENTREES.map((e) => (
           <Link
             key={e.href}

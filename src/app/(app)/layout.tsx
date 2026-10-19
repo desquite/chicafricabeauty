@@ -64,8 +64,13 @@ export default async function LayoutApplication({
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <main className="flex-1 p-6 md:p-8">{children}</main>
-        {/* En portrait, la navigation passe en bas : le pouce y accède seul. */}
+        {/* En bas, la place du menu figé : sans elle, il masquerait la fin
+            de la page. */}
+        <main className="flex-1 p-6 pb-[calc(var(--spacing-touch)+env(safe-area-inset-bottom)+1.5rem)] md:p-8">
+          {children}
+        </main>
+        {/* En portrait, la navigation reste figée en bas de l'écran : le pouce
+            y accède seul, sans descendre jusqu'au bas de la page. */}
         <NavigationTablette variante="basse" pastilles={pastilles} />
       </div>
     </div>

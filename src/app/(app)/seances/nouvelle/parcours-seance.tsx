@@ -593,7 +593,7 @@ export default function ParcoursSeance({
         </p>
       )}
 
-      <div className="sticky bottom-0 mt-8 flex gap-3 border-t border-brand-100 bg-creme py-4">
+      <div className="sticky bottom-[calc(var(--spacing-touch)+env(safe-area-inset-bottom))] mt-8 md:bottom-0 flex gap-3 border-t border-brand-100 bg-creme py-4">
         <button
           type="button"
           onClick={() => (etape === 0 ? router.back() : setEtape((e) => e - 1))}
