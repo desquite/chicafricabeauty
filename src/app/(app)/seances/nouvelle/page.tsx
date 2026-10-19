@@ -1,7 +1,12 @@
 import { requireProfil } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { alertes, type Anamnese, type Cliente, type SoinCatalogue } from "@/lib/types";
-import ParcoursSeance, { type RdvOrigine } from "./parcours-seance";
+import { prixDuJour, type PrixSoin } from "@/lib/disponibilites";
+import { age, alertes, type Anamnese, type Cliente, type SoinCatalogue } from "@/lib/types";
+import ParcoursSeance, {
+  type DerniereSeance,
+  type FicheExpress,
+  type RdvOrigine,
+} from "./parcours-seance";
 
 export const metadata = { title: "Nouvelle séance" };
 
@@ -19,7 +24,10 @@ export default async function PageNouvelleSeance({
   const { data: rdvSource } = rdv
     ? await supabase
         .from("rendez_vous")
-        .select("id, cliente_id, date_rdv, heure_rdv, soin_id, statut, seance_id")
+        .select(
+          "id, cliente_id, date_rdv, heure_rdv, soin_id, statut, seance_id, duree_min, source, acompte_paye_le, acompte_montant, " +
+            "soins_catalogue(libelle, libelle_public, duree_std, prix, prix_promo, promo_debut, promo_fin)",
+        )
         .eq("id", rdv)
         .maybeSingle<{
           id: string;
@@ -29,6 +37,13 @@ export default async function PageNouvelleSeance({
           soin_id: string | null;
           statut: string;
           seance_id: string | null;
+          duree_min: number | null;
+          source: string;
+          acompte_paye_le: string | null;
+          acompte_montant: number | null;
+          soins_catalogue:
+            | (PrixSoin & { libelle: string; libelle_public: string | null; duree_std: number | null })
+            | null;
         }>()
     : { data: null };
 
@@ -75,17 +90,53 @@ export default async function PageNouvelleSeance({
             (soins ?? []).some((s) => s.id === rdvSource.soin_id)
               ? rdvSource.soin_id
               : null,
+          duree_min: rdvSource.duree_min ?? rdvSource.soins_catalogue?.duree_std ?? null,
+          soin: rdvSource.soins_catalogue?.libelle_public || rdvSource.soins_catalogue?.libelle || null,
+          prix: rdvSource.soins_catalogue ? prixDuJour(rdvSource.soins_catalogue, rdvSource.date_rdv) : null,
+          acompte: rdvSource.acompte_paye_le ? rdvSource.acompte_montant : null,
+          enLigne: rdvSource.source === "en_ligne",
         }
       : null;
 
   let alertesCliente: string[] = [];
+  let fiche: FicheExpress | null = null;
+  let derniere: DerniereSeance | null = null;
   if (cliente) {
-    const { data: bilan } = await supabase
-      .from("anamneses_courantes")
-      .select("*")
-      .eq("cliente_id", cliente)
-      .maybeSingle<Anamnese>();
+    const [{ data: bilan }, { data: c }, { data: precedente }] = await Promise.all([
+      supabase
+        .from("anamneses_courantes")
+        .select("*")
+        .eq("cliente_id", cliente)
+        .maybeSingle<Anamnese>(),
+      supabase
+        .from("clientes")
+        .select("nom_complet, telephone, date_naissance")
+        .eq("id", cliente)
+        .maybeSingle<{ nom_complet: string; telephone: string; date_naissance: string | null }>(),
+      // La derniere seance, que la gerante peut reprendre d'un geste : la peau
+      // et le protocole changent rarement d'une venue a l'autre.
+      supabase
+        .from("seances")
+        .select(
+          "date_seance, type_peau, etat_peau, observations_peau, zones, produits_utilises, appareil, programme, conseils, produits_conseilles, delai_recommande",
+        )
+        .eq("cliente_id", cliente)
+        .order("date_seance", { ascending: false })
+        .limit(1)
+        .maybeSingle<DerniereSeance>(),
+    ]);
     alertesCliente = alertes(bilan ?? null);
+    derniere = precedente ?? null;
+    if (c) {
+      fiche = {
+        id: cliente,
+        nom: c.nom_complet,
+        telephone: c.telephone,
+        age: age(c.date_naissance),
+        ficheSante: Boolean(bilan),
+        venue: (seancesParCliente[cliente] ?? 0) + 1,
+      };
+    }
   }
 
   return (
@@ -97,6 +148,8 @@ export default async function PageNouvelleSeance({
       avecSeance={avecSeance}
       seancesParCliente={seancesParCliente}
       rdvOrigine={rdvOrigine}
+      fiche={fiche}
+      derniere={derniere}
     />
   );
 }

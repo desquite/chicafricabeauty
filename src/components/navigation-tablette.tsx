@@ -30,10 +30,28 @@ function Icone({ d }: { d: string }) {
   );
 }
 
+/** Nombre affiché à côté d'une entrée, par adresse : « /rendez-vous » → 4. */
+type Pastilles = Record<string, number>;
+
+function Pastille({ n, actif }: { n: number | undefined; actif: boolean }) {
+  if (!n) return null;
+  return (
+    <span
+      className={`ml-auto flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1.5 text-xs font-bold ${
+        actif ? "bg-white text-brand-600" : "bg-brand-500 text-white"
+      }`}
+    >
+      {n}
+    </span>
+  );
+}
+
 export function NavigationTablette({
   variante = "laterale",
+  pastilles = {},
 }: {
   variante?: "laterale" | "basse";
+  pastilles?: Pastilles;
 }) {
   const chemin = usePathname();
   const estActif = (href: string) => chemin === href || chemin.startsWith(href + "/");
@@ -46,12 +64,17 @@ export function NavigationTablette({
             key={e.href}
             href={e.href}
             aria-current={estActif(e.href) ? "page" : undefined}
-            className={`flex h-touch flex-col items-center justify-center gap-1 text-[11px] ${
+            className={`relative flex h-touch flex-col items-center justify-center gap-1 text-[11px] ${
               estActif(e.href) ? "text-brand-600" : "text-brand-400"
             }`}
           >
             <Icone d={e.icone} />
             {e.libelle}
+            {pastilles[e.href] ? (
+              <span className="absolute top-1 right-[18%] flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-bold text-white">
+                {pastilles[e.href]}
+              </span>
+            ) : null}
           </Link>
         ))}
       </nav>
@@ -73,6 +96,7 @@ export function NavigationTablette({
         >
           <Icone d={e.icone} />
           {e.libelle}
+          <Pastille n={pastilles[e.href]} actif={estActif(e.href)} />
         </Link>
       ))}
     </nav>

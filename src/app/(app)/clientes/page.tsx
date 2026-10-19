@@ -12,8 +12,13 @@ export const metadata = { title: "Clientes — Chic Africa Beauty Online" };
 // couvrirait plus tout le fichier, et l'écran le signale.
 const PLAFOND = 1000;
 
-export default async function PageClientes() {
+export default async function PageClientes({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   await requireProfil();
+  const { q } = await searchParams;
   const supabase = await createClient();
 
   const [{ data: clientes, error }, { data: bilans }, { count }] = await Promise.all([
@@ -59,7 +64,11 @@ export default async function PageClientes() {
         </div>
       </header>
 
-      <ListeClientes lignes={lignes} tronquee={(count ?? 0) > lignes.length} />
+      <ListeClientes
+        lignes={lignes}
+        tronquee={(count ?? 0) > lignes.length}
+        rechercheInitiale={q?.slice(0, 100) ?? ""}
+      />
     </div>
   );
 }

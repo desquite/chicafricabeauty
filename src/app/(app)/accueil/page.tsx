@@ -1,175 +1,161 @@
 import Link from "next/link";
+import { adressePublique } from "@/lib/adresse";
 import { requireProfil } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { lireJournee, type ATraiter, type Nouveaute } from "@/lib/journee";
+import { BoutonLienReservation, FriseJournee } from "./journee";
 
 export const metadata = { title: "Accueil — Chic Africa Beauty Online" };
 
+const TON_A_TRAITER: Record<ATraiter["ton"], string> = {
+  info: "bg-[#e8eefc] text-[#2c4a8a]",
+  alerte: "bg-[#fde8e2] text-[#a33a1f]",
+  acompte: "bg-[#fff1e5] text-[#9a4b12]",
+  neutre: "bg-brand-100 text-brand-700",
+};
+
+const TON_NOUVEAUTE: Record<Nouveaute["ton"], string> = {
+  reservation: "bg-brand-500",
+  acompte: "bg-[#2f7d4f]",
+  annulation: "bg-red-600",
+};
+
+/**
+ * Accueil « Ma journée » : ce que la gérante a à faire aujourd'hui, et non
+ * seulement des compteurs. Les rendez-vous du jour avec leurs actions, ce qui
+ * demande attention, et ce qui est arrivé en ligne depuis hier.
+ */
 export default async function PageAccueil() {
   const profil = await requireProfil();
-  const aujourdhui = new Date().toISOString().slice(0, 10);
+  const [j, site] = await Promise.all([lireJournee(), adressePublique()]);
+  const date = new Date(`${j.aujourdhui}T00:00:00Z`).toLocaleDateString("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  });
 
-  // `null` = la requête a échoué, typiquement parce que la migration n'a pas
-  // encore été appliquée. On l'affiche comme tel plutôt que comme un zéro.
-  const supabase = await createClient();
-  const [clientes, rdvDuJour, seancesDuJour, rdvAVenir] = await Promise.all([
-    supabase
-      .from("clientes")
-      .select("*", { count: "exact", head: true })
-      .eq("actif", true)
-      .then((r) => (r.error ? null : (r.count ?? 0))),
-    // Rendez-vous attendus aujourd'hui. C'est ce que la gérante regarde en
-    // premier le matin, et c'est ce qui manquait sur cet écran.
-    supabase
-      .from("rendez_vous")
-      .select("*", { count: "exact", head: true })
-      .eq("date_rdv", aujourdhui)
-      .eq("statut", "prevu")
-      .is("remplace_par", null)
-      .is("masque_le", null)
-      .then((r) => (r.error ? null : (r.count ?? 0))),
-    // Séances réellement saisies : un compteur distinct des rendez-vous, qui
-    // dit ce qui a été fait et non ce qui est prévu.
-    supabase
-      .from("seances")
-      .select("*", { count: "exact", head: true })
-      .eq("date_seance", aujourdhui)
-      .then((r) => (r.error ? null : (r.count ?? 0))),
-    supabase
-      .from("rendez_vous")
-      .select("*", { count: "exact", head: true })
-      .gt("date_rdv", aujourdhui)
-      .eq("statut", "prevu")
-      .is("remplace_par", null)
-      .is("masque_le", null)
-      .then((r) => (r.error ? null : (r.count ?? 0))),
-  ]);
-
-  const baseIndisponible = clientes === null;
+  const chiffres = [
+    {
+      titre: "Rendez-vous aujourd'hui",
+      valeur: String(j.chiffres.rdvDuJour),
+      detail: `${j.chiffres.honores} honoré${j.chiffres.honores > 1 ? "s" : ""} · ${j.chiffres.aVenir} à venir`,
+      href: `/rendez-vous?jour=${j.aujourdhui}`,
+    },
+    { titre: "Séances saisies", valeur: String(j.chiffres.seancesDuJour), detail: "aujourd'hui", href: "/seances" },
+    {
+      titre: "Acomptes du jour",
+      valeur: `${j.chiffres.acomptesDuJour.toLocaleString("fr-FR")} F`,
+      detail: `${j.chiffres.acomptesPayes} payé${j.chiffres.acomptesPayes > 1 ? "s" : ""} en ligne`,
+      href: `/rendez-vous?jour=${j.aujourdhui}`,
+    },
+    { titre: "Cette semaine", valeur: String(j.chiffres.semaine), detail: "rendez-vous prévus", href: "/rendez-vous?vue=avenir" },
+  ];
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <header className="mb-8">
-        <p className="text-sm text-brand-400">
-          {new Date().toLocaleDateString("fr-FR", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-        </p>
-        <h1 className="mt-1 text-3xl font-semibold text-brand-800">
-          Bonjour {profil.nom.split(" ")[0]}
-        </h1>
+    <div className="mx-auto flex max-w-7xl flex-col gap-5">
+      <header className="flex flex-wrap items-center gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-brand-500 first-letter:uppercase">{date}</p>
+          <h1 className="mt-0.5 text-3xl font-semibold text-brand-800">Bonjour {profil.nom.split(" ")[0]}</h1>
+        </div>
+        <form action="/clientes" className="flex h-11 w-full items-center gap-2 rounded-xl border border-brand-200 bg-white px-3.5 sm:w-80">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand-400" aria-hidden="true">
+            <circle cx="11" cy="11" r="7" />
+            <path d="M20 20l-3.5-3.5" />
+          </svg>
+          <input
+            name="q"
+            aria-label="Rechercher une cliente"
+            placeholder="Rechercher une cliente, un numéro…"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+          />
+        </form>
+        <BoutonLienReservation url={`${site}/rdv`} />
       </header>
 
-      {baseIndisponible && (
-        <div className="mb-8 rounded-2xl border border-or-400 bg-or-400/10 p-5">
-          <p className="font-medium text-brand-800">
-            Base de données non initialisée
-          </p>
-          <p className="mt-1 text-sm text-brand-700">
-            Appliquez la migration{" "}
-            <code className="rounded bg-white px-1.5 py-0.5 text-[13px]">
-              supabase/migrations/0001_schema_initial.sql
-            </code>{" "}
-            dans l&apos;éditeur SQL Supabase, puis rechargez cette page.
-          </p>
-        </div>
-      )}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Carte
-          titre="Rendez-vous aujourd'hui"
-          valeur={rdvDuJour}
-          detail="attendus"
-          href={`/rendez-vous?jour=${aujourdhui}`}
-        />
-        <Carte
-          titre="Séances aujourd'hui"
-          valeur={seancesDuJour}
-          detail="déjà saisies"
-          href="/seances"
-        />
-        <Carte titre="Clientes" valeur={clientes} href="/clientes" />
-        <Carte
-          titre="Rendez-vous à venir"
-          valeur={rdvAVenir}
-          detail="à partir de demain"
-          href="/rendez-vous?vue=avenir"
-        />
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {chiffres.map((c) => (
+          <Link
+            key={c.titre}
+            href={c.href}
+            className="flex flex-col gap-0.5 rounded-2xl border border-brand-100 bg-white px-4 py-3.5 transition-shadow hover:shadow-md"
+          >
+            <span className="text-sm text-brand-400">{c.titre}</span>
+            <span className="text-2xl font-bold text-brand-800">{c.valeur}</span>
+            <span className="text-xs text-brand-500">{c.detail}</span>
+          </Link>
+        ))}
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
-        <Action
-          href="/fiche/nouvelle"
-          titre="Nouvelle cliente"
-          detail="Fiche d'accueil à remplir sur la tablette"
-        />
-        <Action
-          href="/seances/nouvelle"
-          titre="Nouvelle séance"
-          detail="Diagnostic, soin réalisé et suite à donner"
-        />
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+        <section aria-labelledby="t-journee" className="flex flex-col gap-3 rounded-2xl border border-brand-100 bg-white p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="t-journee" className="text-xl font-semibold text-brand-800">Rendez-vous du jour</h2>
+            <span className="flex gap-2">
+              <Link href="/fiche/nouvelle" className="flex h-9 items-center rounded-lg border border-brand-200 px-3 text-sm font-medium text-brand-700 hover:bg-brand-50">
+                + Nouvelle cliente
+              </Link>
+              <Link href="/seances/nouvelle" className="flex h-9 items-center rounded-lg border border-brand-200 px-3 text-sm font-medium text-brand-700 hover:bg-brand-50">
+                + Séance
+              </Link>
+            </span>
+          </div>
+          <FriseJournee rdvs={j.rdvs} />
+        </section>
+
+        <div className="flex flex-col gap-5">
+          <section aria-labelledby="t-traiter" className="flex flex-col gap-2 rounded-2xl border border-brand-100 bg-white p-5">
+            <h2 id="t-traiter" className="mb-1 text-xl font-semibold text-brand-800">À traiter</h2>
+            {j.aTraiter.length === 0 ? (
+              <p className="text-brand-400">Rien en attente. Belle journée !</p>
+            ) : (
+              j.aTraiter.map((t) => (
+                <div key={t.cle} className="flex items-center gap-3 rounded-xl bg-brand-50 px-3 py-2.5">
+                  <span className={`flex h-9 min-w-9 shrink-0 items-center justify-center rounded-lg px-1.5 text-[15px] font-bold ${TON_A_TRAITER[t.ton]}`}>
+                    {t.nombre}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="text-sm font-semibold text-brand-900">{t.titre}</span>
+                    <span className="truncate text-xs text-brand-600">{t.detail}</span>
+                  </span>
+                  <Link href={t.href} className="shrink-0 text-sm font-bold text-brand-600 hover:underline">
+                    {t.action}
+                  </Link>
+                </div>
+              ))
+            )}
+          </section>
+
+          <section aria-labelledby="t-enligne" className="flex flex-col gap-1 rounded-2xl border border-brand-100 bg-white p-5">
+            <div className="mb-1 flex items-baseline justify-between gap-2">
+              <h2 id="t-enligne" className="text-xl font-semibold text-brand-800">En ligne depuis hier</h2>
+              {j.nouveautes.length > 0 && (
+                <span className="rounded-full bg-brand-500 px-2.5 py-0.5 text-xs font-bold text-white">
+                  {j.nouveautes.length} nouveau{j.nouveautes.length > 1 ? "x" : ""}
+                </span>
+              )}
+            </div>
+            {j.nouveautes.length === 0 ? (
+              <p className="text-brand-400">Rien de nouveau en ligne.</p>
+            ) : (
+              <ul>
+                {j.nouveautes.map((n) => (
+                  <li key={n.cle} className="flex gap-2.5 border-b border-brand-50 py-2 last:border-b-0">
+                    <span aria-hidden="true" className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${TON_NOUVEAUTE[n.ton]}`} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-sm">
+                        <strong>{n.quoi}</strong> · {n.cliente}
+                      </span>
+                      <span className="truncate text-xs text-brand-600">{n.detail}</span>
+                    </span>
+                    <span className="shrink-0 text-xs text-brand-400">{n.quand}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </div>
     </div>
-  );
-}
-
-function Carte({
-  titre,
-  valeur,
-  detail,
-  href,
-}: {
-  titre: string;
-  valeur: number | null;
-  detail?: string;
-  href: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="rounded-2xl border border-brand-100 bg-white p-5 transition-shadow hover:shadow-md"
-    >
-      <p className="text-sm text-brand-400">{titre}</p>
-      <p className="mt-2 text-4xl font-semibold text-brand-700">
-        {valeur ?? "—"}
-      </p>
-      {detail && <p className="mt-1 text-xs text-brand-400">{detail}</p>}
-    </Link>
-  );
-}
-
-function Action({
-  href,
-  titre,
-  detail,
-}: {
-  href: string;
-  titre: string;
-  detail: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex min-h-touch items-center justify-between gap-4 rounded-2xl bg-brand-600 p-5 text-white transition-colors hover:bg-brand-700"
-    >
-      <span>
-        <span className="block text-lg font-semibold">{titre}</span>
-        <span className="block text-sm text-brand-100">{detail}</span>
-      </span>
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-6 w-6 shrink-0"
-        aria-hidden="true"
-      >
-        <path d="M5 12h14M13 6l6 6-6 6" />
-      </svg>
-    </Link>
   );
 }

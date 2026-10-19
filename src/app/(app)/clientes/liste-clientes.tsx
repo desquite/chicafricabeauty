@@ -37,11 +37,14 @@ const MAX_AFFICHE = 60;
 export function ListeClientes({
   lignes,
   tronquee,
+  rechercheInitiale = "",
 }: {
   lignes: LigneCliente[];
   tronquee: boolean;
+  /** Recherche lancée depuis l'accueil (?q=). */
+  rechercheInitiale?: string;
 }) {
-  const [recherche, setRecherche] = useState("");
+  const [recherche, setRecherche] = useState(rechercheInitiale);
 
   // Index calculé une seule fois : normaliser à chaque frappe coûterait un
   // parcours complet du fichier par caractère saisi.

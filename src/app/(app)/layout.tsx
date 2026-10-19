@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { requireProfil } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
 import { BarreChargement } from "@/components/attente";
 import { NavigationTablette } from "@/components/navigation-tablette";
 import { seDeconnecter } from "@/app/connexion/actions";
@@ -11,6 +12,18 @@ export default async function LayoutApplication({
   children: React.ReactNode;
 }) {
   const profil = await requireProfil();
+
+  // Rendez-vous encore attendus aujourd'hui, en pastille dans le menu : une
+  // seule lecture comptee, legere a chaque navigation.
+  const supabase = await createClient();
+  const { count: rdvRestants } = await supabase
+    .from("rendez_vous")
+    .select("id", { count: "exact", head: true })
+    .eq("date_rdv", new Date().toISOString().slice(0, 10))
+    .eq("statut", "prevu")
+    .is("remplace_par", null)
+    .is("masque_le", null);
+  const pastilles = { "/rendez-vous": rdvRestants ?? 0 };
 
   return (
     <div className="flex min-h-full flex-1">
@@ -32,7 +45,7 @@ export default async function LayoutApplication({
           </div>
         </div>
 
-        <NavigationTablette />
+        <NavigationTablette pastilles={pastilles} />
 
         <div className="mt-auto border-t border-brand-100 p-4">
           <p className="truncate text-sm font-medium text-brand-800">
@@ -53,7 +66,7 @@ export default async function LayoutApplication({
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="flex-1 p-6 md:p-8">{children}</main>
         {/* En portrait, la navigation passe en bas : le pouce y accède seul. */}
-        <NavigationTablette variante="basse" />
+        <NavigationTablette variante="basse" pastilles={pastilles} />
       </div>
     </div>
   );
