@@ -25,11 +25,13 @@ export type Paiement =
   | { etat: EtatAcompte; orderId: string; lien: string | null; operateur: string }
   | { etat: "erreur"; erreur: string };
 
+// Couleurs des marques, pour que la cliente reconnaisse son operateur d un
+// coup d oeil : orange Orange, jaune MTN, bleu Moov Africa, bleu ciel Wave.
 const OPERATEURS = [
-  { valeur: "orange", libelle: "Orange" },
-  { valeur: "mtn", libelle: "MTN" },
-  { valeur: "moov", libelle: "Moov" },
-  { valeur: "wave", libelle: "Wave" },
+  { valeur: "orange", libelle: "Orange", couleurs: "bg-[#FF7900] text-black" },
+  { valeur: "mtn", libelle: "MTN", couleurs: "bg-[#FFCB05] text-black" },
+  { valeur: "moov", libelle: "Moov", couleurs: "bg-[#0066B3] text-white" },
+  { valeur: "wave", libelle: "Wave", couleurs: "bg-[#1DC8F1] text-[#0B1F3A]" },
 ] as const;
 
 /** État du formulaire et du suivi d'un paiement. */
@@ -111,12 +113,15 @@ export function ChoixPaiement({
             role="radio"
             aria-checked={p.operateur === o.valeur}
             onClick={() => p.setOperateur(o.valeur)}
-            className={`h-11 rounded-xl text-[13px] font-bold text-brand-800 ${
+            className={`h-11 rounded-xl text-[13px] font-bold transition ${o.couleurs} ${
               p.operateur === o.valeur
-                ? "border-2 border-brand-600 bg-brand-100"
-                : "border border-brand-200 bg-white"
+                ? "ring-[3px] ring-brand-900 ring-offset-2"
+                : p.operateur
+                  ? "opacity-45"
+                  : ""
             }`}
           >
+            {p.operateur === o.valeur && <span aria-hidden>✓ </span>}
             {o.libelle}
           </button>
         ))}
