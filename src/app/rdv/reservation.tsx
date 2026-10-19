@@ -965,12 +965,17 @@ export default function Reservation({
           />
         </label>
 
-        {/* Invisible pour une personne, rempli par les robots. */}
+        {/* Invisible pour une personne, rempli par les robots. Nom sans sens
+            et marques « à ignorer » : les gestionnaires de mots de passe et le
+            remplissage automatique ne doivent pas y toucher. */}
         <input
           type="text"
-          name="site"
+          name="cab_ref_interne"
           tabIndex={-1}
           autoComplete="off"
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-form-type="other"
           aria-hidden="true"
           className="absolute -left-[9999px] h-px w-px opacity-0"
           value={site}

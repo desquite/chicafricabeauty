@@ -75,7 +75,13 @@ export async function reserver(saisie: {
   /** Faux quand la cliente choisit de régler l'acompte plus tard. */
   acompteMaintenant: boolean;
 }): Promise<ResultatReservation> {
-  if (saisie.site) return { ok: false, erreur: "La réservation n'a pas pu aboutir." };
+  // Champ piege rempli : jadis un refus sec, mais le remplissage automatique
+  // de certains navigateurs le remplit aussi, et une vraie cliente se voyait
+  // refuser sans explication. On le note seulement : la limite de trois
+  // rendez-vous a venir par numero suffit contre les envois en serie.
+  if (saisie.site) {
+    console.warn(`Réservation : champ piège rempli (${saisie.site.slice(0, 40)}), réservation poursuivie`);
+  }
   if (!UUID.test(saisie.soinId) || !DATE.test(saisie.date) || !HEURE.test(saisie.heure)) {
     return { ok: false, erreur: "Choisis une prestation, un jour et une heure." };
   }
@@ -106,18 +112,34 @@ export async function reserver(saisie: {
     email,
   });
   if ("erreur" in cliente) {
-    return { ok: false, erreur: "La réservation n'a pas pu aboutir. Réessaie dans un instant." };
+    console.error(`Réservation : fiche cliente impossible (${numero.affiche}) : ${cliente.erreur}`);
+    return {
+      ok: false,
+      erreur: `Ta fiche n'a pas pu être enregistrée. Réessaie dans un instant, ou appelle l'institut au ${INSTITUT.telephone}.`,
+    };
   }
 
   const admin = createAdminClient();
-  const { data, error } = await admin.rpc("reserver_en_ligne", {
-    p_cliente: cliente.id,
-    p_soin: saisie.soinId,
-    p_date: saisie.date,
-    p_heure: saisie.heure,
-  });
+  const appel = () =>
+    admin.rpc("reserver_en_ligne", {
+      p_cliente: cliente.id,
+      p_soin: saisie.soinId,
+      p_date: saisie.date,
+      p_heure: saisie.heure,
+    });
+  // Un aléa réseau entre le serveur et la base ne doit pas faire perdre le
+  // créneau : un second essai, la fonction refusant d'elle-même un doublon.
+  let { data, error } = await appel();
   if (error) {
-    return { ok: false, erreur: "La réservation n'a pas pu aboutir. Réessaie dans un instant." };
+    console.error(`Réservation : premier essai refusé (${error.code ?? "?"}) : ${error.message}`);
+    ({ data, error } = await appel());
+  }
+  if (error) {
+    console.error(`Réservation : enregistrement impossible (${error.code ?? "?"}) : ${error.message}`);
+    return {
+      ok: false,
+      erreur: `Le rendez-vous n'a pas pu être enregistré. Réessaie dans un instant, ou appelle l'institut au ${INSTITUT.telephone}.`,
+    };
   }
 
   const resultat = data as { id?: string; code?: string; erreur?: string };

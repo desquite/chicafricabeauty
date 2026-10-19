@@ -158,8 +158,8 @@ export async function clientePourReservation(saisie: {
   const { data: candidates, error } = await admin
     .from("clientes")
     .select("id, telephone, email")
-    .like("telephone", `%${fin.slice(-2)}`);
-  if (error) return { erreur: error.message };
+    .like("telephone", `%${fin.slice(-2)}%`);
+  if (error) return { erreur: `${error.code ?? "?"} ${error.message}` };
 
   const existante = candidates?.find((c) => c.telephone.replace(/\D/g, "").endsWith(fin));
   if (existante) {
@@ -179,7 +179,22 @@ export async function clientePourReservation(saisie: {
     .select("id")
     .single();
   if (erreurCreation || !creee) {
-    return { erreur: erreurCreation?.message ?? "Création de la fiche impossible." };
+    // Numéro déjà en base sous une forme que la recherche n'a pas reconnue
+    // (espace en trop, autre écriture) : on reprend la fiche existante plutôt
+    // que de refuser la réservation.
+    if (erreurCreation?.code === "23505") {
+      const { data: meme } = await admin
+        .from("clientes")
+        .select("id")
+        .eq("telephone", saisie.affiche)
+        .maybeSingle<{ id: string }>();
+      if (meme) return { id: meme.id, nouvelle: false };
+    }
+    return {
+      erreur: erreurCreation
+        ? `${erreurCreation.code ?? "?"} ${erreurCreation.message}`
+        : "Création de la fiche impossible.",
+    };
   }
   return { id: creee.id, nouvelle: true };
 }
