@@ -50,7 +50,7 @@ export async function insererFiche(
   fiche: FicheComplete,
   auteur: string | null,
 ): Promise<ResultatInsertion> {
-  const { identite, sante } = fiche;
+  const { identite } = fiche;
 
   if (!identite.nom_complet.trim() || !identite.telephone.trim()) {
     return { ok: false, erreur: "Le nom et le téléphone sont obligatoires." };
@@ -83,16 +83,34 @@ export async function insererFiche(
     return { ok: false, erreur: erreurCliente?.message ?? "Enregistrement impossible." };
   }
 
+  return insererBilan(supabase, cliente.id, fiche, auteur);
+}
+
+/**
+ * Bilan santé et consentements d'une cliente déjà enregistrée : la fin de la
+ * fiche, sans l'identité. Le bilan s'ajoute à l'historique, il n'écrase
+ * jamais le précédent.
+ */
+export async function insererBilan(
+  supabase: SupabaseClient,
+  clienteId: string,
+  fiche: Pick<FicheComplete, "sante" | "consentementSoin" | "consentementPhoto" | "signaturePath">,
+  auteur: string | null,
+): Promise<ResultatInsertion> {
+  if (!fiche.consentementSoin) {
+    return { ok: false, erreur: "Le consentement aux soins est obligatoire." };
+  }
+
   const { error: erreurAnamnese } = await supabase.from("anamneses").insert({
-    cliente_id: cliente.id,
+    cliente_id: clienteId,
     saisie_par: auteur,
-    ...ligneAnamnese(sante),
+    ...ligneAnamnese(fiche.sante),
   });
   if (erreurAnamnese) return { ok: false, erreur: erreurAnamnese.message };
 
   const { error: erreurConsentements } = await supabase.from("consentements").insert([
     {
-      cliente_id: cliente.id,
+      cliente_id: clienteId,
       nature: "soin",
       accepte: true,
       texte_version: TEXTE_CONSENTEMENT_SOIN,
@@ -100,7 +118,7 @@ export async function insererFiche(
       recueilli_par: auteur,
     },
     {
-      cliente_id: cliente.id,
+      cliente_id: clienteId,
       nature: "photo",
       accepte: fiche.consentementPhoto,
       texte_version: TEXTE_CONSENTEMENT_PHOTO,
@@ -110,5 +128,5 @@ export async function insererFiche(
   ]);
   if (erreurConsentements) return { ok: false, erreur: erreurConsentements.message };
 
-  return { ok: true, id: cliente.id };
+  return { ok: true, id: clienteId };
 }

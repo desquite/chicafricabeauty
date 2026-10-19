@@ -61,15 +61,19 @@ export default function Agenda({
   clientes,
   soins,
   jour,
+  clienteOuverte = null,
 }: {
   rdvs: RdvAffiche[];
   clientes: Pick<Cliente, "id" | "nom_complet" | "telephone">[];
   soins: SoinCatalogue[];
   jour: string;
+  /** Depuis la fiche d'une cliente : le formulaire s'ouvre, elle déjà choisie. */
+  clienteOuverte?: string | null;
 }) {
   const router = useRouter();
-  const [ouvert, setOuvert] = useState(false);
-  const [saisie, setSaisie] = useState({ ...vierge, date_rdv: jour });
+  const ouvrirPour = clienteOuverte && clientes.some((c) => c.id === clienteOuverte) ? clienteOuverte : null;
+  const [ouvert, setOuvert] = useState(Boolean(ouvrirPour));
+  const [saisie, setSaisie] = useState({ ...vierge, date_rdv: jour, cliente_id: ouvrirPour ?? "" });
   const [filtre, setFiltre] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();

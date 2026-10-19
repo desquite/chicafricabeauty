@@ -38,7 +38,13 @@ export function creerJeton() {
 }
 
 export type EtatLien =
-  | { etat: "valide"; id: string; cree_par: string | null }
+  | {
+      etat: "valide";
+      id: string;
+      cree_par: string | null;
+      /** Renseigné à la création : le lien complète la fiche d'une cliente existante. */
+      cliente_id: string | null;
+    }
   | { etat: "utilise" | "expire" | "inconnu" };
 
 /**
@@ -52,12 +58,12 @@ export async function lireLien(jeton: string): Promise<EtatLien> {
 
   const { data } = await createAdminClient()
     .from("liens_fiche")
-    .select("id, cree_par, expire_le, utilise_le, revoque_le")
+    .select("id, cree_par, cliente_id, expire_le, utilise_le, revoque_le")
     .eq("jeton_hash", empreinte(jeton))
     .maybeSingle();
 
   if (!data || data.revoque_le) return { etat: "inconnu" };
   if (data.utilise_le) return { etat: "utilise" };
   if (new Date(data.expire_le) <= new Date()) return { etat: "expire" };
-  return { etat: "valide", id: data.id, cree_par: data.cree_par };
+  return { etat: "valide", id: data.id, cree_par: data.cree_par, cliente_id: data.cliente_id };
 }

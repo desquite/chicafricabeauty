@@ -22,7 +22,7 @@ function finDeMois(mois: string) {
 export default async function PageRendezVous({
   searchParams,
 }: {
-  searchParams: Promise<{ jour?: string; mois?: string; vue?: string }>;
+  searchParams: Promise<{ jour?: string; mois?: string; vue?: string; cliente?: string }>;
 }) {
   await requireProfil();
   const params = await searchParams;
@@ -159,7 +159,13 @@ export default async function PageRendezVous({
       )}
       {vue === "avenir" && <VueAvenir rdvs={enrichis} aujourdhui={aujourdhui} />}
       {vue === "jour" && (
-        <Agenda rdvs={enrichis} clientes={clientes ?? []} soins={soins ?? []} jour={jour} />
+        <Agenda
+          rdvs={enrichis}
+          clientes={clientes ?? []}
+          soins={soins ?? []}
+          jour={jour}
+          clienteOuverte={params.cliente ?? null}
+        />
       )}
     </div>
   );

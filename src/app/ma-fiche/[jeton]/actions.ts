@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { insererFiche, type FicheComplete } from "@/lib/fiche";
+import { insererBilan, insererFiche, type FicheComplete } from "@/lib/fiche";
 import { lireLien } from "@/lib/liens-fiche";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -69,7 +69,11 @@ export async function enregistrerFicheParLien(
     return { ok: false, erreur: "La signature n'a pas pu être enregistrée. Réessayez." };
   }
 
-  const r = await insererFiche(supabase, { ...fiche, signaturePath: chemin }, null);
+  // Lien envoye a une cliente deja enregistree : seuls son bilan et ses
+  // consentements sont ajoutes, son identite ne bouge pas.
+  const r = lien.cliente_id
+    ? await insererBilan(supabase, lien.cliente_id, { ...fiche, signaturePath: chemin }, null)
+    : await insererFiche(supabase, { ...fiche, signaturePath: chemin }, null);
   if (!r.ok) {
     await supabase.storage.from("signatures").remove([chemin]);
     await liberer();
@@ -82,9 +86,12 @@ export async function enregistrerFicheParLien(
     };
   }
 
-  await supabase.from("liens_fiche").update({ cliente_id: r.id }).eq("id", lien.id);
+  if (!lien.cliente_id) {
+    await supabase.from("liens_fiche").update({ cliente_id: r.id }).eq("id", lien.id);
+  }
 
   revalidatePath("/clientes");
+  revalidatePath(`/clientes/${r.id}`);
   revalidatePath("/accueil");
   return { ok: true };
 }

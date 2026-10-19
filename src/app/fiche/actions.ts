@@ -71,20 +71,29 @@ export type LienCree =
   | { ok: false; erreur: string };
 
 /**
- * Lien a envoyer a une nouvelle cliente pour qu'elle remplisse sa fiche
- * depuis son telephone. Le jeton en clair n'existe qu'ici et dans le lien :
- * la base n'en garde que l'empreinte, il ne pourra pas etre reaffiche.
+ * Lien a envoyer a une cliente pour qu'elle remplisse sa fiche depuis son
+ * telephone. Le jeton en clair n'existe qu'ici et dans le lien : la base
+ * n'en garde que l'empreinte, il ne pourra pas etre reaffiche.
+ *
+ * Sans cliente : une nouvelle fiche complete (identite comprise). Avec une
+ * cliente deja enregistree : seulement son bilan sante et ses consentements.
  */
-export async function creerLienFiche(): Promise<LienCree> {
+export async function creerLienFiche(clienteId?: string): Promise<LienCree> {
   const profil = await requireProfil();
   const supabase = await createClient();
   const { jeton, empreinte } = creerJeton();
   const expire = new Date(Date.now() + DUREE_LIEN_HEURES * 3600_000);
 
+  if (clienteId) {
+    const { data: existe } = await supabase.from("clientes").select("id").eq("id", clienteId).maybeSingle();
+    if (!existe) return { ok: false, erreur: "Cliente introuvable." };
+  }
+
   const { error } = await supabase.from("liens_fiche").insert({
     jeton_hash: empreinte,
     cree_par: profil.id,
     expire_le: expire.toISOString(),
+    cliente_id: clienteId ?? null,
   });
   if (error) return { ok: false, erreur: error.message };
 

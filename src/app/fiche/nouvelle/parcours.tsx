@@ -38,9 +38,18 @@ function versDataUrl(blob: Blob) {
  * sur le telephone de la cliente, depuis un lien. Elle n'a alors aucun droit
  * sur le stockage, la signature part donc au serveur avec la fiche.
  */
-export default function Parcours({ jeton }: { jeton?: string } = {}) {
+export default function Parcours({
+  jeton,
+  prenom,
+}: {
+  jeton?: string;
+  /** Cliente déjà enregistrée : l'identité est connue, le parcours commence au bilan. */
+  prenom?: string;
+} = {}) {
   const router = useRouter();
-  const [etape, setEtape] = useState(0);
+  // Premiere etape affichee : l'identite est sautee pour une cliente connue.
+  const depart = prenom ? 1 : 0;
+  const [etape, setEtape] = useState(depart);
   const [enCours, demarrer] = useTransition();
   const [erreur, setErreur] = useState<string | null>(null);
   const [envoyee, setEnvoyee] = useState(false);
@@ -140,25 +149,27 @@ export default function Parcours({ jeton }: { jeton?: string } = {}) {
       <header className="mb-6 flex items-center gap-3">
         <Logo className="h-10 w-10" />
         <div>
-          <h1 className="text-xl font-semibold text-brand-800">Fiche cliente</h1>
+          <h1 className="text-xl font-semibold text-brand-800">
+            {prenom ? `Bonjour ${prenom}, votre fiche santé` : "Fiche cliente"}
+          </h1>
           <p className="text-sm text-brand-400">
-            Étape {etape + 1} sur {ETAPES.length} — {ETAPES[etape]}
+            Étape {etape - depart + 1} sur {ETAPES.length - depart} — {ETAPES[etape]}
           </p>
         </div>
       </header>
 
       <div
         className="mb-8 grid gap-1.5"
-        style={{ gridTemplateColumns: `repeat(${ETAPES.length}, 1fr)` }}
+        style={{ gridTemplateColumns: `repeat(${ETAPES.length - depart}, 1fr)` }}
         role="progressbar"
-        aria-valuenow={etape + 1}
+        aria-valuenow={etape - depart + 1}
         aria-valuemin={1}
-        aria-valuemax={ETAPES.length}
+        aria-valuemax={ETAPES.length - depart}
       >
-        {ETAPES.map((e, i) => (
+        {ETAPES.slice(depart).map((e, i) => (
           <span
             key={e}
-            className={`h-1.5 rounded-full ${i <= etape ? "bg-brand-600" : "bg-brand-100"}`}
+            className={`h-1.5 rounded-full ${i + depart <= etape ? "bg-brand-600" : "bg-brand-100"}`}
           />
         ))}
       </div>
@@ -259,7 +270,7 @@ export default function Parcours({ jeton }: { jeton?: string } = {}) {
 
       <div className="sticky bottom-0 mt-8 flex gap-3 border-t border-brand-100 bg-creme py-4">
         {/* Sur le lien, il n'y a rien a annuler : aucune liste ou revenir. */}
-        {!(jeton && etape === 0) && (
+        {!(jeton && etape === depart) && (
           <button
             type="button"
             onClick={() => (etape === 0 ? router.push("/clientes") : setEtape((e) => e - 1))}
