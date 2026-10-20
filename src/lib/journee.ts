@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { calculerRelances } from "@/lib/notifications/recapitulatif";
+import { acomptesEncaisses } from "@/lib/acomptes-encaisses";
 import { estExpire, type Source } from "@/lib/regles-acompte";
 import { alertes, nomChaleureux, type Anamnese } from "@/lib/types";
 
@@ -106,7 +107,7 @@ export async function lireJournee() {
   const dansUneSemaine = plusJours(aujourdhui, 7);
   const depuisHier = `${hier}T00:00:00Z`;
 
-  const [duJour, aVenir, recents, seancesDuJour, seancesRelances, rdvsFuturs, clientesAvecSeance] =
+  const [duJour, aVenir, recents, seancesDuJour, seancesRelances, rdvsFuturs, clientesAvecSeance, paiements] =
     await Promise.all([
       supabase
         .from("rendez_vous")
@@ -163,6 +164,14 @@ export async function lireJournee() {
         .eq("statut", "prevu")
         .returns<{ cliente_id: string }[]>(),
       supabase.from("seances").select("cliente_id").returns<{ cliente_id: string }[]>(),
+      // Un paiement réussi n'est plus modifié : sa dernière mise à jour est
+      // l'instant où AfribaPay l'a confirmé.
+      supabase
+        .from("paiements_acompte")
+        .select("montant, statut, updated_at")
+        .eq("statut", "reussi")
+        .gte("updated_at", `${aujourdhui}T00:00:00Z`)
+        .returns<{ montant: number; statut: string; updated_at: string }[]>(),
     ]);
 
   const erreur = duJour.error ?? aVenir.error;
@@ -317,9 +326,8 @@ export async function lireJournee() {
   }
   nouveautes.sort((a, b) => b.instant.localeCompare(a.instant));
 
-  const acomptesDuJour = rdvsJour
-    .filter((r) => r.acompte_paye_le)
-    .reduce((t, r) => t + (r.acompte_montant ?? 0), 0);
+  if (paiements.error) console.error(`Acomptes du jour illisibles : ${paiements.error.message}`);
+  const encaisses = acomptesEncaisses(paiements.data ?? [], aujourdhui);
 
   return {
     aujourdhui,
@@ -329,8 +337,8 @@ export async function lireJournee() {
       honores: rdvs.filter((r) => r.statut === "honore").length,
       aVenir: rdvs.filter((r) => r.statut === "prevu").length,
       seancesDuJour: seancesDuJour.count ?? 0,
-      acomptesDuJour,
-      acomptesPayes: rdvsJour.filter((r) => r.acompte_paye_le).length,
+      acomptesDuJour: encaisses.total,
+      acomptesPayes: encaisses.nombre,
       semaine: prochains.length + rdvs.filter((r) => r.statut === "prevu").length,
     },
     aTraiter,
