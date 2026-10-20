@@ -13,6 +13,11 @@
  * attend que le nom de la cliente. --modele <nom> vise un autre modele, et
  * --fichier <chemin> fournit l offre quand le modele a une seconde variable.
  *
+ * --image <url> joint l image d un modele a en-tete image, comme
+ * doublon_de_offre_visage_corps_oct_v2 : Meta refuse le message sans elle.
+ * L adresse doit etre publique et finir en .jpg ou .png. Un bouton a adresse
+ * fixe n attend rien : il part tel quel.
+ *
  * Par defaut la cible est --venues : les clientes ayant au moins une seance.
  * Une promotion envoyee a qui n est jamais venue ressemble a du demarchage,
  * et c est ce qui fait signaler un message — donc baisser la note de qualite
@@ -34,6 +39,13 @@ const toutes = args.includes("--toutes");
 const iModele = args.indexOf("--modele");
 const modele = iModele === -1 ? "promotion_v2" : args[iModele + 1];
 
+const iImage = args.indexOf("--image");
+const image = iImage === -1 ? null : args[iImage + 1];
+if (image && !/^https:\/\/\S+\.(jpe?g|png)(\?\S*)?$/i.test(image)) {
+  console.error("--image attend une adresse https publique en .jpg ou .png.");
+  process.exit(1);
+}
+
 const iTest = args.indexOf("--test");
 const numeroTest = iTest === -1 ? null : args[iTest + 1];
 
@@ -44,7 +56,10 @@ const iFichier = args.indexOf("--fichier");
 const cheminTexte = iFichier === -1 ? null : args[iFichier + 1];
 const texte = cheminTexte
   ? readFileSync(cheminTexte, "utf8").trim()
-  : args.find((a) => !a.startsWith("--") && a !== numeroTest && a !== cheminTexte);
+  : args.find(
+      (a) =>
+        !a.startsWith("--") && a !== numeroTest && a !== cheminTexte && a !== modele && a !== image,
+    );
 
 // Texte facultatif : le modele promotion_v2 porte son offre en dur et n attend
 // que le nom de la cliente. Un modele qui recoit plus de variables qu il n en
@@ -97,6 +112,7 @@ async function unEnvoi(destinataire, nom) {
             templateName: modele,
             templateData: {
               body: { placeholders: texte ? [nom, texte] : [nom] },
+              ...(image ? { header: { type: "IMAGE", mediaUrl: image } } : {}),
             },
             language: "fr",
           },
@@ -149,6 +165,7 @@ await client.connect();
 if (numeroTest) {
   console.log(`Essai vers ${numeroTest}`);
   console.log(`  modele ${modele}`);
+  if (image) console.log(`  image  ${image}`);
   console.log(`  {{1}} Essai Chic Africa`);
   if (texte) console.log(`  {{2}} ${texte}`);
   if (!appliquer) {
@@ -186,6 +203,7 @@ console.log(`Cible : ${toutes ? "toutes les clientes" : "clientes deja venues"}`
 console.log(`Destinataires : ${restants.length}${envoyes.size ? ` (${envoyes.size} deja servies aujourd hui)` : ""}`);
 console.log("");
 console.log(`Modele : ${modele}`);
+if (image) console.log(`Image  : ${image}`);
 if (texte) console.log(`Offre  : ${texte}`);
 console.log("");
 for (const c of restants.slice(0, 10)) {
