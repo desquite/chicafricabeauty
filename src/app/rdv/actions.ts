@@ -1,6 +1,8 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { after } from "next/server";
 import { alerterGerantes } from "@/lib/notifications/gerantes";
 import {
@@ -14,7 +16,13 @@ import type { JourCreneaux } from "@/lib/creneaux";
 import { minutes, versHeure } from "@/lib/creneaux";
 import { fcfa, prixDuJour } from "@/lib/disponibilites";
 import { INDICATIF_DEFAUT, normaliserNumero } from "@/lib/indicatifs";
-import { chiffresIvoiriens, clientePourReservation, creneauxLibres } from "@/lib/reservation";
+import {
+  chiffresIvoiriens,
+  clientePourReservation,
+  creneauxLibres,
+  salutation,
+  trouverCliente,
+} from "@/lib/reservation";
 import { envoyerMessageAcompte } from "@/lib/notifications/acompte";
 import {
   acompteDuRdv,
@@ -41,6 +49,66 @@ export async function lireCreneaux(soinId: string): Promise<JourCreneaux[] | nul
   return creneauxLibres(soinId);
 }
 
+/* ------------------------------------------------------- Reconnaissance */
+
+/** Recherches de numéro permises par appareil et par heure. */
+const RECHERCHES_PAR_HEURE = 10;
+
+export type Reconnaissance =
+  | { etat: "connue"; salut: string; emailConnu: boolean }
+  | { etat: "nouvelle" }
+  | { etat: "limite" };
+
+/**
+ * La cliente qui tape son numéro est-elle déjà en base ? Rend son prénom
+ * seulement (« Awa K. »), jamais son nom complet, son e-mail ni son
+ * historique : la page est publique. Les recherches sont limitées par
+ * appareil, pour qu'on ne puisse pas essayer des numéros en série.
+ */
+export async function reconnaitre(saisie: {
+  indicatif: string;
+  telephone: string;
+}): Promise<Reconnaissance> {
+  const numero = normaliserNumero(saisie.indicatif || INDICATIF_DEFAUT, saisie.telephone);
+  if (!numero) return { etat: "nouvelle" };
+
+  const h = await headers();
+  const ip = (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || h.get("x-real-ip") || "?";
+  const empreinte = createHash("sha256")
+    .update(`${ip}|${h.get("user-agent") ?? ""}`)
+    .digest("hex")
+    .slice(0, 32);
+
+  const admin = createAdminClient();
+  const depuis = new Date(Date.now() - 3_600_000).toISOString();
+  const { count } = await admin
+    .from("recherches_numero")
+    .select("id", { count: "exact", head: true })
+    .eq("empreinte", empreinte)
+    .gte("faite_le", depuis);
+  if ((count ?? 0) >= RECHERCHES_PAR_HEURE) return { etat: "limite" };
+  await admin.from("recherches_numero").insert({ empreinte });
+  // Le journal ne sert qu'à la limite horaire : on ne garde pas plus d'un jour.
+  after(async () => {
+    await admin
+      .from("recherches_numero")
+      .delete()
+      .lt("faite_le", new Date(Date.now() - 86_400_000).toISOString());
+  });
+
+  const r = await trouverCliente(numero.international);
+  if ("erreur" in r) {
+    console.error(`Reconnaissance impossible : ${r.erreur}`);
+    return { etat: "nouvelle" };
+  }
+  if (!r.cliente) return { etat: "nouvelle" };
+  return {
+    etat: "connue",
+    salut: salutation(r.cliente),
+    emailConnu: Boolean(r.cliente.email),
+  };
+}
+
 export type Recapitulatif = {
   /** Code du lien de paiement /a/<code> ; aléatoire, donc impossible à deviner. */
   code: string;
@@ -50,6 +118,8 @@ export type Recapitulatif = {
   fin: string;
   prix: string;
   nouvelle: boolean;
+  /** Prénom affiché à la confirmation (« À très vite, Awa »). */
+  prenom: string;
   /** L'acompte est obligatoire pour ce rendez-vous. */
   acompteRequis: boolean;
   /** Échéance ISO du paiement, si l'acompte est requis. */
@@ -68,7 +138,10 @@ export async function reserver(saisie: {
   soinId: string;
   date: string;
   heure: string;
+  /** Vide quand la cliente a été reconnue à son numéro. */
   nom: string;
+  /** Réservation pour une autre personne sur le numéro d'une cliente connue. */
+  pourAutre?: boolean;
   telephone: string;
   /** Indicatif choisi, sans le +. 225 par défaut. */
   indicatif: string;
@@ -89,9 +162,9 @@ export async function reserver(saisie: {
     return { ok: false, erreur: "Choisis une prestation, un jour et une heure." };
   }
 
-  const nom = saisie.nom.trim().replace(/\s+/g, " ");
-  if (nom.length < 2 || nom.length > 100) {
-    return { ok: false, erreur: "Indique ton nom et tes prénoms." };
+  const nomSaisi = saisie.nom.trim().replace(/\s+/g, " ");
+  if (nomSaisi.length > 100) {
+    return { ok: false, erreur: "Le nom est trop long." };
   }
   const numero = normaliserNumero(saisie.indicatif || INDICATIF_DEFAUT, saisie.telephone);
   if (!numero) {
@@ -106,6 +179,18 @@ export async function reserver(saisie: {
   const email = saisie.email.trim().toLowerCase();
   if (email && (email.length > 200 || !EMAIL.test(email))) {
     return { ok: false, erreur: "L'adresse e-mail ne semble pas valide." };
+  }
+
+  // Une cliente reconnue à son numéro n'a plus à donner son nom : on prend
+  // celui de sa fiche. Seule une nouvelle cliente doit le saisir.
+  const connue = await trouverCliente(numero.international);
+  const ficheExistante = "cliente" in connue ? connue.cliente : null;
+  if (!ficheExistante && nomSaisi.length < 2) {
+    return { ok: false, erreur: "Indique ton nom et tes prénoms." };
+  }
+  const nom = ficheExistante && !saisie.pourAutre ? ficheExistante.nom_complet : nomSaisi;
+  if (saisie.pourAutre && nomSaisi.length < 2) {
+    return { ok: false, erreur: "Indique le nom de la personne qui vient." };
   }
 
   const cliente = await clientePourReservation({
@@ -146,6 +231,14 @@ export async function reserver(saisie: {
   }
 
   const resultat = data as { id?: string; code?: string; erreur?: string };
+  // Rendez-vous pris pour une autre personne sur ce numéro : la fiche reste
+  // celle du numéro, la gérante voit qui vient vraiment.
+  if (resultat.id && saisie.pourAutre && ficheExistante) {
+    await admin
+      .from("rendez_vous")
+      .update({ notes: `Réservé pour : ${nomSaisi}` })
+      .eq("id", resultat.id);
+  }
   if (resultat.erreur) {
     if (resultat.erreur === "trop") {
       return {
@@ -249,6 +342,7 @@ export async function reserver(saisie: {
       fin: versHeure(debut + (soin?.duree_std ?? 60)),
       prix: soin ? fcfa(prixDuJour(soin, saisie.date)) : "",
       nouvelle: cliente.nouvelle,
+      prenom: ficheExistante && !saisie.pourAutre ? salutation(ficheExistante) : nomSaisi.split(" ")[0],
       acompteRequis: Boolean(rdv?.acompte_requis),
       echeance: echeance?.toISOString() ?? null,
       immediat,

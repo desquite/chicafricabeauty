@@ -8,7 +8,13 @@ import type { PrestationPublique } from "@/lib/reservation";
 import { GROUPES } from "@/lib/disponibilites";
 import { INDICATIF_DEFAUT, listeIndicatifs, normaliserNumero } from "@/lib/indicatifs";
 import { montantAcompte, veilleLimite } from "@/lib/regles-acompte";
-import { lireCreneaux, reserver, type Recapitulatif } from "./actions";
+import {
+  lireCreneaux,
+  reconnaitre,
+  reserver,
+  type Recapitulatif,
+  type Reconnaissance,
+} from "./actions";
 import { INSTITUT } from "./institut";
 import { ChoixPaiement, SuiviPaiement, usePaiement, type OffreAcompte } from "./paiement";
 import { fraunces } from "./polices";
@@ -196,6 +202,10 @@ export default function Reservation({
   const [indicatif, setIndicatif] = useState(INDICATIF_DEFAUT);
   const pays = useMemo(() => listeIndicatifs(), []);
   const [email, setEmail] = useState("");
+  // Réponse de la recherche, valable pour le seul numéro « cle » : taper un
+  // autre numéro la rend caduque sans effet à remettre à zéro.
+  const [reco, setReco] = useState<(Reconnaissance & { cle: string }) | null>(null);
+  const [pourAutre, setPourAutre] = useState(false);
   const [site, setSite] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [recap, setRecap] = useState<Recapitulatif | null>(null);
@@ -300,7 +310,8 @@ export default function Reservation({
         soinId: soin.id,
         date,
         heure: choixHeure,
-        nom,
+        nom: demanderNom ? nom : "",
+        pourAutre: Boolean(connue) && pourAutre,
         telephone,
         indicatif,
         email,
@@ -333,6 +344,26 @@ export default function Reservation({
       }
     });
   }
+
+  const numeroValide = normaliserNumero(indicatif, telephone);
+  const cleNumero = numeroValide?.international ?? "";
+  useEffect(() => {
+    if (!cleNumero) return;
+    const minuteur = setTimeout(async () => {
+      const r = await reconnaitre({ indicatif, telephone }).catch(
+        (): Reconnaissance => ({ etat: "nouvelle" }),
+      );
+      setReco({ ...r, cle: cleNumero });
+    }, 400);
+    return () => clearTimeout(minuteur);
+    // indicatif et telephone sont résumés par cleNumero.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleNumero]);
+  const recoActuelle = reco && reco.cle === cleNumero ? reco : null;
+  const recherche = Boolean(cleNumero) && !recoActuelle;
+  const connue = recoActuelle?.etat === "connue" ? recoActuelle : null;
+  // Le nom n'est demandé qu'à une nouvelle cliente, ou pour une autre personne.
+  const demanderNom = Boolean(recoActuelle) && (!connue || pourAutre);
 
   /* ---------------------------------------------- 1. Choix de la prestation */
   if (etape === 0) {
@@ -565,7 +596,7 @@ export default function Reservation({
             <>Ton créneau est retenu. Termine le paiement de l&apos;acompte pour le confirmer.</>
           ) : (
             <>
-              À très vite{nom.trim() ? `, ${nom.trim().split(" ")[0]}` : ""}. Garde bien ce
+              À très vite{recap.prenom ? `, ${recap.prenom}` : ""}. Garde bien ce
               récapitulatif.
             </>
           )}
@@ -935,7 +966,8 @@ export default function Reservation({
   /* ------------------------------------------------------- 3. Coordonnées */
   const champ =
     "h-[52px] w-full rounded-[14px] border border-brand-300 bg-white px-4 text-base text-brand-900 placeholder:text-brand-300 focus:border-brand-600 focus:outline-none";
-  const coordonneesPretes = nom.trim().length >= 2 && normaliserNumero(indicatif, telephone) !== null;
+  const coordonneesPretes =
+    numeroValide !== null && !recherche && (!demanderNom || nom.trim().length >= 2);
   const suite = () => {
     if (!acompte) return valider();
     setErreur(null);
@@ -955,19 +987,8 @@ export default function Reservation({
       >
         <h2 className={`${titre} mx-1 text-[22px]`}>Tes coordonnées</h2>
         <p className="mx-1 -mt-2.5 text-sm leading-relaxed text-brand-600">
-          Déjà cliente ? Ton numéro suffit, on te reconnaît.
+          Commence par ton numéro : si tu es déjà cliente, on te reconnaît.
         </p>
-
-        <label className="flex flex-col gap-1.5 text-sm font-semibold text-brand-800">
-          Nom et prénoms
-          <input
-            className={champ}
-            autoComplete="name"
-            value={nom}
-            onChange={(e) => setNom(e.target.value)}
-            required
-          />
-        </label>
 
         {/* Deux champs, l'indicatif et le numero : un div, pas un label qui ne
             peut en designer qu'un. */}
@@ -1021,18 +1042,74 @@ export default function Reservation({
           </span>
         </div>
 
-        <label className="flex flex-col gap-1.5 text-sm font-semibold text-brand-800">
-          E-mail <span className="font-normal text-brand-500">(facultatif)</span>
-          <input
-            className={champ}
-            type="email"
-            inputMode="email"
-            autoComplete="email"
-            placeholder="toi@exemple.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-        </label>
+
+        {recherche && (
+          <p className="mx-1 flex items-center gap-2 text-sm text-brand-600" role="status">
+            <Rouet /> On vérifie ton numéro…
+          </p>
+        )}
+
+        {connue && !pourAutre && (
+          <div
+            className="flex flex-col gap-1 rounded-[18px] border border-brand-200 bg-white px-4 py-3.5 shadow-[0_4px_14px_rgba(74,35,28,0.06)]"
+            role="status"
+          >
+            <span className={`${titre} text-[20px]`}>Bonjour {connue.salut} !</span>
+            <span className="text-sm text-brand-700">
+              On t&apos;a reconnue, le rendez-vous sera à ton nom.
+            </span>
+            <button
+              type="button"
+              onClick={() => setPourAutre(true)}
+              className="mt-1 self-start text-[13px] font-semibold text-brand-600 underline"
+            >
+              Ce n&apos;est pas moi, ou je réserve pour quelqu&apos;un d&apos;autre
+            </button>
+          </div>
+        )}
+
+        {demanderNom && (
+          <label className="flex flex-col gap-1.5 text-sm font-semibold text-brand-800">
+            {connue ? "Nom et prénoms de la personne qui vient" : "Nom et prénoms"}
+            <input
+              className={champ}
+              autoComplete={connue ? "off" : "name"}
+              value={nom}
+              onChange={(e) => setNom(e.target.value)}
+              required
+            />
+            {connue && (
+              <button
+                type="button"
+                onClick={() => setPourAutre(false)}
+                className="self-start text-[13px] font-normal text-brand-600 underline"
+              >
+                Finalement, c&apos;est pour moi
+              </button>
+            )}
+          </label>
+        )}
+
+        {recoActuelle?.etat === "limite" && (
+          <p className="mx-1 text-[13px] text-brand-600">
+            Trop de numéros essayés depuis cet appareil : indique ton nom pour continuer.
+          </p>
+        )}
+
+        {recoActuelle && !(connue && connue.emailConnu && !pourAutre) && (
+          <label className="flex flex-col gap-1.5 text-sm font-semibold text-brand-800">
+            E-mail <span className="font-normal text-brand-500">(facultatif)</span>
+            <input
+              className={champ}
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              placeholder="toi@exemple.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+        )}
 
         {/* Invisible pour une personne, rempli par les robots. Nom sans sens
             et marques « à ignorer » : les gestionnaires de mots de passe et le

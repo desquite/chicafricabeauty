@@ -149,6 +149,51 @@ export function chiffresIvoiriens(saisie: string) {
   return /^\d{10}$/.test(c) ? c : null;
 }
 
+type ClienteConnue = {
+  id: string;
+  nom_complet: string;
+  prenom_usuel: string | null;
+  telephone: string;
+  email: string | null;
+};
+
+/**
+ * La cliente qui porte ce numéro, ou null. Les numéros déjà en base ont été
+ * saisis sous toutes les formes : seuls les 8 derniers chiffres comptent,
+ * comme pour la recherche de doublon de la tablette.
+ */
+export async function trouverCliente(
+  international: string,
+): Promise<{ cliente: ClienteConnue | null } | { erreur: string }> {
+  const fin = international.slice(-8);
+  const { data, error } = await createAdminClient()
+    .from("clientes")
+    .select("id, nom_complet, prenom_usuel, telephone, email")
+    .like("telephone", `%${fin.slice(-2)}%`)
+    .returns<ClienteConnue[]>();
+  if (error) return { erreur: `${error.code ?? "?"} ${error.message}` };
+  return { cliente: data.find((c) => c.telephone.replace(/\D/g, "").endsWith(fin)) ?? null };
+}
+
+/**
+ * Ce que la page publique montre d'une cliente reconnue : son prénom usuel,
+ * sinon le premier mot de son nom suivi de l'initiale du suivant. « Awa K. »,
+ * jamais le nom complet : la page est ouverte à tous.
+ */
+export function salutation(c: Pick<ClienteConnue, "nom_complet" | "prenom_usuel">) {
+  const usuel = c.prenom_usuel?.trim();
+  if (usuel) return usuel.split(/\s+/)[0];
+  const mots = c.nom_complet.trim().split(/\s+/).filter(Boolean);
+  if (!mots.length) return "";
+  // « KONÉ » devient « Koné », « Marie-Christelle » reste tel quel.
+  const majuscule = (m: string) => m.charAt(0).toUpperCase() + m.slice(1);
+  const premier = (mots[0] === mots[0].toUpperCase() ? mots[0].toLowerCase() : mots[0])
+    .split("-")
+    .map(majuscule)
+    .join("-");
+  return mots[1] ? `${premier} ${mots[1].charAt(0).toUpperCase()}.` : premier;
+}
+
 /**
  * Retrouve la cliente par son numéro, sinon la crée. Les numéros déjà en base
  * ont été saisis sous toutes les formes : seuls les 8 derniers chiffres
@@ -163,15 +208,10 @@ export async function clientePourReservation(saisie: {
   email: string;
 }): Promise<{ id: string; nouvelle: boolean } | { erreur: string }> {
   const admin = createAdminClient();
-  const fin = saisie.international.slice(-8);
+  const trouvee = await trouverCliente(saisie.international);
+  if ("erreur" in trouvee) return trouvee;
 
-  const { data: candidates, error } = await admin
-    .from("clientes")
-    .select("id, telephone, email")
-    .like("telephone", `%${fin.slice(-2)}%`);
-  if (error) return { erreur: `${error.code ?? "?"} ${error.message}` };
-
-  const existante = candidates?.find((c) => c.telephone.replace(/\D/g, "").endsWith(fin));
+  const existante = trouvee.cliente;
   if (existante) {
     if (saisie.email && !existante.email) {
       await admin.from("clientes").update({ email: saisie.email }).eq("id", existante.id);
