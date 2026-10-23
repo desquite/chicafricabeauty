@@ -7,6 +7,10 @@ import Reservation, { type OffreAcompte } from "./reservation";
 // la page est lue à chaque visite, jamais figée au déploiement.
 export const dynamic = "force-dynamic";
 
+// La reservation attend jusqu a 45 s avant d envoyer le lien de paiement
+// (actions.ts) : la fonction doit vivre jusque-la.
+export const maxDuration = 60;
+
 /** L'acompte n'est proposé que si AfribaPay est configuré et un montant fixé. */
 async function offreAcompte(): Promise<OffreAcompte | null> {
   if (!paiementConfigure()) return null;

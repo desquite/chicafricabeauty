@@ -15,6 +15,40 @@ import { fraunces } from "./polices";
 
 export type { OffreAcompte };
 
+/**
+ * Rendez-vous réservé dont l'acompte n'est pas encore payé, gardé dans le
+ * navigateur. Passer par l'appli Wave, ou fermer l'onglet, faisait perdre
+ * l'écran de paiement : la cliente le retrouve en revenant sur /rdv.
+ */
+const CLE_EN_ATTENTE = "cab_acompte_en_attente";
+type EnAttente = { code: string; prestation: string; date: string; heure: string; echeance: string | null };
+
+function lireEnAttente(): EnAttente | null {
+  try {
+    const brut = window.localStorage.getItem(CLE_EN_ATTENTE);
+    if (!brut) return null;
+    const e = JSON.parse(brut) as EnAttente;
+    // Échéance passée, ou rendez-vous passé : plus rien à payer.
+    const fin = e.echeance ? Date.parse(e.echeance) : Date.parse(`${e.date}T23:59:59Z`);
+    if (!/^[0-9a-f]{12}$/.test(e.code) || !(fin > Date.now())) {
+      window.localStorage.removeItem(CLE_EN_ATTENTE);
+      return null;
+    }
+    return e;
+  } catch {
+    return null;
+  }
+}
+
+function ecrireEnAttente(e: EnAttente | null) {
+  try {
+    if (e) window.localStorage.setItem(CLE_EN_ATTENTE, JSON.stringify(e));
+    else window.localStorage.removeItem(CLE_EN_ATTENTE);
+  } catch {
+    // Navigation privée ou stockage bloqué : le lien WhatsApp reste.
+  }
+}
+
 /** Les créneaux affichés sont relus toutes les 30 secondes : temps réel. */
 const RAFRAICHISSEMENT_MS = 30_000;
 
@@ -168,8 +202,19 @@ export default function Reservation({
   const [chargement, setChargement] = useState(false);
   const [enCours, demarrer] = useTransition();
   const [payerMaintenant, setPayerMaintenant] = useState(true);
+  const [enAttente, setEnAttente] = useState<EnAttente | null>(null);
+  // Lu après le premier rendu : le serveur ne connaît pas le navigateur.
+  useEffect(() => {
+    const e = lireEnAttente();
+    if (e) queueMicrotask(() => setEnAttente(e));
+  }, []);
   // Mobile Money ivoirien seulement : un numero etranger ne preremplit pas.
   const paiement = usePaiement(indicatif === INDICATIF_DEFAUT ? telephone : "");
+  // Paiement abouti : plus rien à reprendre.
+  const payeIci = paiement.paiement?.etat === "reussi";
+  useEffect(() => {
+    if (payeIci) ecrireEnAttente(null);
+  }, [payeIci]);
 
   // Rubriques dans l'ordre du menu ; un soin sans groupe va dans « Autres ».
   const groupes = useMemo(() => {
@@ -264,6 +309,15 @@ export default function Reservation({
       });
       if (r.ok) {
         setRecap(r.recap);
+        if (r.recap.acompteRequis) {
+          ecrireEnAttente({
+            code: r.recap.code,
+            prestation: r.recap.prestation,
+            date: r.recap.date,
+            heure: r.recap.debut,
+            echeance: r.recap.echeance,
+          });
+        }
         // Le rendez-vous existe deja : un paiement qui echoue ne le remet pas
         // en cause, la cliente peut reessayer depuis la confirmation.
         if (acompte && payerTout) await paiement.lancer(r.recap.code);
@@ -294,6 +348,21 @@ export default function Reservation({
             Angré nouveau CHU, ruelle de la pharmacie Kabod
           </p>
         </div>
+
+        {enAttente && (
+          <a
+            href={`/a/${enAttente.code}`}
+            className="mx-5 mt-5 flex flex-col gap-1 rounded-[18px] border-2 border-brand-500 bg-white px-4 py-3.5 text-left shadow-[0_4px_14px_rgba(74,35,28,0.08)]"
+          >
+            <span className="text-[13px] font-bold tracking-wide text-brand-500 uppercase">
+              Acompte en attente
+            </span>
+            <span className="text-[15px] font-semibold text-brand-800">
+              {enAttente.prestation} · {dateLongue(enAttente.date)} à {heure(enAttente.heure)}
+            </span>
+            <span className="text-sm font-bold text-brand-600 underline">Régler l&apos;acompte →</span>
+          </a>
+        )}
 
         <div className="mt-6 flex justify-center">
           <Progression etape={0} total={totalEtapes} />

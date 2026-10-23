@@ -32,6 +32,9 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const HEURE = /^\d{2}:\d{2}$/;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Attente avant le lien quand la cliente paie à l'écran : un Mobile Money se valide le plus souvent en moins d'une minute. Reste sous la durée maximale de la fonction (maxDuration de page.tsx). */
+const DELAI_AVANT_LIEN_MS = 45_000;
+
 /** Actions publiques : tout ce qu'elles recoivent vient d'un navigateur inconnu. */
 export async function lireCreneaux(soinId: string): Promise<JourCreneaux[] | null> {
   if (!UUID.test(soinId)) return null;
@@ -190,22 +193,46 @@ export async function reserver(saisie: {
   // confirmation porte deja tout.
   //   sans acompte a regler   confirmation (avec le lien pour annuler)
   //   payer plus tard         le lien de paiement, qui vaut confirmation
-  //   payer maintenant        le recu partira a la reussite du paiement
+  //   payer maintenant        le lien aussi, sauf si le paiement a abouti
+  //                           entre-temps : le recu part alors seul
+  // Le lien partait jadis seulement sur « payer plus tard ». Une cliente qui
+  // choisissait de payer tout de suite, choix propose par defaut, puis
+  // n'allait pas au bout (passage par l'appli Wave, code Orange, reseau)
+  // n'avait plus aucun moyen de payer : la gerante devait supprimer le
+  // rendez-vous pour qu'elle reserve de nouveau.
+  // Paiement immediat (apres la veille 18h) : le modele WhatsApp annonce une
+  // limite « a 18h » qui serait fausse ; la cliente garde l'ecran et retrouve
+  // son paiement en revenant sur /rdv.
   const rdvId = resultat.id!;
   const requis = Boolean(rdv?.acompte_requis);
   const quand = quandLisible(saisie.date, saisie.heure);
   const nomSoin = soin?.libelle_public || soin?.libelle || "soin";
-  after(async () => {
-    if (!requis) {
-      await envoyerMessageAcompte(rdvId, "confirmation").catch(() => null);
-    } else if (!saisie.acompteMaintenant && !immediat) {
-      await envoyerMessageAcompte(rdvId, "lien").catch(() => null);
-    }
+  const alerter = async () => {
     await alerterGerantes(
       `Nouveau rendez-vous en ligne : ${nom} (${numero.affiche}) · ${nomSoin} · ${quand}` +
         (requis ? " · acompte à régler" : "") +
         (cliente.nouvelle ? " · nouvelle cliente, fiche santé à remplir" : ""),
     ).catch(() => null);
+  };
+  after(async () => {
+    // La gerante est prevenue tout de suite, avant l eventuelle attente.
+    await alerter();
+    if (!requis) {
+      await envoyerMessageAcompte(rdvId, "confirmation").catch(() => null);
+    } else if (!immediat) {
+      if (saisie.acompteMaintenant) {
+        // Laisser au paiement lance a l'ecran le temps d'aboutir : une cliente
+        // qui vient de payer ne recoit pas « reglez l'acompte ».
+        await new Promise((r) => setTimeout(r, DELAI_AVANT_LIEN_MS));
+        const { data: etat } = await admin
+          .from("rendez_vous")
+          .select("acompte_paye_le")
+          .eq("id", rdvId)
+          .maybeSingle<{ acompte_paye_le: string | null }>();
+        if (etat?.acompte_paye_le) return;
+      }
+      await envoyerMessageAcompte(rdvId, "lien").catch(() => null);
+    }
   });
 
   revalidatePath("/rendez-vous");
