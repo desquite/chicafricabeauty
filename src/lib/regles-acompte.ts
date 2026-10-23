@@ -109,21 +109,24 @@ export function messageDuMatin(rdv: RdvAcompte, maintenant: Date): MessageAcompt
     if (ecart === 1) return "dernier_rappel";
     return null;
   }
-  // Tablette : le lien n'est envoyé qu'à J-2, sauf s'il l'a été à la saisie.
-  if (ecart === 2) return "lien";
-  if (ecart === 1) return "rappel";
+  // Tablette : le lien part à la saisie (lienASaisie) ; le matin ne fait que
+  // relancer, comme en ligne, tant que l'acompte n'est pas réglé.
+  if (ecart === 2) return "rappel";
+  if (ecart === 1) return "dernier_rappel";
   return null;
 }
 
 /**
- * À la saisie à la tablette : si le rendez-vous est déjà à moins de deux
- * jours, le lien part tout de suite, puisque la tâche du matin l'a manqué.
+ * À la saisie à la tablette, le lien part tout de suite, quelle que soit la
+ * date du soin : la cliente est souvent encore devant la gérante, et
+ * attendre J-2 laissait des jours sans moyen de payer. Rien ne part si
+ * l'échéance est déjà passée (saisie après la veille 18h : pas d'acompte
+ * exigé).
  */
 export function lienASaisie(rdv: RdvAcompte, maintenant: Date) {
   if (!doitPayer(rdv) || rdv.source !== "personnel") return false;
   const echeance = echeanceAcompte(rdv);
-  if (!echeance || echeance <= maintenant) return false;
-  return ecartJours(maintenant.toISOString().slice(0, 10), rdv.date_rdv) <= 2;
+  return echeance !== null && echeance > maintenant;
 }
 
 /** « lundi 19 octobre » pour les messages. */

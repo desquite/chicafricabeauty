@@ -188,8 +188,8 @@ export async function enregistrerRdv(saisie: {
         .eq("id", saisie.remplace);
     }
 
-    // Rendez-vous a moins de deux jours : la tache du matin a deja manque son
-    // tour, le lien part tout de suite.
+    // Le lien de paiement part des la saisie, quelle que soit la date du soin ;
+    // la tache du matin relance ensuite a J-2 et J-1 tant qu il n est pas regle.
     if (lienASaisie(cree, new Date())) {
       await envoyerMessageAcompte(cree.id, "lien").catch(() => null);
     }
