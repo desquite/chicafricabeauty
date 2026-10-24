@@ -88,6 +88,7 @@ export default function ParcoursSeance({
   alertesCliente,
   avecSeance,
   seancesParCliente,
+  soinsAbonnement = {},
   rdvOrigine,
   fiche = null,
   derniere = null,
@@ -102,6 +103,8 @@ export default function ParcoursSeance({
   avecSeance: string[];
   /** Séances déjà enregistrées par cliente, pour le compteur de fidélité. */
   seancesParCliente: Record<string, number>;
+  /** Soins couverts par un abonnement en cours, par cliente : hors fidélité. */
+  soinsAbonnement?: Record<string, string[]>;
   rdvOrigine: RdvOrigine | null;
 }) {
   const dejaVenue = new Set(avecSeance);
@@ -144,7 +147,8 @@ export default function ParcoursSeance({
   // Rang de la séance en cours pour la cliente choisie. Le serveur le
   // recomptera à l'enregistrement : ici, il ne sert qu'à afficher.
   const rang = rangSeance(seancesParCliente[s.cliente_id] ?? 0);
-  const remise = s.cliente_id !== "" && ouvreDroit(rang);
+  const seanceAbonnement = (soinsAbonnement[s.cliente_id] ?? []).some((id) => s.soins.includes(id));
+  const remise = s.cliente_id !== "" && !seanceAbonnement && ouvreDroit(rang);
 
   const maj = <K extends keyof SaisieSeance>(cle: K, v: SaisieSeance[K]) =>
     setS((p) => ({ ...p, [cle]: v }));

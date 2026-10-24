@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireProfil } from "@/lib/auth";
+import { couvre, type Abonnement } from "@/lib/abonnements";
 import { ouvreDroit, rangSeance, type ChoixRemise } from "@/lib/fidelite";
 
 export type SaisieSeance = {
@@ -53,13 +54,25 @@ export async function enregistrerSeance(s: SaisieSeance): Promise<Resultat> {
   // ouvertes en même temps sur la même cliente offriraient sinon deux fois la
   // remise. Il est ensuite figé sur la séance, pour qu'une venue supprimée
   // plus tard ne décale pas les remises déjà accordées.
+  // Séance faite au titre d'un abonnement (soin couvert, période en cours) :
+  // décomptée sur l'abonnement, et hors fidélité, ni rang ni remise.
+  const { data: abos } = await supabase
+    .from("abonnements")
+    .select("id, soin_id, statut, debut, duree_mois, jours_pause")
+    .eq("cliente_id", s.cliente_id)
+    .eq("statut", "actif")
+    .returns<Pick<Abonnement, "id" | "soin_id" | "statut" | "debut" | "duree_mois" | "jours_pause">[]>();
+  const abonnement =
+    (abos ?? []).find((a) => s.soins.some((soin) => couvre(a, soin, s.date_seance))) ?? null;
+
   const { count } = await supabase
     .from("seances")
     .select("id", { count: "exact", head: true })
-    .eq("cliente_id", s.cliente_id);
+    .eq("cliente_id", s.cliente_id)
+    .is("abonnement_id", null);
 
   const rang = rangSeance(count ?? 0);
-  const remise = ouvreDroit(rang);
+  const remise = !abonnement && ouvreDroit(rang);
 
   const { data: seance, error } = await supabase
     .from("seances")
@@ -84,6 +97,7 @@ export async function enregistrerSeance(s: SaisieSeance): Promise<Resultat> {
       produits_conseilles: vide(s.produits_conseilles),
       delai_recommande: s.delai_recommande,
       prochain_rdv: vide(s.prochain_rdv),
+      abonnement_id: abonnement?.id ?? null,
       remise_palier: remise ? rang : null,
       remise_fidelite: remise ? s.remise_fidelite : null,
       cloturee: true,

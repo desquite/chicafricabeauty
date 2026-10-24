@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireProfil } from "@/lib/auth";
 import { paiementConfigure } from "@/lib/afribapay";
 import { envoyerMessageAcompte } from "@/lib/notifications/acompte";
+import { couvre, type Abonnement } from "@/lib/abonnements";
 import { BATTEMENT_DEFAUT, minutes, tropProche, versHeure } from "@/lib/creneaux";
 import { estExpire, lienASaisie, type RdvAcompte } from "@/lib/regles-acompte";
 
@@ -158,7 +159,18 @@ export async function enregistrerRdv(saisie: {
         .select("acompte_obligatoire, acompte_montant")
         .maybeSingle<{ acompte_obligatoire: boolean; acompte_montant: number }>(),
     ]);
+    // Abonnée dont l'abonnement couvre ce soin ce jour-là : pas d'acompte.
+    const { data: abos } = valeurs.soin_id
+      ? await supabase
+          .from("abonnements")
+          .select("soin_id, statut, debut, duree_mois, jours_pause")
+          .eq("cliente_id", valeurs.cliente_id)
+          .eq("statut", "actif")
+          .returns<Pick<Abonnement, "soin_id" | "statut" | "debut" | "duree_mois" | "jours_pause">[]>()
+      : { data: [] };
+    const abonnee = (abos ?? []).some((a) => couvre(a, valeurs.soin_id, valeurs.date_rdv));
     const acompteRequis =
+      !abonnee &&
       Boolean(reglages?.acompte_obligatoire) &&
       (reglages?.acompte_montant ?? 0) > 0 &&
       paiementConfigure();

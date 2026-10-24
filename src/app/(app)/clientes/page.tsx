@@ -3,6 +3,7 @@ import { requireProfil } from "@/lib/auth";
 import { BoutonExport } from "@/components/bouton-export";
 import { createClient } from "@/lib/supabase/server";
 import { age, alertes, type Anamnese, type Cliente } from "@/lib/types";
+import { pastillesAbonnees } from "@/lib/abonnements-lecture";
 import { BoutonLienFiche } from "./lien-fiche";
 import { ListeClientes, type LigneCliente } from "./liste-clientes";
 
@@ -39,6 +40,9 @@ export default async function PageClientes({
   if (error) throw new Error(`Lecture des clientes impossible : ${error.message}`);
 
   const parCliente = new Map((bilans ?? []).map((b) => [b.cliente_id, b]));
+  // Toutes les abonnées en cours : une liste courte, plutôt que mille
+  // identifiants dans la requête.
+  const abonnees = await pastillesAbonnees(supabase);
 
   const lignes: LigneCliente[] = clientes.map((c) => ({
     id: c.id,
@@ -46,6 +50,7 @@ export default async function PageClientes({
     telephone: c.telephone,
     age: age(c.date_naissance),
     alertes: alertes(parCliente.get(c.id) ?? null).length,
+    abonnee: abonnees.get(c.id) ?? null,
   }));
 
   return (

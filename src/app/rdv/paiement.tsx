@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { Rouet } from "@/components/attente";
-import type { EtatAcompte } from "@/lib/acompte";
+import type { EtatAcompte, ResultatInitiation } from "@/lib/acompte";
 import { payerAcompte, suivreAcompte } from "./actions";
 
 /**
@@ -35,7 +35,16 @@ const OPERATEURS = [
 ] as const;
 
 /** État du formulaire et du suivi d'un paiement. */
-export function usePaiement(telephoneDefaut: string) {
+/** Ce que la page fait payer : l'acompte par défaut, un abonnement sinon. */
+export type ActionsPaiement = {
+  payer: (s: { code: string; operateur: string; telephone: string; otp: string }) => Promise<ResultatInitiation>;
+  suivre: (orderId: string) => Promise<EtatAcompte | null>;
+};
+
+export function usePaiement(
+  telephoneDefaut: string,
+  actions: ActionsPaiement = { payer: payerAcompte, suivre: suivreAcompte },
+) {
   const [operateur, setOperateur] = useState("");
   const [telPayeur, setTelPayeur] = useState("");
   const [otp, setOtp] = useState("");
@@ -50,7 +59,7 @@ export function usePaiement(telephoneDefaut: string) {
 
   async function lancer(code: string) {
     setAttenteLongue(false);
-    const r = await payerAcompte({ code, operateur, telephone, otp });
+    const r = await actions.payer({ code, operateur, telephone, otp });
     setPaiement(
       r.ok
         ? { etat: r.etat, orderId: r.orderId, lien: r.lien, operateur }
@@ -59,6 +68,8 @@ export function usePaiement(telephoneDefaut: string) {
   }
 
   const enAttente = paiement?.etat === "en_attente" ? paiement.orderId : null;
+  // Les actions sont des fonctions serveur, stables d'un rendu à l'autre.
+  const { suivre } = actions;
   useEffect(() => {
     if (!enAttente) return;
     const debut = Date.now();
@@ -68,14 +79,14 @@ export function usePaiement(telephoneDefaut: string) {
         setAttenteLongue(true);
         return;
       }
-      const etat = await suivreAcompte(enAttente);
+      const etat = await suivre(enAttente);
       if (etat && etat !== "en_attente") {
         clearInterval(minuteur);
         setPaiement((p) => (p && p.etat !== "erreur" ? { ...p, etat } : p));
       }
     }, SUIVI_PAIEMENT_MS);
     return () => clearInterval(minuteur);
-  }, [enAttente]);
+  }, [enAttente, suivre]);
 
   return {
     operateur,
@@ -98,10 +109,13 @@ export function ChoixPaiement({
   montant,
   ussdOrange,
   p,
+  note = "déduits du prix le jour du soin",
 }: {
   montant: number;
   ussdOrange: string | null;
   p: EtatPaiement;
+  /** Fin de la phrase « Montant : 10 000 F CFA, … ». */
+  note?: string;
 }) {
   return (
     <div className="flex flex-col gap-3.5">
@@ -160,7 +174,7 @@ export function ChoixPaiement({
         </label>
       )}
       <p className="text-xs text-brand-500">
-        Montant : {montant.toLocaleString("fr-FR")} F CFA, déduits du prix le jour du soin.
+        Montant : {montant.toLocaleString("fr-FR")} F CFA, {note}.
       </p>
     </div>
   );
@@ -176,6 +190,8 @@ export function SuiviPaiement({
   ussdOrange,
   p,
   invitation,
+  libelle = "Acompte",
+  note,
 }: {
   code: string;
   montant: number;
@@ -183,6 +199,9 @@ export function SuiviPaiement({
   p: EtatPaiement;
   /** Phrase affichée tant que rien n'a été tenté. */
   invitation: string;
+  /** Ce qui est payé, affiché une fois réussi. */
+  libelle?: string;
+  note?: string;
 }) {
   const [enCours, demarrer] = useTransition();
   const { paiement } = p;
@@ -190,7 +209,7 @@ export function SuiviPaiement({
   if (paiement?.etat === "reussi") {
     return (
       <p className="flex items-center justify-between gap-3 text-sm">
-        <span className="text-brand-500">Acompte</span>
+        <span className="text-brand-500">{libelle}</span>
         <span className="rounded-full bg-[#e5f0e6] px-2.5 py-1 text-[13px] font-semibold text-[#2f5d3a]">
           {montant.toLocaleString("fr-FR")} F payés
         </span>
@@ -202,7 +221,7 @@ export function SuiviPaiement({
     return (
       <div className="flex flex-col gap-3 text-sm" role="status">
         <p className="flex items-center gap-2 font-semibold text-brand-800">
-          <Rouet /> Paiement de l&apos;acompte en cours…
+          <Rouet /> Paiement en cours…
         </p>
         {paiement.lien ? (
           <a
@@ -241,7 +260,7 @@ export function SuiviPaiement({
       ) : (
         <p className="text-brand-600">{invitation}</p>
       )}
-      <ChoixPaiement montant={montant} ussdOrange={ussdOrange} p={p} />
+      <ChoixPaiement montant={montant} ussdOrange={ussdOrange} p={p} note={note} />
       <button
         type="button"
         disabled={enCours || !p.pret}

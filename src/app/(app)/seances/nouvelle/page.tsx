@@ -1,3 +1,5 @@
+import { couvre } from "@/lib/abonnements";
+import { lireAbonnements } from "@/lib/abonnements-lecture";
 import { requireProfil } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { prixDuJour, type PrixSoin } from "@/lib/disponibilites";
@@ -64,16 +66,29 @@ export default async function PageNouvelleSeance({
       .returns<SoinCatalogue[]>(),
     // Clientes ayant déjà au moins une séance : pour elles, « Première
     // séance » n'a plus de sens et ne doit pas être proposé.
-    supabase.from("seances").select("cliente_id").returns<{ cliente_id: string }[]>(),
+    supabase
+      .from("seances")
+      .select("cliente_id, abonnement_id")
+      .returns<{ cliente_id: string; abonnement_id: string | null }[]>(),
   ]);
 
   const avecSeance = [...new Set((dejaVenues ?? []).map((s) => s.cliente_id))];
+
+  // Soins couverts par un abonnement en cours, par cliente : leur séance ne
+  // donne pas droit à la remise fidélité.
+  const soinsAbonnement: Record<string, string[]> = {};
+  const aujourdhuiSaisie = new Date().toISOString().slice(0, 10);
+  for (const a of await lireAbonnements(supabase, { enCoursSeulement: true })) {
+    if (couvre(a, a.soin_id, aujourdhuiSaisie)) (soinsAbonnement[a.cliente_id] ??= []).push(a.soin_id);
+  }
 
   // Nombre de séances déjà enregistrées par cliente : c'est lui qui dit si la
   // séance en cours est une 5e, une 10e… et ouvre droit à la remise fidélité.
   // La même lecture sert aux deux, elle n'est pas refaite.
   const seancesParCliente: Record<string, number> = {};
+  // Les séances d'abonnement ne comptent pas pour la fidélité.
   for (const s of dejaVenues ?? []) {
+    if (s.abonnement_id) continue;
     seancesParCliente[s.cliente_id] = (seancesParCliente[s.cliente_id] ?? 0) + 1;
   }
 
@@ -147,6 +162,7 @@ export default async function PageNouvelleSeance({
       alertesCliente={alertesCliente}
       avecSeance={avecSeance}
       seancesParCliente={seancesParCliente}
+      soinsAbonnement={soinsAbonnement}
       rdvOrigine={rdvOrigine}
       fiche={fiche}
       derniere={derniere}

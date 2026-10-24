@@ -246,7 +246,8 @@ export function VueSemaine({
                       }}
                     >
                       <span className="block font-bold">
-                        {lisible(b.debut)} {b.r.clientes?.nom_complet ?? "?"}
+                        {lisible(b.debut)} {b.r.abonnee ? "★ " : ""}
+                        {b.r.clientes?.nom_complet ?? "?"}
                       </span>
                       <span className="block truncate opacity-80">{b.r.soins_catalogue?.libelle}</span>
                       {(b.r.source === "en_ligne" || b.r.acompte_paye_le || b.r.alertes > 0) && (

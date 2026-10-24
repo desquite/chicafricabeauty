@@ -110,6 +110,8 @@ export type ReglagesRdv = {
 export type Seance = {
   id: string;
   cliente_id: string;
+  /** Séance faite au titre d'un abonnement : hors fidélité. */
+  abonnement_id?: string | null;
   praticienne_id: string | null;
   date_seance: string;
   type_venue: "premiere_seance" | "suivi";

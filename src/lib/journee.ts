@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { calculerRelances } from "@/lib/notifications/recapitulatif";
 import { acomptesEncaisses } from "@/lib/acomptes-encaisses";
+import { lireAbonnements } from "@/lib/abonnements-lecture";
 import { estExpire, type Source } from "@/lib/regles-acompte";
 import { alertes, nomChaleureux, type Anamnese } from "@/lib/types";
 
@@ -24,6 +25,8 @@ export type RdvJournee = {
   acomptePaye: boolean;
   acompteDu: boolean;
   nouvelle: boolean;
+  /** « Abonnée · 4/13 » pour une abonnée en cours, sinon null. */
+  abonnee: string | null;
   alertes: string[];
   ficheSanteManquante: boolean;
 };
@@ -193,6 +196,10 @@ export async function lireJournee() {
     ? await supabase.from("anamneses_courantes").select("*").in("cliente_id", ids).returns<Anamnese[]>()
     : { data: [] as Anamnese[] };
   const bilanDe = new Map((bilans ?? []).map((b) => [b.cliente_id, b]));
+  // Abonnements en cours, de toutes les clientes : pastilles et échéances.
+  const abonnements = await lireAbonnements(supabase, { enCoursSeulement: true });
+  const abonneeDe = new Map<string, string>();
+  for (const a of abonnements) if (!abonneeDe.has(a.cliente_id)) abonneeDe.set(a.cliente_id, a.etiquette);
   const dejaVenues = new Set((clientesAvecSeance.data ?? []).map((s) => s.cliente_id));
 
   const versJournee = (r: LigneRdv): RdvJournee => {
@@ -210,6 +217,7 @@ export async function lireJournee() {
       acomptePaye: Boolean(r.acompte_paye_le),
       acompteDu: r.acompte_requis && !r.acompte_paye_le && !estExpire(r, maintenant),
       nouvelle: c ? !dejaVenues.has(c.id) : false,
+      abonnee: c ? (abonneeDe.get(c.id) ?? null) : null,
       alertes: alertes(bilan ?? null),
       ficheSanteManquante: Boolean(c) && !bilan,
     };
@@ -266,6 +274,35 @@ export async function lireJournee() {
       ton: "acompte",
     });
   }
+  // Abonnements : échéance dépassée sans paiement, ou fin proche (deux
+  // séances restantes ou quinze jours) pour proposer un renouvellement.
+  const enRetard = abonnements.filter((a) => a.paiement.enRetard);
+  if (enRetard.length) {
+    aTraiter.push({
+      cle: "abonnements-retard",
+      nombre: enRetard.length,
+      titre: "Abonnement : échéance en retard",
+      detail: enRetard.map((a) => a.soin).slice(0, 2).join(", "),
+      action: "Voir",
+      href: enRetard.length === 1 ? `/clientes/${enRetard[0].cliente_id}` : "/clientes",
+      ton: "acompte",
+    });
+  }
+  const bientotFinis = abonnements.filter(
+    (a) => a.statut === "actif" && (a.nb_seances - a.faites <= 2 || a.fin <= plusJours(aujourdhui, 15)),
+  );
+  if (bientotFinis.length) {
+    aTraiter.push({
+      cle: "abonnements-fin",
+      nombre: bientotFinis.length,
+      titre: "Abonnements bientôt terminés",
+      detail: "À proposer en renouvellement",
+      action: "Voir",
+      href: bientotFinis.length === 1 ? `/clientes/${bientotFinis[0].cliente_id}` : "/clientes",
+      ton: "info",
+    });
+  }
+
   const relances = calculerRelances(
     (seancesRelances.data ?? []).filter((s) => s.clientes?.actif),
     new Set((rdvsFuturs.data ?? []).map((r) => r.cliente_id)),

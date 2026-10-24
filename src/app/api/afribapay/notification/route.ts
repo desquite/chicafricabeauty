@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { appliquerStatut } from "@/lib/acompte";
 import { signatureValide } from "@/lib/afribapay";
+import { appliquerStatutVersement, PREFIXE_ABONNEMENT } from "@/lib/paiement-abonnement";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -36,8 +37,10 @@ export async function POST(requete: Request) {
     return NextResponse.json({ recu: true });
   }
 
+  // Versement d'abonnement ou acompte : le préfixe de l'order_id le dit.
+  const abonnement = n.order_id.startsWith(PREFIXE_ABONNEMENT);
   const { data: paiement } = await createAdminClient()
-    .from("paiements_acompte")
+    .from(abonnement ? "paiements_abonnement" : "paiements_acompte")
     .select("montant")
     .eq("order_id", n.order_id)
     .maybeSingle<{ montant: number }>();
@@ -53,6 +56,7 @@ export async function POST(requete: Request) {
     return NextResponse.json({ erreur: "montant inattendu" }, { status: 422 });
   }
 
-  await appliquerStatut(n.order_id, n.status, n.transaction_id ?? null);
+  if (abonnement) await appliquerStatutVersement(n.order_id, n.status, n.transaction_id ?? null);
+  else await appliquerStatut(n.order_id, n.status, n.transaction_id ?? null);
   return NextResponse.json({ recu: true });
 }

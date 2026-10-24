@@ -37,6 +37,8 @@ export type RdvAffiche = {
   alertes: number;
   /** Rang de la venue quand elle ouvre droit à la remise fidélité, sinon null. */
   remise: number | null;
+  /** « Abonnée · 4/13 » pour une abonnée en cours, sinon null. */
+  abonnee: string | null;
 };
 
 const STATUTS = [
@@ -354,6 +356,11 @@ export default function Agenda({
                   {r.notes && <p className="mt-1 text-sm text-brand-700">{r.notes}</p>}
                 </div>
                 <span className="flex shrink-0 gap-2">
+                  {r.abonnee && (
+                    <span className="rounded-full bg-[#f6ecd2] px-3 py-1 text-sm font-bold text-[#6e5114]">
+                      ★ {r.abonnee}
+                    </span>
+                  )}
                   {r.remise && (
                     <span className="rounded-full bg-or-400/20 px-3 py-1 text-sm font-medium text-brand-700">
                       🎁 {r.remise}e séance — {REMISE_POURCENT} %

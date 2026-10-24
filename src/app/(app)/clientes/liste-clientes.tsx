@@ -9,6 +9,8 @@ export type LigneCliente = {
   telephone: string;
   age: number | null;
   alertes: number;
+  /** « Abonnée · 4/13 » pour une abonnée en cours. */
+  abonnee: string | null;
 };
 
 /** Minuscules sans accents : « Zoe » doit trouver « Zoé ». */
@@ -125,6 +127,11 @@ export function ListeClientes({
                     {c.age !== null && ` · ${c.age} ans`}
                   </span>
                 </span>
+                {c.abonnee && (
+                  <span className="shrink-0 rounded-full bg-[#f6ecd2] px-3 py-1 text-sm font-bold text-[#6e5114]">
+                    ★ {c.abonnee}
+                  </span>
+                )}
                 {c.alertes > 0 && (
                   <span className="shrink-0 rounded-full bg-red-50 px-3 py-1 text-sm font-medium text-red-700">
                     {c.alertes} alerte{c.alertes > 1 ? "s" : ""}

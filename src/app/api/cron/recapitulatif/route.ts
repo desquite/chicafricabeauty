@@ -24,6 +24,7 @@ import {
 import { alertes, nomChaleureux, type Anamnese } from "@/lib/types";
 import { ouvreDroit, rangSeance } from "@/lib/fidelite";
 import { annulerAcomptesEchus, envoyerMessagesDuMatin } from "@/lib/taches-acompte";
+import { tachesAbonnementsDuMatin } from "@/lib/taches-abonnement";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -91,6 +92,7 @@ async function traiter(requete: Request) {
   // paiements immediats manques. En premier, pour ne pas etre coupe par la
   // limite de 60 s quand le reste du passage est charge.
   let acomptes: { envois: unknown[]; annulations: unknown[] } | { erreur: string } | null = null;
+  let abonnements: unknown = null;
   if (!apercu) {
     try {
       acomptes = {
@@ -99,6 +101,12 @@ async function traiter(requete: Request) {
       };
     } catch (e) {
       acomptes = { erreur: e instanceof Error ? e.message : "Erreur inattendue" };
+    }
+    // Abonnements : rappels d'echeance et fin des abonnements echus.
+    try {
+      abonnements = await tachesAbonnementsDuMatin(maintenant);
+    } catch (e) {
+      abonnements = { erreur: e instanceof Error ? e.message : "Erreur inattendue" };
     }
   }
 
@@ -130,10 +138,12 @@ async function traiter(requete: Request) {
     const dues = new Map<string, number>();
     if (ids.length === 0) return dues;
 
+    // Les séances d'abonnement ne comptent pas pour la fidélité.
     const { data } = await supabase
       .from("seances")
       .select("cliente_id")
       .in("cliente_id", ids)
+      .is("abonnement_id", null)
       .returns<{ cliente_id: string }[]>();
 
     const compte = new Map<string, number>();
@@ -755,6 +765,7 @@ async function traiter(requete: Request) {
       ignores: rappelsIgnores,
     },
     acomptes,
+    abonnements,
     resultats,
   });
 }

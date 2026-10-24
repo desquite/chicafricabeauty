@@ -20,6 +20,8 @@ import {
   type Seance,
 } from "@/lib/types";
 import { etiquetteRemise, ouvreDroit, PAS_FIDELITE, rangSeance, REMISE_POURCENT } from "@/lib/fidelite";
+import { lireAbonnements } from "@/lib/abonnements-lecture";
+import { SectionAbonnement } from "./abonnement";
 import { BandeauActions, Historique, ProchainRdv, type Evenement } from "./fiche";
 
 const dateFr = (iso: string | null) =>
@@ -65,7 +67,7 @@ type RdvListe = {
  * bilans et relances se lisent dans un seul historique.
  */
 export default async function PageFicheCliente({ params }: { params: Promise<{ id: string }> }) {
-  await requireProfil();
+  const profil = await requireProfil();
   const { id } = await params;
   const supabase = await createClient();
 
@@ -106,11 +108,23 @@ export default async function PageFicheCliente({ params }: { params: Promise<{ i
     ]);
 
   const aujourdhui = new Date().toISOString().slice(0, 10);
+  const [abonnements, { data: soinsActifs }] = await Promise.all([
+    lireAbonnements(supabase, { clienteIds: [id] }),
+    supabase
+      .from("soins_catalogue")
+      .select("id, libelle")
+      .eq("actif", true)
+      .order("ordre")
+      .returns<{ id: string; libelle: string }[]>(),
+  ]);
+  const abonnementEnCours = abonnements.find((a) => a.statut === "actif" || a.statut === "pause");
   const listeAlertes = alertes(bilan ?? null);
   const nbSeances = seances?.length ?? 0;
-  const rangProchaine = rangSeance(nbSeances);
+  // Les séances d'abonnement ne comptent pas pour la fidélité.
+  const nbFidelite = (seances ?? []).filter((s) => !s.abonnement_id).length;
+  const rangProchaine = rangSeance(nbFidelite);
   const remiseDue = ouvreDroit(rangProchaine);
-  const dansLeCycle = nbSeances % PAS_FIDELITE;
+  const dansLeCycle = nbFidelite % PAS_FIDELITE;
   const avantRemise = PAS_FIDELITE - ((rangProchaine - 1) % PAS_FIDELITE);
   const dernierConsentement = (nature: "soin" | "photo") =>
     (consentements ?? []).find((c) => c.nature === nature) ?? null;
@@ -248,7 +262,9 @@ export default async function PageFicheCliente({ params }: { params: Promise<{ i
         <div className="flex flex-wrap items-center gap-4">
           <span
             aria-hidden="true"
-            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xl font-semibold text-brand-600"
+            className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xl font-semibold text-brand-600 ${
+              abonnementEnCours ? "ring-[3px] ring-or-400 ring-offset-2" : ""
+            }`}
           >
             {cliente.nom_complet
               .split(" ")
@@ -273,6 +289,11 @@ export default async function PageFicheCliente({ params }: { params: Promise<{ i
             </p>
           </div>
           <div className="flex flex-wrap gap-1.5">
+            {abonnementEnCours && (
+              <span className="rounded-full bg-[#f6ecd2] px-2.5 py-1 text-xs font-bold text-[#6e5114]">
+                ★ {abonnementEnCours.etiquette}
+              </span>
+            )}
             {listeAlertes.length > 0 && (
               <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700">
                 {listeAlertes.length} alerte{listeAlertes.length > 1 ? "s" : ""} santé
@@ -324,6 +345,16 @@ export default async function PageFicheCliente({ params }: { params: Promise<{ i
                 ))}
               </ul>
             </section>
+          )}
+
+          {(abonnements.length > 0 || profil.role === "gerante") && (
+            <SectionAbonnement
+              clienteId={cliente.id}
+              abonnements={abonnements}
+              soins={soinsActifs ?? []}
+              gerante={profil.role === "gerante"}
+              aujourdhui={aujourdhui}
+            />
           )}
 
           <section className="flex flex-col gap-1.5 rounded-2xl border border-brand-100 bg-white p-4">

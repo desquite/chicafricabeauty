@@ -21,6 +21,7 @@ function Pastille({ children, ton }: { children: React.ReactNode; ton: string })
     paye: "bg-[#e5f0e6] text-[#2f5d3a]",
     du: "bg-[#fff1e5] text-[#9a4b12]",
     nouvelle: "bg-[#e8eefc] text-[#2c4a8a]",
+    abonnee: "bg-[#f6ecd2] text-[#6e5114]",
   };
   return (
     <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${tons[ton]}`}>{children}</span>
@@ -108,6 +109,7 @@ export function FriseJournee({ rdvs }: { rdvs: RdvJournee[] }) {
                   {r.acomptePaye && <Pastille ton="paye">acompte payé</Pastille>}
                   {r.acompteDu && <Pastille ton="du">acompte à régler</Pastille>}
                   {r.nouvelle && <Pastille ton="nouvelle">nouvelle cliente</Pastille>}
+                  {r.abonnee && <Pastille ton="abonnee">★ {r.abonnee}</Pastille>}
                 </span>
                 {r.soin && <span className="text-sm text-brand-600">{r.soin}</span>}
                 {statut === "prevu" && r.alertes.length > 0 && (

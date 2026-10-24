@@ -3,6 +3,7 @@ import { requireProfil } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { alertes, type Anamnese, type Cliente, type SoinCatalogue } from "@/lib/types";
 import { ouvreDroit, rangSeance } from "@/lib/fidelite";
+import { pastillesAbonnees } from "@/lib/abonnements-lecture";
 import Agenda, { type RdvAffiche } from "./agenda";
 import { NavigationJour, NavigationMois, NavigationSemaine, OngletsVues } from "./navigation";
 import { VueSemaine, type FermetureSemaine, type HoraireSemaine } from "./vue-semaine";
@@ -125,6 +126,7 @@ export default async function PageRendezVous({
           .from("seances")
           .select("cliente_id")
           .in("cliente_id", ids)
+          .is("abonnement_id", null)
           .returns<{ cliente_id: string }[]>(),
       ])
     : [{ data: [] as Anamnese[] }, { data: [] as { cliente_id: string }[] }];
@@ -146,11 +148,17 @@ export default async function PageRendezVous({
       ? alertes((bilans ?? []).find((b) => b.cliente_id === clienteId) ?? null).length
       : 0;
 
-  const enrichis: RdvAffiche[] = (rdvs ?? []).map((r) => ({
-    ...r,
-    alertes: nbAlertes(r.clientes?.id),
-    remise: remiseDe(r.clientes?.id),
-  }));
+  const abonnees = await pastillesAbonnees(supabase, ids);
+  const enrichis: RdvAffiche[] = (rdvs ?? []).map((r) => {
+    const abonnee = r.clientes ? (abonnees.get(r.clientes.id) ?? null) : null;
+    return {
+      ...r,
+      alertes: nbAlertes(r.clientes?.id),
+      // Une abonnée n'a pas de remise fidélité sur ses séances d'abonnement.
+      remise: abonnee ? null : remiseDe(r.clientes?.id),
+      abonnee,
+    };
+  });
 
   // Compteurs par jour pour la grille mensuelle. Les annulés sont comptés à
   // part : les inclure gonflerait artificiellement une journée vide.
