@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireProfil } from "@/lib/auth";
 import { pastillesAbonnees } from "@/lib/abonnements-lecture";
 import { adressePublique } from "@/lib/adresse";
+import { assistantConfigure } from "@/lib/assistant/brouillon";
 import { FENETRE_MS } from "@/lib/messagerie";
 import { createClient } from "@/lib/supabase/server";
 import { INSTITUT } from "@/app/rdv/institut";
@@ -20,6 +21,10 @@ type Conversation = {
   dernier_message_le: string | null;
   dernier_apercu: string | null;
   derniere_entree_le: string | null;
+  brouillon: string | null;
+  brouillon_main: boolean;
+  brouillon_raison: string | null;
+  brouillon_pour: string | null;
   clientes: { nom_complet: string } | null;
 };
 
@@ -63,6 +68,7 @@ export default async function PageMessages({
     quand: c.dernier_message_le,
     nonLus: c.non_lus,
     statut: c.statut,
+    pourGerante: c.statut === "a_traiter" && c.brouillon_main,
   }));
 
   let ouverte: (Conversation & { messages: MessageVue[] }) | null = null;
@@ -186,6 +192,14 @@ export default async function PageMessages({
   }
 
   const fenetreOuverte = Boolean(ouverte?.derniere_entree_le && dansLaFenetre(ouverte.derniere_entree_le));
+  // La proposition ne vaut que pour le dernier message de la cliente : une
+  // nouvelle entrée, ou une réponse déjà partie, la rend caduque.
+  const derniere = ouverte?.messages.at(-1);
+  const brouillon =
+    ouverte?.brouillon && derniere?.sens === "entrant" && ouverte.brouillon_pour === derniere.id
+      ? { texte: ouverte.brouillon, main: ouverte.brouillon_main, raison: ouverte.brouillon_raison }
+      : null;
+  const assistant = assistantConfigure();
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:h-[calc(100dvh-4rem)] lg:flex-row">
@@ -205,6 +219,8 @@ export default async function PageMessages({
             fenetreOuverte={fenetreOuverte}
             raccourcis={raccourcis}
             filtre={filtre}
+            brouillon={brouillon}
+            assistant={assistant && derniere?.sens === "entrant"}
           />
           <aside className="flex flex-col gap-3 rounded-2xl border border-brand-100 bg-white p-4 xl:w-[290px] xl:shrink-0">
             <h2 className="text-lg font-semibold text-brand-800">{ouverte.clientes?.nom_complet ?? "Numéro inconnu"}</h2>
@@ -233,8 +249,10 @@ export default async function PageMessages({
               </>
             )}
             <div className="mt-auto rounded-xl border border-dashed border-brand-300 bg-brand-50 p-3 text-xs text-brand-600">
-              <strong className="block text-brand-700">Assistant IA · bientôt</strong>
-              Ici s&apos;afficheront ses propositions de réponse et le bouton « Je prends la main ».
+              <strong className="block text-brand-700">Assistant IA · mode brouillon</strong>
+              {assistant
+                ? "Après chaque message, il propose une réponse : rien ne part sans vous."
+                : "Pas encore activé : la clé ANTHROPIC_API_KEY manque dans Vercel."}
             </div>
           </aside>
         </div>

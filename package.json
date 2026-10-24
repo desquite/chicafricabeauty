@@ -12,6 +12,7 @@
     "db:personnel": "node scripts/habiliter.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.2.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.111.0",
     "exceljs": "^4.4.0",
@@ -19,7 +20,8 @@
     "nodemailer": "6.10.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

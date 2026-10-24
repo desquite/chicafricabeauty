@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { proposerBrouillon } from "@/lib/assistant/brouillon";
 import { requireProfil } from "@/lib/auth";
 import { FENETRE_MS, journaliserSortant } from "@/lib/messagerie";
 import { envoyerTexteWhatsapp } from "@/lib/notifications/whatsapp";
@@ -32,7 +33,12 @@ export async function repondre(conversationId: string, texte: string): Promise<R
   const r = await envoyerTexteWhatsapp(c.telephone, message);
   await journaliserSortant({ telephone: c.telephone, texte: message, sens: "sortant", auteur: profil.id, echec: r.ok ? null : r.erreur });
   // Répondre, c'est traiter : la conversation passe en réglée.
-  if (r.ok) await supabase.from("conversations").update({ statut: "reglee", non_lus: 0 }).eq("id", conversationId);
+  if (r.ok) {
+    await supabase
+      .from("conversations")
+      .update({ statut: "reglee", non_lus: 0, brouillon: null, brouillon_main: false, brouillon_raison: null, brouillon_pour: null })
+      .eq("id", conversationId);
+  }
   revalidatePath("/messages");
   return r.ok ? { ok: true } : { ok: false, erreur: `Message non parti : ${r.erreur}` };
 }
@@ -54,5 +60,25 @@ export async function changerStatut(conversationId: string, statut: "a_traiter" 
     .eq("id", conversationId);
   if (error) return { ok: false, erreur: error.message };
   revalidatePath("/messages", "layout");
+  return { ok: true };
+}
+
+/** Demande une nouvelle proposition à l'assistant. */
+export async function proposerReponse(conversationId: string): Promise<Retour> {
+  await requireProfil();
+  const r = await proposerBrouillon(conversationId);
+  revalidatePath("/messages");
+  return r.ok ? { ok: true } : { ok: false, erreur: `Pas de proposition : ${r.detail}` };
+}
+
+/** Écarte la proposition de l'assistant. */
+export async function ignorerBrouillon(conversationId: string): Promise<Retour> {
+  await requireProfil();
+  const supabase = await createClient();
+  await supabase
+    .from("conversations")
+    .update({ brouillon: null, brouillon_main: false, brouillon_raison: null, brouillon_pour: null })
+    .eq("id", conversationId);
+  revalidatePath("/messages");
   return { ok: true };
 }

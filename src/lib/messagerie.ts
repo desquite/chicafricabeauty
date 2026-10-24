@@ -131,9 +131,12 @@ export function lireEntrant(r: ResultatInfobip): { type: TypeMessage; texte: str
   return { type: "autre", texte: m.text ?? m.caption ?? null, media: m.url ?? null };
 }
 
-/** Enregistre un message reçu ; un même message reçu deux fois ne compte qu'une. */
-export async function enregistrerEntrant(r: ResultatInfobip) {
-  if (!r.from) return;
+/**
+ * Enregistre un message reçu ; un même message reçu deux fois ne compte
+ * qu'une. Rend la conversation concernée, ou null si rien de neuf.
+ */
+export async function enregistrerEntrant(r: ResultatInfobip): Promise<string | null> {
+  if (!r.from) return null;
   const admin = createAdminClient();
   const conversationId = await conversationPour(r.from, r.contact?.name?.trim() || null);
   const { type, texte, media } = lireEntrant(r);
@@ -148,7 +151,7 @@ export async function enregistrerEntrant(r: ResultatInfobip) {
     infobip_id: r.messageId ?? null,
     cree_le: quand,
   });
-  if (error?.code === "23505") return; // déjà reçu
+  if (error?.code === "23505") return null; // déjà reçu
   if (error) throw new Error(error.message);
 
   const { data: c } = await admin.from("conversations").select("non_lus").eq("id", conversationId).single<{ non_lus: number }>();
@@ -162,6 +165,7 @@ export async function enregistrerEntrant(r: ResultatInfobip) {
       derniere_entree_le: quand,
     })
     .eq("id", conversationId);
+  return conversationId;
 }
 
 /**

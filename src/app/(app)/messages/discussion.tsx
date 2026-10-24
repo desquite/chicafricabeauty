@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Rouet } from "@/components/attente";
-import { changerStatut, marquerLu, repondre } from "./actions";
+import { changerStatut, ignorerBrouillon, marquerLu, proposerReponse, repondre } from "./actions";
 
 export type MessageVue = {
   id: string;
@@ -56,6 +56,8 @@ export function Discussion({
   fenetreOuverte,
   raccourcis,
   filtre,
+  brouillon,
+  assistant,
 }: {
   id: string;
   nom: string;
@@ -66,6 +68,10 @@ export function Discussion({
   fenetreOuverte: boolean;
   raccourcis: Raccourci[];
   filtre: string;
+  /** Proposition de l'assistant pour le dernier message de la cliente. */
+  brouillon: { texte: string; main: boolean; raison: string | null } | null;
+  /** L'assistant peut proposer une réponse (configuré, cliente en attente). */
+  assistant: boolean;
 }) {
   const router = useRouter();
   const [texte, setTexte] = useState("");
@@ -81,10 +87,10 @@ export function Discussion({
     fin.current?.scrollIntoView({ block: "end" });
   }, [messages.length]);
 
-  const envoyer = () =>
+  const envoyer = (message = texte) =>
     demarrer(async () => {
       setErreur(null);
-      const r = await repondre(id, texte);
+      const r = await repondre(id, message);
       if (!r.ok) return setErreur(r.erreur ?? "Envoi impossible.");
       setTexte("");
       router.refresh();
@@ -154,6 +160,68 @@ export function Discussion({
       <footer className="flex flex-col gap-2 border-t border-brand-100 px-4 py-3">
         {fenetreOuverte ? (
           <>
+            {brouillon ? (
+              <div className="flex flex-col gap-2 rounded-xl border border-dashed border-brand-300 bg-brand-50 p-3">
+                <p className="text-xs font-bold tracking-wide text-brand-600 uppercase">Proposition de l&apos;assistant</p>
+                {brouillon.main && (
+                  <p className="rounded-lg bg-[#fff1e5] px-2.5 py-1.5 text-sm font-semibold text-[#9a4b12]">
+                    À traiter par vous{brouillon.raison ? ` : ${brouillon.raison}` : ""}
+                  </p>
+                )}
+                <p className="text-[15px] whitespace-pre-line text-brand-900">{brouillon.texte}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={enCours}
+                    onClick={() => envoyer(brouillon.texte)}
+                    className="flex h-10 items-center gap-2 rounded-xl bg-brand-600 px-4 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {enCours && <Rouet />}
+                    Envoyer
+                  </button>
+                  <button
+                    type="button"
+                    disabled={enCours}
+                    onClick={() => setTexte(brouillon.texte)}
+                    className="h-10 rounded-xl border border-brand-200 bg-white px-4 text-sm font-semibold text-brand-700"
+                  >
+                    Modifier
+                  </button>
+                  <button
+                    type="button"
+                    disabled={enCours}
+                    onClick={() =>
+                      demarrer(async () => {
+                        await ignorerBrouillon(id);
+                        router.refresh();
+                      })
+                    }
+                    className="h-10 rounded-xl px-3 text-sm font-semibold text-brand-500"
+                  >
+                    Ignorer
+                  </button>
+                </div>
+              </div>
+            ) : (
+              assistant && (
+                <button
+                  type="button"
+                  disabled={enCours}
+                  onClick={() =>
+                    demarrer(async () => {
+                      setErreur(null);
+                      const r = await proposerReponse(id);
+                      if (!r.ok) setErreur(r.erreur ?? "Pas de proposition.");
+                      router.refresh();
+                    })
+                  }
+                  className="flex h-10 items-center gap-2 self-start rounded-xl border border-dashed border-brand-300 bg-brand-50 px-4 text-sm font-semibold text-brand-700"
+                >
+                  {enCours && <Rouet />}
+                  Proposer une réponse
+                </button>
+              )
+            )}
             {raccourcis.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {raccourcis.map((r) => (
@@ -180,7 +248,7 @@ export function Discussion({
               <button
                 type="button"
                 disabled={enCours || !texte.trim()}
-                onClick={envoyer}
+                onClick={() => envoyer()}
                 aria-label="Envoyer"
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white disabled:opacity-40"
               >

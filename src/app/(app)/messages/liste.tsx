@@ -12,6 +12,8 @@ export type ConversationVue = {
   quand: string | null;
   nonLus: number;
   statut: "a_traiter" | "reglee";
+  /** L'assistant passe la main : la gérante répond elle-même. */
+  pourGerante: boolean;
 };
 
 /** Toutes les 15 secondes, la liste se relit : les nouveaux messages apparaissent seuls. */
@@ -124,6 +126,7 @@ export function ListeConversations({
                     </span>
                   )}
                 </span>
+                {c.pourGerante && <span className="text-[11px] font-bold text-[#9a4b12]">à traiter par vous</span>}
                 {!c.connue && <span className="text-[11px] font-bold text-[#2c4a8a]">pas de fiche</span>}
               </span>
             </Link>
