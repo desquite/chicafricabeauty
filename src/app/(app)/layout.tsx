@@ -26,8 +26,14 @@ export default async function LayoutApplication({
     .is("masque_le", null);
   // La gerante voit aussi le volet Caisse : rendez-vous a facturer, stock bas.
   const gerante = profil.role === "gerante";
+  // Conversations WhatsApp avec des messages non lus.
+  const { count: nonLus } = await supabase
+    .from("conversations")
+    .select("id", { count: "exact", head: true })
+    .gt("non_lus", 0);
   const pastilles = {
     "/rendez-vous": rdvRestants ?? 0,
+    "/messages": nonLus ?? 0,
     ...(gerante ? await pastillesCaisse(supabase) : {}),
   };
 

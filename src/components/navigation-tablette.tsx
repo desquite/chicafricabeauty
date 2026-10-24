@@ -5,17 +5,25 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Rouet } from "@/components/attente";
 
-type Entree = { href: string; libelle: string; icone: string; exact?: boolean };
+type Entree = {
+  href: string;
+  libelle: string;
+  icone: string;
+  exact?: boolean;
+  /** Absente de la barre du bas des téléphones, faute de place. */
+  horsMobile?: boolean;
+};
 
 /** Volet « Institut » : les clientes, l'agenda, les soins. */
 const ENTREES: Entree[] = [
   { href: "/accueil", libelle: "Accueil", icone: "M3 11l9-8 9 8v9a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z" },
+  { href: "/messages", libelle: "Messages", icone: "M21 12a9 9 0 0 1-13.4 7.8L3 21l1.3-4.5A9 9 0 1 1 21 12z" },
   { href: "/clientes", libelle: "Clientes", icone: "M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 8.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7M21 20v-2a4 4 0 0 0-3-3.87M16.5 3.6a4 4 0 0 1 0 7.75" },
   { href: "/rendez-vous", libelle: "Rendez-vous", icone: "M8 2v3M16 2v3M3.5 9h17M5 5h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2" },
   { href: "/seances", libelle: "Séances", icone: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" },
   { href: "/relances", libelle: "À relancer", icone: "M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" },
-  { href: "/catalogue", libelle: "Catalogue", icone: "M4 6h16M4 12h16M4 18h10" },
-  { href: "/statistiques", libelle: "Statistiques", icone: "M4 20V10M10 20V4M16 20v-7M22 20H2" },
+  { href: "/catalogue", libelle: "Catalogue", icone: "M4 6h16M4 12h16M4 18h10", horsMobile: true },
+  { href: "/statistiques", libelle: "Statistiques", icone: "M4 20V10M10 20V4M16 20v-7M22 20H2", horsMobile: true },
 ];
 
 /** Volet « Caisse & stock », réservé à la gérante. */
@@ -84,6 +92,7 @@ export function NavigationTablette({
   const chemin = usePathname();
   const enCaisse = gerante && (chemin === "/caisse" || chemin.startsWith("/caisse/"));
   const entrees = enCaisse ? ENTREES_CAISSE : ENTREES;
+  const entreesMobile = entrees.filter((e) => !e.horsMobile);
   // Entrée touchée : allumée dès l'appui, sans attendre la page. Elle ne vaut
   // que pour l'adresse d'où elle a été touchée, et s'efface donc d'elle-même
   // à l'arrivée sur la nouvelle page.
@@ -104,9 +113,9 @@ export function NavigationTablette({
     return (
       <nav
         className="no-print fixed inset-x-0 bottom-0 z-40 grid border-t border-brand-100 bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_12px_rgba(0,0,0,0.04)] md:hidden"
-        style={{ gridTemplateColumns: `repeat(${entrees.length + (gerante ? 1 : 0)}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${entreesMobile.length + (gerante ? 1 : 0)}, minmax(0, 1fr))` }}
       >
-        {[...entrees, ...(gerante ? [bascule] : [])].map((e) => (
+        {[...entreesMobile, ...(gerante ? [bascule] : [])].map((e) => (
           <Link
             key={e.href}
             href={e.href}

@@ -1,4 +1,5 @@
 import "server-only";
+import { journaliserSortant } from "@/lib/messagerie";
 
 /**
  * Deux canaux WhatsApp, le temps de la bascule.
@@ -14,6 +15,26 @@ import "server-only";
  * C'est le canal des clientes, active fiche par fiche.
  */
 export type ResultatEnvoi = { ok: boolean; erreur?: string };
+
+/** Libellé des envois automatiques dans la boîte de réception. */
+const LIBELLES_MODELES: Record<string, string> = {
+  rdv_confirme: "Confirmation de rendez-vous envoyée",
+  acompte_lien: "Lien de paiement de l'acompte envoyé",
+  acompte_rappel: "Rappel d'acompte envoyé",
+  acompte_recu: "Reçu d'acompte envoyé",
+  rdv_annule_acompte: "Annulation (acompte non réglé) envoyée",
+  rappel_rdv: "Rappel de rendez-vous envoyé",
+  rappel_rdv_soin: "Rappel de rendez-vous envoyé",
+  rappel_rdv_soin_remise: "Rappel de rendez-vous envoyé",
+  rappel_rdv_fidelite: "Rappel de rendez-vous envoyé",
+  anniversaire_cliente: "Message d'anniversaire envoyé",
+  abonnement_lien: "Lien de paiement de l'abonnement envoyé",
+  abonnement_rappel: "Rappel d'échéance d'abonnement envoyé",
+  abonnement_recu: "Reçu de versement d'abonnement envoyé",
+  recu_facture: "Reçu de passage envoyé",
+};
+/** Messages aux gérantes : pas de conversation à créer pour eux. */
+const MODELES_INTERNES = ["alerte_gerante", "alerte_reservation_gerante", "recapitulatif_gerante"];
 
 /* -------------------------------------------------------------- WasenderAPI */
 
@@ -145,6 +166,10 @@ export async function envoyerModeleWhatsapp(
       // Reponse illisible mais HTTP 200 : on ne transforme pas ce doute en
       // echec, l'envoi a de fortes chances d'etre parti.
     }
+    if (!MODELES_INTERNES.includes(modele)) {
+      const libelle = LIBELLES_MODELES[modele] ?? `Message automatique « ${modele} » envoyé`;
+      await journaliserSortant({ telephone: numero, texte: libelle, sens: "auto" });
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, erreur: e instanceof Error ? e.message : "Erreur réseau" };
@@ -171,4 +196,37 @@ function normaliser(brut: string): string | null {
 function chiffresSeuls(brut: string): string | null {
   const propre = brut.replace(/\D/g, "");
   return /^\d{8,15}$/.test(propre) ? propre : null;
+}
+
+/**
+ * Message libre, depuis la boîte de réception. Meta ne l'accepte que dans
+ * les 24 h qui suivent le dernier message de la cliente ; au-delà, seul un
+ * modèle approuvé peut partir.
+ */
+export async function envoyerTexteWhatsapp(destinataire: string, texte: string): Promise<ResultatEnvoi> {
+  const cle = process.env.INFOBIP_API_KEY;
+  const base = process.env.INFOBIP_BASE_URL;
+  const expediteur = process.env.INFOBIP_SENDER;
+  if (!cle || !base || !expediteur) return { ok: false, erreur: "Infobip n'est pas configuré" };
+  const numero = chiffresSeuls(destinataire);
+  if (!numero) return { ok: false, erreur: `Numéro invalide : ${destinataire}` };
+  const hote = base.replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  try {
+    const reponse = await fetch(`https://${hote}/whatsapp/1/message/text`, {
+      method: "POST",
+      headers: { Authorization: `App ${cle}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ from: chiffresSeuls(expediteur), to: numero, content: { text: texte } }),
+    });
+    const corps = await reponse.text().catch(() => "");
+    if (!reponse.ok) return { ok: false, erreur: `Infobip ${reponse.status} ${corps.slice(0, 200)}` };
+    try {
+      const statut = JSON.parse(corps)?.status;
+      if (statut?.groupName === "REJECTED") return { ok: false, erreur: `Infobip rejet ${statut.name ?? ""} ${statut.description ?? ""}`.trim() };
+    } catch {
+      // HTTP 200 illisible : tenu pour parti
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, erreur: e instanceof Error ? e.message : "Erreur réseau" };
+  }
 }
