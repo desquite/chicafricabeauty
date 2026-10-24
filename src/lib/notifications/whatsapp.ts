@@ -72,6 +72,8 @@ export async function envoyerModeleWhatsapp(
   modele: string,
   placeholders: string[],
   langue = "fr",
+  /** Image d'en-tête, pour un modèle à en-tête image : adresse publique en https. */
+  image?: string,
 ): Promise<ResultatEnvoi> {
   const cle = process.env.INFOBIP_API_KEY;
   const base = process.env.INFOBIP_BASE_URL;
@@ -110,7 +112,10 @@ export async function envoyerModeleWhatsapp(
             to: numero,
             content: {
               templateName: modele,
-              templateData: { body: { placeholders } },
+              templateData: {
+                body: { placeholders },
+                ...(image ? { header: { type: "IMAGE", mediaUrl: image } } : {}),
+              },
               language: langue,
             },
           },

@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { couvre, type Abonnement } from "@/lib/abonnements";
 import { requireProfil } from "@/lib/auth";
 import { calculerFacture, MODES_PAIEMENT, type ModePaiement } from "@/lib/caisse";
 import { prixDuJour, type PrixSoin } from "@/lib/disponibilites";
+import { envoyerRecuWhatsapp } from "@/lib/notifications/recu";
 import { createClient } from "@/lib/supabase/server";
 
 type Client = Awaited<ReturnType<typeof createClient>>;
@@ -214,7 +216,13 @@ export async function garderBrouillon(factureId: string, s: SaisieFacture): Prom
   return { ok: true, id: factureId };
 }
 
-export async function encaisser(factureId: string, s: SaisieFacture, mode: string): Promise<Retour> {
+export async function encaisser(
+  factureId: string,
+  s: SaisieFacture,
+  mode: string,
+  /** Envoyer le reçu en image par WhatsApp à la cliente. */
+  envoyerRecu = true,
+): Promise<Retour> {
   await exigerGerante();
   if (!MODES_PAIEMENT.some((m) => m.valeur === mode)) return { ok: false, erreur: "Choisissez le mode de paiement." };
   const supabase = await createClient();
@@ -227,6 +235,12 @@ export async function encaisser(factureId: string, s: SaisieFacture, mode: strin
   const res = data as { numero?: string; erreur?: string };
   if (res.erreur) {
     return { ok: false, erreur: res.erreur === "deja" ? "Cette facture est déjà encaissée." : "Encaissement impossible." };
+  }
+  // Le reçu part après la réponse : l'impression ne l'attend pas.
+  if (envoyerRecu) {
+    after(async () => {
+      await envoyerRecuWhatsapp(factureId).catch(() => null);
+    });
   }
   rafraichir();
   return { ok: true, id: factureId, numero: res.numero };
@@ -250,4 +264,11 @@ export async function annulerFacture(factureId: string, motif: string): Promise<
   if ((data as { erreur?: string }).erreur) return { ok: false, erreur: "Seule une facture encaissée peut être annulée." };
   rafraichir();
   return { ok: true };
+}
+
+/** Renvoie le reçu par WhatsApp, à la demande de la gérante. */
+export async function renvoyerRecu(factureId: string): Promise<Retour> {
+  await exigerGerante();
+  const r = await envoyerRecuWhatsapp(factureId, { forcer: true });
+  return r.ok ? { ok: true } : { ok: false, erreur: `Envoi impossible : ${r.detail}` };
 }

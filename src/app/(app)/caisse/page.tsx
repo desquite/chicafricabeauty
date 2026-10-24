@@ -40,7 +40,7 @@ export default async function PageCaisse({ searchParams }: { searchParams: Promi
     const { data: facture } = await supabase
       .from("factures")
       .select(
-        "id, statut, cliente_id, remise_sur, acompte_deduit, montant_soins, montant_soins_normal, notes, clientes(nom_complet), rendez_vous:rendez_vous_id(date_rdv, heure_rdv)",
+        "id, statut, cliente_id, remise_sur, acompte_deduit, montant_soins, montant_soins_normal, notes, clientes(nom_complet, telephone), rendez_vous:rendez_vous_id(date_rdv, heure_rdv)",
       )
       .eq("id", f)
       .maybeSingle<{
@@ -52,7 +52,7 @@ export default async function PageCaisse({ searchParams }: { searchParams: Promi
         montant_soins: number;
         montant_soins_normal: number;
         notes: string | null;
-        clientes: { nom_complet: string } | null;
+        clientes: { nom_complet: string; telephone: string } | null;
         rendez_vous: { date_rdv: string; heure_rdv: string | null } | null;
       }>();
     if (facture && facture.statut !== "brouillon") redirect(`/caisse/factures/${facture.id}`);
@@ -94,6 +94,7 @@ export default async function PageCaisse({ searchParams }: { searchParams: Promi
       edition = {
         id: facture.id,
         cliente: facture.clientes?.nom_complet ?? null,
+        aTelephone: Boolean(facture.clientes?.telephone),
         quand: facture.rendez_vous
           ? `${new Date(`${facture.rendez_vous.date_rdv}T00:00:00Z`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" })}${facture.rendez_vous.heure_rdv ? ` · ${Number(facture.rendez_vous.heure_rdv.slice(0, 2))}h${facture.rendez_vous.heure_rdv.slice(3, 5)}` : ""}`
           : "Vente sans rendez-vous",

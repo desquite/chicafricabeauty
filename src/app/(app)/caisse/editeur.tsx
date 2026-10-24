@@ -10,6 +10,8 @@ import { encaisser, garderBrouillon, supprimerBrouillon, type SaisieFacture } fr
 export type FactureEdition = {
   id: string;
   cliente: string | null;
+  /** La cliente a un numéro : le reçu peut partir par WhatsApp. */
+  aTelephone: boolean;
   quand: string;
   remiseSur: "soin" | "produit" | null;
   acompte: number;
@@ -37,6 +39,7 @@ export function EditeurFacture({ facture }: { facture: FactureEdition }) {
   const [notes, setNotes] = useState(facture.notes);
   const [mode, setMode] = useState("");
   const [format, setFormat] = useState<"ticket" | "a5">("ticket");
+  const [envoyerRecu, setEnvoyerRecu] = useState(facture.aTelephone);
   const [ajoutSoin, setAjoutSoin] = useState("");
   const [ajoutProduit, setAjoutProduit] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -94,7 +97,7 @@ export function EditeurFacture({ facture }: { facture: FactureEdition }) {
   const valider = () =>
     demarrer(async () => {
       setErreur(null);
-      const r = await encaisser(facture.id, saisie(), mode);
+      const r = await encaisser(facture.id, saisie(), mode, envoyerRecu);
       if (!r.ok) return setErreur(r.erreur ?? "Encaissement impossible.");
       router.push(`/recu/${facture.id}?format=${format}&imprimer=1`);
     });
@@ -355,6 +358,17 @@ export function EditeurFacture({ facture }: { facture: FactureEdition }) {
               </button>
             ))}
           </div>
+          {facture.aTelephone && (
+            <label className="flex items-center gap-2 text-sm font-semibold text-brand-800">
+              <input
+                type="checkbox"
+                checked={envoyerRecu}
+                onChange={(e) => setEnvoyerRecu(e.target.checked)}
+                className="h-5 w-5 accent-brand-600"
+              />
+              Envoyer le reçu par WhatsApp à la cliente
+            </label>
+          )}
           <button
             type="button"
             disabled={enCours || !mode}
