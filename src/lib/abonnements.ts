@@ -168,3 +168,54 @@ export function etiquetteAbonnee(
 }
 
 export const libelleRythme = (r: Rythme) => RYTHMES.find((x) => x.valeur === r)?.court ?? "";
+
+/* ---------------------------------------------------------- Planification */
+
+/** Dates de la série : à partir de la première, au rythme, sans dépasser la fin. */
+export function datesSerie(p: { premiere: string; rythme: Rythme; nombre: number; fin: string }) {
+  const dates: string[] = [];
+  let d = p.premiere;
+  while (dates.length < p.nombre && d <= p.fin) {
+    dates.push(d);
+    d = seanceSuivante(d, p.rythme);
+  }
+  return dates;
+}
+
+export type LigneSerie = {
+  date: string;
+  heure: string;
+  /** L'heure voulue est libre ce jour-là. */
+  libre: boolean;
+  /** Sinon, le créneau libre le plus proche : même jour, puis jusqu'à 3 jours après. */
+  suggestion: { date: string; heure: string } | null;
+};
+
+const enMinutes = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+
+/** Place chaque date à l'heure voulue, ou propose le créneau libre le plus proche. */
+export function placerSerie(dates: string[], heure: string, libres: Record<string, string[]>): LigneSerie[] {
+  const pris = new Set<string>();
+  const proche = (jour: string) => {
+    const candidats = (libres[jour] ?? []).filter((h) => !pris.has(`${jour} ${h}`));
+    if (!candidats.length) return null;
+    return candidats.reduce((a, b) =>
+      Math.abs(enMinutes(b) - enMinutes(heure)) < Math.abs(enMinutes(a) - enMinutes(heure)) ? b : a,
+    );
+  };
+  return dates.map((date) => {
+    if ((libres[date] ?? []).includes(heure) && !pris.has(`${date} ${heure}`)) {
+      pris.add(`${date} ${heure}`);
+      return { date, heure, libre: true, suggestion: null };
+    }
+    for (let i = 0; i <= 3; i++) {
+      const jour = ajouterJours(date, i);
+      const h = proche(jour);
+      if (h) {
+        pris.add(`${jour} ${h}`);
+        return { date, heure, libre: false, suggestion: { date: jour, heure: h } };
+      }
+    }
+    return { date, heure, libre: false, suggestion: null };
+  });
+}

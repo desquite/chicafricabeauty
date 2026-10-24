@@ -3,9 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import {
+  ajouterJours,
+  datesSerie,
   DUREES,
   ecartJours,
   finAbonnement,
+  placerSerie,
+  seanceSuivante,
+  type LigneSerie,
   rythmePermis,
   VERSEMENTS_MAX,
   type Abonnement,
@@ -14,7 +19,9 @@ import {
 import { paiementConfigure } from "@/lib/afribapay";
 import { requireProfil } from "@/lib/auth";
 import { envoyerMessageAbonnement } from "@/lib/notifications/abonnement";
+import { creneauxDuPersonnel } from "@/lib/planification";
 import { createClient } from "@/lib/supabase/server";
+import { enregistrerRdv } from "../../rendez-vous/actions";
 
 export type Retour = { ok: boolean; erreur?: string; info?: string };
 
@@ -176,4 +183,128 @@ export async function renvoyerLien(id: string): Promise<Retour> {
   return r.whatsapp === "envoyé" || r.email === "envoyé"
     ? { ok: true, info: "Lien renvoyé à la cliente." }
     : { ok: false, erreur: `Envoi impossible : ${r.whatsapp}` };
+}
+
+/* ---------------------------------------------------- Planifier la série */
+
+export type PropositionSerie =
+  | {
+      ok: true;
+      lignes: LigneSerie[];
+      restantes: number;
+      heure: string;
+      soin: string;
+    }
+  | { ok: false; erreur: string };
+
+const HEURE = /^\d{2}:\d{2}$/;
+
+/**
+ * Les séances restantes au rythme de l'abonnement, à l'heure voulue, chacune
+ * marquée libre ou accompagnée du créneau libre le plus proche. Rien n'est
+ * encore créé : la gérante vérifie et ajuste d'abord.
+ */
+export async function proposerSerie(id: string, heureVoulue?: string): Promise<PropositionSerie> {
+  await exigerGerante();
+  const supabase = await createClient();
+  const { data: abo } = await supabase
+    .from("abonnements")
+    .select("*, soins_catalogue(libelle, duree_std)")
+    .eq("id", id)
+    .maybeSingle<Abonnement & { soins_catalogue: { libelle: string; duree_std: number | null } | null }>();
+  if (!abo || abo.statut !== "actif") return { ok: false, erreur: "Cet abonnement n'est pas actif." };
+
+  const jour = new Date().toISOString().slice(0, 10);
+  const fin = finAbonnement(abo);
+  const [{ data: seances }, { data: prevus }] = await Promise.all([
+    supabase
+      .from("seances")
+      .select("date_seance")
+      .eq("abonnement_id", id)
+      .returns<{ date_seance: string }[]>(),
+    supabase
+      .from("rendez_vous")
+      .select("date_rdv, heure_rdv")
+      .eq("cliente_id", abo.cliente_id)
+      .eq("soin_id", abo.soin_id)
+      .eq("statut", "prevu")
+      .is("remplace_par", null)
+      .is("masque_le", null)
+      .gte("date_rdv", jour)
+      .lte("date_rdv", fin)
+      .order("date_rdv")
+      .returns<{ date_rdv: string; heure_rdv: string | null }[]>(),
+  ]);
+
+  const restantes = abo.nb_seances - (seances?.length ?? 0) - (prevus?.length ?? 0);
+  if (restantes <= 0) return { ok: false, erreur: "Toutes les séances sont déjà faites ou planifiées." };
+
+  // On repart de la dernière venue ou du dernier rendez-vous déjà pris.
+  const reperes = [...(seances ?? []).map((s) => s.date_seance), ...(prevus ?? []).map((r) => r.date_rdv)].sort();
+  const dernier = reperes.at(-1);
+  let premiere = dernier ? seanceSuivante(dernier, abo.rythme) : abo.debut;
+  while (premiere <= jour) premiere = ajouterJours(premiere, 1);
+
+  const derniereHeure = (prevus ?? []).map((r) => r.heure_rdv).filter(Boolean).at(-1)?.slice(0, 5);
+  const heure = heureVoulue && HEURE.test(heureVoulue) ? heureVoulue : (derniereHeure ?? "10:00");
+
+  const dates = datesSerie({ premiere, rythme: abo.rythme, nombre: restantes, fin });
+  if (!dates.length) return { ok: false, erreur: "Plus de date possible avant la fin de l'abonnement." };
+
+  const libres = await creneauxDuPersonnel(supabase, {
+    duree: abo.soins_catalogue?.duree_std ?? 60,
+    jusquau: ajouterJours(fin, 3),
+  });
+  return {
+    ok: true,
+    lignes: placerSerie(dates, heure, Object.fromEntries(libres)),
+    restantes,
+    heure,
+    soin: abo.soins_catalogue?.libelle ?? "Soin",
+  };
+}
+
+/**
+ * Crée les rendez-vous retenus, un par un, par le même chemin qu'une saisie
+ * à la tablette : écart de préparation vérifié, pas d'acompte pour le soin
+ * couvert. Un créneau pris entre-temps est signalé, les autres sont créés.
+ */
+export async function creerSerie(
+  id: string,
+  lignes: { date: string; heure: string }[],
+): Promise<Retour & { erreurs?: string[] }> {
+  await exigerGerante();
+  const supabase = await createClient();
+  const { data: abo } = await supabase
+    .from("abonnements")
+    .select("cliente_id, soin_id, statut, soins_catalogue(duree_std)")
+    .eq("id", id)
+    .maybeSingle<{ cliente_id: string; soin_id: string; statut: string; soins_catalogue: { duree_std: number | null } | null }>();
+  if (!abo || abo.statut !== "actif") return { ok: false, erreur: "Cet abonnement n'est pas actif." };
+
+  const valides = lignes.filter((l) => DATE.test(l.date) && HEURE.test(l.heure)).slice(0, 60);
+  if (!valides.length) return { ok: false, erreur: "Aucun rendez-vous à créer." };
+
+  let crees = 0;
+  const erreurs: string[] = [];
+  for (const l of valides) {
+    const r = await enregistrerRdv({
+      cliente_id: abo.cliente_id,
+      date_rdv: l.date,
+      heure_rdv: l.heure,
+      duree_min: String(abo.soins_catalogue?.duree_std ?? 60),
+      soin_id: abo.soin_id,
+      notes: "Abonnement",
+    });
+    if (r.ok) crees += 1;
+    else erreurs.push(`${l.date.split("-").reverse().join("/")} ${l.heure.replace(":", "h")} : ${r.erreur ?? "refusé"}`);
+  }
+
+  rafraichir(abo.cliente_id);
+  return {
+    ok: crees > 0,
+    info: `${crees} rendez-vous créé${crees > 1 ? "s" : ""}.`,
+    erreur: crees === 0 ? "Aucun rendez-vous n'a pu être créé." : undefined,
+    erreurs,
+  };
 }

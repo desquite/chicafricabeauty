@@ -18,7 +18,9 @@ import type { AbonnementVue } from "@/lib/abonnements-lecture";
 import {
   annulerAbonnement,
   creerAbonnement,
+  creerSerie,
   mettreEnPause,
+  proposerSerie,
   renvoyerLien,
   reprendre,
   type Retour,
@@ -157,6 +159,8 @@ export function SectionAbonnement({
             <p className="rounded-lg bg-[#eef5ef] px-3 py-2 text-[13px] font-semibold text-[#2f5d3a]">
               Pas d&apos;acompte demandé pour ses rendez-vous {a.soin} jusqu&apos;au {jourMois(a.fin, true)}.
             </p>
+
+            {gerante && a.statut === "actif" && a.faites < a.nb_seances && <PlanifierSerie abonnementId={a.id} />}
 
             {gerante && (
               <div className="flex flex-wrap gap-2">
@@ -420,5 +424,161 @@ function NouvelAbonnement({
         </button>
       </div>
     </form>
+  );
+}
+
+type LigneEditable = { date: string; heure: string; garder: boolean; note: string | null };
+
+const jourSemaine = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+
+/**
+ * Planifier d'un coup les séances restantes : l'application propose les dates
+ * au rythme de l'abonnement, à l'heure habituelle, en décalant celles qui
+ * tombent sur un créneau pris ; la gérante ajuste puis crée les rendez-vous.
+ */
+export function PlanifierSerie({ abonnementId }: { abonnementId: string }) {
+  const router = useRouter();
+  const [ouvert, setOuvert] = useState(false);
+  const [enCours, demarrer] = useTransition();
+  const [heure, setHeure] = useState("");
+  const [lignes, setLignes] = useState<LigneEditable[] | null>(null);
+  const [message, setMessage] = useState<{ erreur?: string; info?: string; erreurs?: string[] } | null>(null);
+
+  const proposer = (h?: string) =>
+    demarrer(async () => {
+      setMessage(null);
+      const r = await proposerSerie(abonnementId, h);
+      if (!r.ok) {
+        setLignes(null);
+        setMessage({ erreur: r.erreur });
+        return;
+      }
+      setHeure(r.heure);
+      setLignes(
+        r.lignes.map((l) =>
+          l.libre
+            ? { date: l.date, heure: l.heure, garder: true, note: null }
+            : l.suggestion
+              ? {
+                  date: l.suggestion.date,
+                  heure: l.suggestion.heure,
+                  garder: true,
+                  note: `${l.heure.replace(":", "h")} déjà pris le ${jourSemaine(l.date)} : décalé`,
+                }
+              : { date: l.date, heure: l.heure, garder: false, note: "Aucun créneau libre à proximité" },
+        ),
+      );
+    });
+
+  const creer = () =>
+    demarrer(async () => {
+      const retenues = (lignes ?? []).filter((l) => l.garder).map(({ date, heure }) => ({ date, heure }));
+      const r = await creerSerie(abonnementId, retenues);
+      setMessage({ erreur: r.erreur, info: r.ok ? r.info : undefined, erreurs: r.erreurs });
+      if (r.ok) {
+        setLignes(null);
+        router.refresh();
+      }
+    });
+
+  const maj = (i: number, champ: Partial<LigneEditable>) =>
+    setLignes((ls) => (ls ? ls.map((l, j) => (j === i ? { ...l, ...champ, note: champ.note ?? l.note } : l)) : ls));
+  const nbRetenues = (lignes ?? []).filter((l) => l.garder).length;
+
+  if (!ouvert) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setOuvert(true);
+          proposer();
+        }}
+        className={boutonPlein}
+      >
+        Planifier les séances restantes
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex w-full flex-col gap-2.5 rounded-xl border border-brand-200 bg-white p-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="flex flex-col gap-1 text-sm font-semibold text-brand-800">
+          Heure habituelle
+          <input
+            type="time"
+            step={1800}
+            value={heure}
+            onChange={(e) => setHeure(e.target.value)}
+            className="h-10 rounded-lg border border-brand-200 px-2 text-base"
+          />
+        </label>
+        <button type="button" disabled={enCours || !heure} onClick={() => proposer(heure)} className={bouton}>
+          {enCours && <Rouet />}
+          Recalculer
+        </button>
+        <button type="button" onClick={() => setOuvert(false)} className={`${bouton} ml-auto`}>
+          Fermer
+        </button>
+      </div>
+
+      {lignes && (
+        <ul className="flex flex-col gap-1.5">
+          {lignes.map((l, i) => (
+            <li key={i} className={`flex flex-col gap-1 rounded-lg px-2 py-1.5 ${l.garder ? "bg-brand-50" : "bg-white opacity-60"}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={l.garder}
+                  onChange={(e) => maj(i, { garder: e.target.checked })}
+                  aria-label={`Garder la séance ${i + 1}`}
+                  className="h-5 w-5 accent-brand-600"
+                />
+                <span className="w-6 text-sm font-bold text-brand-500">{i + 1}</span>
+                <input
+                  type="date"
+                  value={l.date}
+                  onChange={(e) => maj(i, { date: e.target.value, note: null })}
+                  aria-label={`Date de la séance ${i + 1}`}
+                  className="h-10 rounded-lg border border-brand-200 px-2 text-base"
+                />
+                <input
+                  type="time"
+                  step={1800}
+                  value={l.heure}
+                  onChange={(e) => maj(i, { heure: e.target.value, note: null })}
+                  aria-label={`Heure de la séance ${i + 1}`}
+                  className="h-10 rounded-lg border border-brand-200 px-2 text-base"
+                />
+                <span className="text-sm text-brand-600">{jourSemaine(l.date)}</span>
+              </div>
+              {l.note && <span className="pl-14 text-xs font-semibold text-[#9a4b12]">{l.note}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {message?.erreur && (
+        <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+          {message.erreur}
+        </p>
+      )}
+      {message?.info && <p className="rounded-lg bg-[#eef5ef] px-3 py-2 text-sm font-semibold text-[#2f5d3a]">{message.info}</p>}
+      {message?.erreurs && message.erreurs.length > 0 && (
+        <ul className="rounded-lg bg-[#fff1e5] px-3 py-2 text-xs text-[#9a4b12]">
+          {message.erreurs.map((e) => (
+            <li key={e}>Non créé · {e}</li>
+          ))}
+        </ul>
+      )}
+
+      {lignes && (
+        <button type="button" disabled={enCours || nbRetenues === 0} onClick={creer} className={boutonPlein}>
+          {enCours && <Rouet />}
+          Créer {nbRetenues} rendez-vous
+        </button>
+      )}
+    </div>
   );
 }
