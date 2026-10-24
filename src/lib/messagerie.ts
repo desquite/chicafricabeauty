@@ -26,11 +26,18 @@ export function chiffresInternationaux(brut: string) {
 async function conversationPour(telephone: string, nom: string | null) {
   const admin = createAdminClient();
   const numero = chiffresInternationaux(telephone);
-  const { data: existante } = await admin
+  // Un même numéro ivoirien arrive sous deux formes : WhatsApp transmet
+  // souvent l'ancien format à 8 chiffres (22509646096), les fiches gardent
+  // le nouveau à 10 (2250709646096). Les 8 derniers chiffres les réunissent.
+  const fin = numero.slice(-8);
+  const { data: candidates } = await admin
     .from("conversations")
-    .select("id, cliente_id, nom_contact")
-    .eq("telephone", numero)
-    .maybeSingle<{ id: string; cliente_id: string | null; nom_contact: string | null }>();
+    .select("id, telephone, cliente_id, nom_contact")
+    .like("telephone", `%${fin}`)
+    .returns<{ id: string; telephone: string; cliente_id: string | null; nom_contact: string | null }[]>();
+  const existante =
+    (candidates ?? []).find((c) => c.telephone === numero) ??
+    (numero.startsWith("225") ? (candidates ?? []).find((c) => c.telephone.startsWith("225")) : undefined);
   if (existante) {
     // Fiche créée depuis : on rattache la conversation à la première occasion.
     if (!existante.cliente_id) {
@@ -55,7 +62,12 @@ async function conversationPour(telephone: string, nom: string | null) {
   if (creee) return creee.id;
   // Deux messages simultanés du même numéro : l'autre a créé la conversation.
   if (error?.code === "23505") {
-    const { data } = await admin.from("conversations").select("id").eq("telephone", numero).single<{ id: string }>();
+    const { data } = await admin
+      .from("conversations")
+      .select("id")
+      .like("telephone", `%${fin}`)
+      .limit(1)
+      .maybeSingle<{ id: string }>();
     if (data) return data.id;
   }
   throw new Error(`Conversation impossible : ${error?.message}`);
