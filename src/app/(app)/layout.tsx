@@ -3,6 +3,7 @@ import { requireProfil } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { BarreChargement } from "@/components/attente";
 import { NavigationTablette } from "@/components/navigation-tablette";
+import { pastillesCaisse } from "@/lib/caisse-lecture";
 import { seDeconnecter } from "@/app/connexion/actions";
 import { Logo } from "@/components/logo";
 
@@ -23,7 +24,12 @@ export default async function LayoutApplication({
     .eq("statut", "prevu")
     .is("remplace_par", null)
     .is("masque_le", null);
-  const pastilles = { "/rendez-vous": rdvRestants ?? 0 };
+  // La gerante voit aussi le volet Caisse : rendez-vous a facturer, stock bas.
+  const gerante = profil.role === "gerante";
+  const pastilles = {
+    "/rendez-vous": rdvRestants ?? 0,
+    ...(gerante ? await pastillesCaisse(supabase) : {}),
+  };
 
   return (
     <div className="flex min-h-full flex-1">
@@ -45,7 +51,7 @@ export default async function LayoutApplication({
           </div>
         </div>
 
-        <NavigationTablette pastilles={pastilles} />
+        <NavigationTablette pastilles={pastilles} gerante={gerante} />
 
         <div className="mt-auto border-t border-brand-100 p-4">
           <p className="truncate text-sm font-medium text-brand-800">
@@ -71,7 +77,7 @@ export default async function LayoutApplication({
         </main>
         {/* En portrait, la navigation reste figée en bas de l'écran : le pouce
             y accède seul, sans descendre jusqu'au bas de la page. */}
-        <NavigationTablette variante="basse" pastilles={pastilles} />
+        <NavigationTablette variante="basse" pastilles={pastilles} gerante={gerante} />
       </div>
     </div>
   );
