@@ -7,7 +7,7 @@ import type { JourCreneaux } from "@/lib/creneaux";
 import type { PrestationPublique } from "@/lib/reservation";
 import { GROUPES } from "@/lib/disponibilites";
 import { INDICATIF_DEFAUT, listeIndicatifs, normaliserNumero } from "@/lib/indicatifs";
-import { montantAcompte, veilleLimite } from "@/lib/regles-acompte";
+import { echeanceTardive, montantAcompte, veilleLimite } from "@/lib/regles-acompte";
 import {
   lireCreneaux,
   reconnaitre,
@@ -294,11 +294,12 @@ export default function Reservation({
     return () => clearInterval(minuteur);
   }, [etape, soin, appliquerCreneaux]);
 
-  // Rendez-vous apres la veille 18h : plus de « payer plus tard ». Calcule ici
-  // pour l'affichage ; le serveur tranche avec sa propre horloge.
+  // Rendez-vous apres la veille 18h : l'acompte se regle jusqu'a 2 h avant le
+  // rendez-vous. Calcule ici pour l'affichage ; le serveur tranche avec sa
+  // propre horloge.
   const obligatoire = !!acompte?.obligatoire;
   const immediat = obligatoire && !!date && new Date() >= veilleLimite(date);
-  const payerTout = payerMaintenant || immediat;
+  const payerTout = payerMaintenant;
   // Jamais plus que le prix du soin : une pedicure a 5 000 F se regle 5 000 F.
   const montantSoin = acompte ? montantAcompte(acompte.montant, soin?.prixValeur ?? null) : 0;
 
@@ -543,7 +544,7 @@ export default function Reservation({
     const echeance = recap.echeance ? new Date(recap.echeance) : null;
     const limiteTexte = echeance
       ? recap.immediat
-        ? `avant ${echeance.getUTCHours()}h${String(echeance.getUTCMinutes()).padStart(2, "0")}`
+        ? `au plus tard le ${jourLimite(echeance)} à ${echeance.getUTCHours()}h${String(echeance.getUTCMinutes()).padStart(2, "0")}`
         : `au plus tard le ${jourLimite(echeance)} à 18h`
       : "";
     const lienAcompte = `/a/${recap.code}`;
@@ -590,7 +591,7 @@ export default function Reservation({
             <>
               Ton créneau est retenu. Règle l&apos;acompte {limiteTexte} pour le confirmer : sans
               acompte, le rendez-vous est annulé automatiquement.
-              {!recap.immediat && " Le lien de paiement t'a aussi été envoyé sur WhatsApp."}
+              {" Le lien de paiement t'est aussi envoyé sur WhatsApp."}
             </>
           ) : enSuspens ? (
             <>Ton créneau est retenu. Termine le paiement de l&apos;acompte pour le confirmer.</>
@@ -851,8 +852,13 @@ export default function Reservation({
   /* ------------------------------------------------------------ 4. Acompte */
   if (etape === 3 && acompte) {
     const montant = `${montantSoin.toLocaleString("fr-FR")} F CFA`;
-    const limite = date ? jourLimite(veilleLimite(date)) : "";
-    const plusTardPossible = !immediat;
+    const tardive = immediat && date ? echeanceTardive(date, choixHeure || null, new Date()) : null;
+    const limite = tardive
+      ? `${jourLimite(tardive)} à ${tardive.getUTCHours()}h${String(tardive.getUTCMinutes()).padStart(2, "0")}`
+      : date
+        ? `${jourLimite(veilleLimite(date))} à 18h`
+        : "";
+    const plusTardPossible = true;
     const maintenant = payerTout;
     return (
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col">
@@ -867,8 +873,8 @@ export default function Reservation({
               </p>
               {immediat && (
                 <p className="rounded-2xl bg-brand-100 px-4 py-3 text-sm leading-relaxed text-brand-800">
-                  Ton rendez-vous est très proche : l&apos;acompte se règle maintenant pour le
-                  confirmer. Sans paiement dans les 30 minutes, le créneau est libéré.
+                  Ton rendez-vous est très proche : l&apos;acompte est à régler au plus tard le{" "}
+                  {limite}. Sans paiement à cette heure-là, le créneau est libéré.
                 </p>
               )}
             </>
@@ -926,7 +932,7 @@ export default function Reservation({
                 </span>
                 <span className="text-[13px] leading-snug text-brand-600">
                   {obligatoire
-                    ? `Tu reçois le lien de paiement sur WhatsApp. À régler au plus tard le ${limite} à 18h, sinon le rendez-vous est annulé automatiquement.`
+                    ? `Tu reçois le lien de paiement sur WhatsApp. À régler au plus tard le ${limite}, sinon le rendez-vous est annulé automatiquement.`
                     : "Tu pourras régler l'acompte à l'institut."}
                 </span>
               </span>
@@ -938,7 +944,7 @@ export default function Reservation({
               Conditions de l&apos;acompte
             </summary>
             {obligatoire &&
-              "L'acompte est obligatoire et se règle au plus tard la veille du rendez-vous à 18h ; sans acompte à cette heure-là, le rendez-vous est annulé automatiquement. "}
+              "L'acompte est obligatoire et se règle au plus tard la veille du rendez-vous à 18h (pour une réservation faite après, au plus tard 2 h avant le rendez-vous) ; sans acompte à cette heure-là, le rendez-vous est annulé automatiquement. "}
             L&apos;acompte n&apos;est pas remboursable. Il est retenu en cas de retard de plus de 30
             minutes, d&apos;annulation moins de 24 h avant le rendez-vous, ou d&apos;absence non
             justifiée.

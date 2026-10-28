@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { after } from "next/server";
+import { adressePublique } from "@/lib/adresse";
 import { alerterGerantes } from "@/lib/notifications/gerantes";
 import {
   etatAcompte,
@@ -265,7 +266,7 @@ export async function reserver(saisie: {
     admin.from("soins_catalogue").select("*").eq("id", saisie.soinId).single<SoinCatalogue>(),
     admin
       .from("rendez_vous")
-      .select("date_rdv, created_at, source, acompte_requis, acompte_paye_le")
+      .select("date_rdv, heure_rdv, created_at, source, acompte_requis, acompte_paye_le")
       .eq("id", resultat.id!)
       .single<RdvAcompte>(),
     admin.from("reglages_rdv").select("acompte_montant").maybeSingle<{ acompte_montant: number }>(),
@@ -293,17 +294,20 @@ export async function reserver(saisie: {
   // n'allait pas au bout (passage par l'appli Wave, code Orange, reseau)
   // n'avait plus aucun moyen de payer : la gerante devait supprimer le
   // rendez-vous pour qu'elle reserve de nouveau.
-  // Paiement immediat (apres la veille 18h) : le modele WhatsApp annonce une
-  // limite « a 18h » qui serait fausse ; la cliente garde l'ecran et retrouve
-  // son paiement en revenant sur /rdv.
+  // Reservation tardive (apres la veille 18h) : le lien part aussi. Sans lui,
+  // une cliente qui reservait le soir sans solde Mobile Money n'avait plus
+  // aucun moyen de payer le lendemain matin.
   const rdvId = resultat.id!;
   const requis = Boolean(rdv?.acompte_requis);
   const quand = quandLisible(saisie.date, saisie.heure);
   const nomSoin = soin?.libelle_public || soin?.libelle || "soin";
+  // Reservation tardive : la gerante recoit aussi le lien, a transmettre a
+  // la cliente si le message automatique n'a pas pu partir.
+  const lienGerante = requis && immediat ? ` (${await adressePublique()}/a/${resultat.code})` : "";
   const alerter = async () => {
     await alerterGerantes(
       `Nouveau rendez-vous en ligne : ${nom} (${numero.affiche}) · ${nomSoin} · ${quand}` +
-        (requis ? " · acompte à régler" : "") +
+        (requis ? ` · acompte à régler${lienGerante}` : "") +
         (cliente.nouvelle ? " · nouvelle cliente, fiche santé à remplir" : ""),
     ).catch(() => null);
   };
@@ -312,7 +316,7 @@ export async function reserver(saisie: {
     await alerter();
     if (!requis) {
       await envoyerMessageAcompte(rdvId, "confirmation").catch(() => null);
-    } else if (!immediat) {
+    } else {
       if (saisie.acompteMaintenant) {
         // Laisser au paiement lance a l'ecran le temps d'aboutir : une cliente
         // qui vient de payer ne recoit pas « reglez l'acompte ».

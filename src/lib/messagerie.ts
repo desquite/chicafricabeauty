@@ -23,6 +23,21 @@ export function chiffresInternationaux(brut: string) {
   return c.length === 10 ? `225${c}` : c;
 }
 
+/**
+ * La cliente a-t-elle écrit à l'institut depuis moins de 24 h ? Un message
+ * libre peut alors partir sans modèle approuvé.
+ */
+export async function fenetreOuverte(telephone: string) {
+  const fin = chiffresInternationaux(telephone).slice(-8);
+  const { data } = await createAdminClient()
+    .from("conversations")
+    .select("derniere_entree_le")
+    .like("telephone", `%${fin}`)
+    .returns<{ derniere_entree_le: string | null }[]>();
+  const depuis = Date.now() - FENETRE_MS;
+  return (data ?? []).some((c) => c.derniere_entree_le && Date.parse(c.derniere_entree_le) > depuis);
+}
+
 async function conversationPour(telephone: string, nom: string | null) {
   const admin = createAdminClient();
   const numero = chiffresInternationaux(telephone);

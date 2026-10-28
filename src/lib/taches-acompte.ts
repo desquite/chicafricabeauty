@@ -17,7 +17,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 type Ligne = RdvAcompte & { id: string };
 
-const CHAMPS = "id, date_rdv, created_at, source, acompte_requis, acompte_paye_le";
+const CHAMPS = "id, date_rdv, heure_rdv, created_at, source, acompte_requis, acompte_paye_le";
 
 function aRegler() {
   return createAdminClient()

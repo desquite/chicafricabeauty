@@ -20,6 +20,7 @@ export type ResultatEnvoi = { ok: boolean; erreur?: string };
 const LIBELLES_MODELES: Record<string, string> = {
   rdv_confirme: "Confirmation de rendez-vous envoyée",
   acompte_lien: "Lien de paiement de l'acompte envoyé",
+  acompte_lien_tardif: "Lien de paiement de l'acompte envoyé",
   acompte_rappel: "Rappel d'acompte envoyé",
   acompte_recu: "Reçu d'acompte envoyé",
   rdv_annule_acompte: "Annulation (acompte non réglé) envoyée",
@@ -55,14 +56,24 @@ export async function envoyerWhatsapp(
   if (!numero) return { ok: false, erreur: `Numéro invalide : ${destinataire}` };
 
   try {
-    const reponse = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${cle}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ sessionId: session, to: numero, text: texte }),
-    });
+    const envoyer = () =>
+      fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${cle}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ sessionId: session, to: numero, text: texte }),
+      });
+    let reponse = await envoyer();
+    // Protection de compte : un message toutes les 5 secondes. La deuxième
+    // gérante, alertée juste après la première, était refusée en 429 : on
+    // attend le délai indiqué, puis un second essai.
+    if (reponse.status === 429) {
+      const attente = Number((await reponse.json().catch(() => null))?.retry_after);
+      await new Promise((r) => setTimeout(r, (Number.isFinite(attente) ? Math.min(attente, 10) : 5) * 1000 + 500));
+      reponse = await envoyer();
+    }
 
     if (!reponse.ok) {
       const detail = await reponse.text().catch(() => "");

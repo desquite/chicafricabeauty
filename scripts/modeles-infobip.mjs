@@ -51,7 +51,7 @@ for (const chemin of CHEMINS) {
       `     ${String(m.name ?? "").padEnd(26)} ${String(m.status ?? "").padEnd(12)} ` +
         `${String(m.category ?? "").padEnd(10)} id=${m.id ?? "-"}`,
     );
-    const corpsModele = m.structure?.body ?? m.body ?? null;
+    const corpsModele = m.structure?.body?.text ?? m.structure?.body ?? m.body ?? null;
     if (corpsModele) {
       console.log(`        ${String(corpsModele).replace(/\n/g, " / ").slice(0, 200)}`);
     }

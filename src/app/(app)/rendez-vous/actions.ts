@@ -185,7 +185,7 @@ export async function enregistrerRdv(saisie: {
           ? { acompte_montant: ancien.acompte_montant, acompte_paye_le: ancien.acompte_paye_le }
           : {}),
       })
-      .select("id, date_rdv, created_at, source, acompte_requis, acompte_paye_le")
+      .select("id, date_rdv, heure_rdv, created_at, source, acompte_requis, acompte_paye_le")
       .single<RdvAcompte & { id: string }>();
     if (error || !cree) {
       return { ok: false, erreur: error?.message ?? "Enregistrement impossible." };

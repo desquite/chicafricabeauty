@@ -5,7 +5,8 @@
  * la veille du rendez-vous à 18h, sinon le rendez-vous est annulé.
  *
  *   en ligne    lien à la réservation, rappels à J-3, J-2 et le matin de J-1 ;
- *               réservé après la veille 18h : 30 minutes pour payer
+ *               réservé après la veille 18h : jusqu'à 2 h avant le
+ *               rendez-vous, et jamais moins de 30 minutes pour payer
  *   tablette    lien à J-2, rappel le matin de J-1 ; saisi après la veille
  *               18h : pas d'échéance, la cliente règle sur place
  *
@@ -18,6 +19,7 @@ export type Source = "personnel" | "en_ligne";
 
 export type RdvAcompte = {
   date_rdv: string;
+  heure_rdv: string | null;
   /** Horodatage ISO de création. */
   created_at: string;
   source: Source;
@@ -26,6 +28,9 @@ export type RdvAcompte = {
 };
 
 export const HEURE_LIMITE = 18;
+/** Réservé après la veille 18h : l'acompte se règle jusqu'à 2 h avant le rendez-vous… */
+export const AVANCE_SUR_RDV_MIN = 120;
+/** … mais la cliente a toujours au moins 30 minutes pour payer. */
 export const DELAI_IMMEDIAT_MIN = 30;
 
 const DEUX = (n: number) => String(n).padStart(2, "0");
@@ -38,15 +43,27 @@ export function veilleLimite(dateRdv: string) {
   return d;
 }
 
-export function echeanceAcompte(rdv: Pick<RdvAcompte, "date_rdv" | "created_at" | "source">) {
+/**
+ * Échéance d'une réservation tardive : 2 h avant le rendez-vous, jamais
+ * moins de 30 minutes après la réservation. Une cliente qui réserve à 22h
+ * pour 11h30 le lendemain a jusqu'à 9h30 : elle peut payer au réveil.
+ */
+export function echeanceTardive(dateRdv: string, heureRdv: string | null, cree: Date) {
+  const auPlusTot = cree.getTime() + DELAI_IMMEDIAT_MIN * 60_000;
+  if (!heureRdv) return new Date(auPlusTot);
+  const debut = new Date(`${dateRdv}T${heureRdv.slice(0, 5)}:00Z`).getTime();
+  return new Date(Math.max(debut - AVANCE_SUR_RDV_MIN * 60_000, auPlusTot));
+}
+
+export function echeanceAcompte(rdv: Pick<RdvAcompte, "date_rdv" | "heure_rdv" | "created_at" | "source">) {
   const limite = veilleLimite(rdv.date_rdv);
   const cree = new Date(rdv.created_at);
   if (cree < limite) return limite;
-  if (rdv.source === "en_ligne") return new Date(cree.getTime() + DELAI_IMMEDIAT_MIN * 60_000);
+  if (rdv.source === "en_ligne") return echeanceTardive(rdv.date_rdv, rdv.heure_rdv, cree);
   return null;
 }
 
-/** Réservé en ligne après la veille 18h : l'acompte se paie sur-le-champ. */
+/** Réservé en ligne après la veille 18h : l'échéance n'est plus la veille 18h. */
 export function paiementImmediat(rdv: Pick<RdvAcompte, "date_rdv" | "created_at" | "source">) {
   return rdv.source === "en_ligne" && new Date(rdv.created_at) >= veilleLimite(rdv.date_rdv);
 }

@@ -45,7 +45,7 @@ export async function initierAcompte(p: {
     admin
       .from("rendez_vous")
       .select(
-        `id, date_rdv, created_at, statut, source, acompte_requis, acompte_paye_le, remplace_par, soins_catalogue(${CHAMPS_PRIX_SOIN})`,
+        `id, date_rdv, heure_rdv, created_at, statut, source, acompte_requis, acompte_paye_le, remplace_par, soins_catalogue(${CHAMPS_PRIX_SOIN})`,
       )
       .eq("code_acompte", p.code)
       .maybeSingle<
