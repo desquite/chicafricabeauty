@@ -63,6 +63,7 @@ export async function passerCommande(s: {
   });
   if (!r.ok) {
     console.error(`Jèko : ${c.numero} ${r.erreur}`);
+    await admin.from("commandes").update({ erreur_paiement: r.erreur.slice(0, 500) }).eq("id", c.id);
     await admin.rpc("abandonner_commande", { p_commande: c.id });
     return { ok: false, erreur: "Le paiement n'a pas pu démarrer. Réessayez dans un instant, ou choisissez un autre moyen." };
   }
