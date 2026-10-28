@@ -5,6 +5,7 @@ import { proposerBrouillon } from "@/lib/assistant/brouillon";
 import { requireProfil } from "@/lib/auth";
 import { FENETRE_MS, journaliserSortant } from "@/lib/messagerie";
 import { envoyerTexteWhatsapp } from "@/lib/notifications/whatsapp";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type Retour = { ok: boolean; erreur?: string };
@@ -80,5 +81,18 @@ export async function ignorerBrouillon(conversationId: string): Promise<Retour> 
     .update({ brouillon: null, brouillon_main: false, brouillon_raison: null, brouillon_pour: null })
     .eq("id", conversationId);
   revalidatePath("/messages");
+  return { ok: true };
+}
+
+/** Allume ou coupe l'envoi automatique de l'assistant ; réservé à la gérante. */
+export async function changerEnvoiAuto(actif: boolean): Promise<Retour> {
+  const profil = await requireProfil();
+  if (profil.role !== "gerante") return { ok: false, erreur: "Seule la gérante peut changer ce réglage." };
+  const { error } = await createAdminClient()
+    .from("reglages_assistant")
+    .update({ envoi_auto: actif, modifie_le: new Date().toISOString(), modifie_par: profil.id })
+    .eq("id", true);
+  if (error) return { ok: false, erreur: error.message };
+  revalidatePath("/messages", "layout");
   return { ok: true };
 }

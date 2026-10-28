@@ -193,6 +193,7 @@ export async function journaliserSortant(p: {
   sens: "sortant" | "auto";
   auteur?: string | null;
   echec?: string | null;
+  parAssistant?: boolean;
 }) {
   try {
     const admin = createAdminClient();
@@ -204,6 +205,7 @@ export async function journaliserSortant(p: {
       texte: p.texte,
       auteur: p.auteur ?? null,
       echec: p.echec ?? null,
+      par_assistant: p.parAssistant ?? false,
     });
     if (!p.echec) {
       await admin

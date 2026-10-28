@@ -43,10 +43,11 @@ export async function POST(requete: Request) {
     }
   }
   // L'assistant prépare son brouillon après la réponse à Infobip, qui
-  // n'attend pas.
+  // n'attend pas ; il l'envoie lui-même si la gérante a allumé l'envoi
+  // automatique.
   if (assistantConfigure() && aTraiter.size) {
     after(async () => {
-      for (const id of aTraiter) await proposerBrouillon(id);
+      for (const id of aTraiter) await proposerBrouillon(id, { envoyer: true });
     });
   }
   // Toujours 200 une fois la clé vérifiée : un refus ferait renvoyer le

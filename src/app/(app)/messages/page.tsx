@@ -2,10 +2,11 @@ import Link from "next/link";
 import { requireProfil } from "@/lib/auth";
 import { pastillesAbonnees } from "@/lib/abonnements-lecture";
 import { adressePublique } from "@/lib/adresse";
-import { assistantConfigure } from "@/lib/assistant/brouillon";
+import { assistantConfigure, envoiAutoActif } from "@/lib/assistant/brouillon";
 import { FENETRE_MS } from "@/lib/messagerie";
 import { createClient } from "@/lib/supabase/server";
 import { INSTITUT } from "@/app/rdv/institut";
+import { InterrupteurAssistant } from "./interrupteur";
 import { Discussion, type MessageVue, type Raccourci } from "./discussion";
 import { ListeConversations, type ConversationVue } from "./liste";
 
@@ -45,7 +46,7 @@ export default async function PageMessages({
 }: {
   searchParams: Promise<{ c?: string; filtre?: string }>;
 }) {
-  await requireProfil();
+  const profil = await requireProfil();
   const { c: choisie, filtre: f } = await searchParams;
   const filtre = f === "reglees" || f === "toutes" ? f : "traiter";
   const supabase = await createClient();
@@ -84,7 +85,7 @@ export default async function PageMessages({
     if (c) {
       const { data: messages } = await supabase
         .from("messages")
-        .select("id, sens, type, texte, media_url, echec, cree_le, profiles:auteur(nom)")
+        .select("id, sens, type, texte, media_url, echec, cree_le, par_assistant, profiles:auteur(nom)")
         .eq("conversation_id", c.id)
         .order("cree_le", { ascending: false })
         .limit(200)
@@ -97,6 +98,7 @@ export default async function PageMessages({
             media_url: string | null;
             echec: string | null;
             cree_le: string;
+            par_assistant: boolean;
             profiles: { nom: string } | null;
           }[]
         >();
@@ -110,7 +112,7 @@ export default async function PageMessages({
           media: Boolean(m.media_url),
           echec: m.echec,
           quand: m.cree_le,
-          auteur: m.profiles?.nom.split(" ")[0] ?? null,
+          auteur: m.par_assistant ? "Assistant" : (m.profiles?.nom.split(" ")[0] ?? null),
         })),
       };
 
@@ -200,10 +202,12 @@ export default async function PageMessages({
       ? { texte: ouverte.brouillon, main: ouverte.brouillon_main, raison: ouverte.brouillon_raison }
       : null;
   const assistant = assistantConfigure();
+  const envoiAuto = assistant && (await envoiAutoActif());
 
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:h-[calc(100dvh-4rem)] lg:flex-row">
       <div className={`${ouverte ? "hidden lg:flex" : "flex"} w-full flex-col lg:w-[340px] lg:shrink-0`}>
+        {assistant && <InterrupteurAssistant actif={envoiAuto} modifiable={profil.role === "gerante"} />}
         <ListeConversations conversations={liste} filtre={filtre} ouverte={ouverte?.id ?? null} />
       </div>
       {ouverte ? (
@@ -251,7 +255,9 @@ export default async function PageMessages({
             <div className="mt-auto rounded-xl border border-dashed border-brand-300 bg-brand-50 p-3 text-xs text-brand-600">
               <strong className="block text-brand-700">Assistant IA · mode brouillon</strong>
               {assistant
-                ? "Après chaque message, il propose une réponse : rien ne part sans vous."
+                ? envoiAuto
+                  ? "Envoi automatique allumé : il répond seul, et vous laisse les conversations où il passe la main."
+                  : "Après chaque message, il propose une réponse : rien ne part sans vous."
                 : "Pas encore activé : la clé DEEPSEEK_API_KEY manque dans Vercel."}
             </div>
           </aside>

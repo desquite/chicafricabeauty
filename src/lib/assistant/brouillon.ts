@@ -2,6 +2,9 @@ import "server-only";
 import { z } from "zod";
 import { CONNAISSANCES } from "@/lib/assistant/connaissances";
 import { contexteEnDirect } from "@/lib/assistant/contexte";
+import { journaliserSortant } from "@/lib/messagerie";
+import { alerterGerantes } from "@/lib/notifications/gerantes";
+import { envoyerTexteWhatsapp } from "@/lib/notifications/whatsapp";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -85,6 +88,47 @@ function transcrire(lignes: Ligne[]) {
     .join("\n");
 }
 
+/**
+ * Envoi automatique d'une proposition. La cliente vient d'écrire : la
+ * fenêtre de 24 h est ouverte. Si elle a réécrit, ou si quelqu'un a répondu
+ * pendant la rédaction, la proposition est caduque et rien ne part.
+ */
+async function envoyerSeul(
+  conversationId: string,
+  conv: { telephone: string; nom_contact: string | null; clientes: { nom_complet: string } | null },
+  pour: string,
+  p: Proposition,
+): Promise<{ ok: boolean; detail: string }> {
+  const admin = createAdminClient();
+  const { data: plusRecent } = await admin
+    .from("messages")
+    .select("id")
+    .eq("conversation_id", conversationId)
+    .is("echec", null)
+    .order("cree_le", { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string }>();
+  if (plusRecent?.id !== pour) return { ok: true, detail: "brouillon prêt (conversation avancée, rien envoyé)" };
+
+  const texte = p.reponse.trim();
+  const r = await envoyerTexteWhatsapp(conv.telephone, texte);
+  await journaliserSortant({ telephone: conv.telephone, texte, sens: "sortant", echec: r.ok ? null : r.erreur, parAssistant: true });
+  if (!r.ok) return { ok: true, detail: `brouillon prêt, envoi automatique échoué : ${r.erreur}` };
+
+  if (p.passer_la_main) {
+    // Le message d'attente est parti ; la vraie réponse revient à la gérante.
+    await admin.from("conversations").update({ brouillon: null, brouillon_pour: null, statut: "a_traiter" }).eq("id", conversationId);
+    const qui = conv.clientes?.nom_complet ?? conv.nom_contact ?? conv.telephone;
+    await alerterGerantes(`Assistant : ${qui} attend votre réponse (${p.raison.trim() || "à reprendre"})`);
+    return { ok: true, detail: "message d'attente envoyé, gérantes alertées" };
+  }
+  await admin
+    .from("conversations")
+    .update({ statut: "reglee", non_lus: 0, brouillon: null, brouillon_main: false, brouillon_raison: null, brouillon_pour: null })
+    .eq("id", conversationId);
+  return { ok: true, detail: "réponse envoyée" };
+}
+
 type ReponseDeepseek = {
   choices?: { message?: { content?: string | null }; finish_reason?: string }[];
   usage?: { prompt_cache_hit_tokens?: number; prompt_cache_miss_tokens?: number; completion_tokens?: number };
@@ -101,17 +145,35 @@ function lireProposition(texte: string | null | undefined): Proposition | null {
   }
 }
 
+/** Envoi automatique allumé par la gérante ; coupé si la lecture échoue. */
+export async function envoiAutoActif() {
+  const { data } = await createAdminClient().from("reglages_assistant").select("envoi_auto").maybeSingle<{ envoi_auto: boolean }>();
+  return data?.envoi_auto === true;
+}
+
 /**
  * Prépare et enregistre la proposition pour une conversation, si son dernier
  * message vient de la cliente. Ne lève jamais : un échec laisse simplement
  * la conversation sans brouillon.
+ *
+ * Avec `envoyer` (message reçu, pas une demande de la gérante) et l'envoi
+ * automatique allumé, la réponse part seule. Quand l'assistant passe la
+ * main, le message d'attente part aussi, mais la conversation reste à
+ * traiter et les gérantes sont alertées.
  */
-export async function proposerBrouillon(conversationId: string): Promise<{ ok: boolean; detail: string }> {
+export async function proposerBrouillon(
+  conversationId: string,
+  { envoyer = false }: { envoyer?: boolean } = {},
+): Promise<{ ok: boolean; detail: string }> {
   if (!assistantConfigure()) return { ok: false, detail: "DEEPSEEK_API_KEY manquante" };
   const admin = createAdminClient();
   try {
     const [{ data: conv }, { data: recents }] = await Promise.all([
-      admin.from("conversations").select("id, cliente_id").eq("id", conversationId).maybeSingle<{ id: string; cliente_id: string | null }>(),
+      admin
+        .from("conversations")
+        .select("id, cliente_id, telephone, nom_contact, clientes(nom_complet)")
+        .eq("id", conversationId)
+        .maybeSingle<{ id: string; cliente_id: string | null; telephone: string; nom_contact: string | null; clientes: { nom_complet: string } | null }>(),
       admin
         .from("messages")
         .select("id, sens, type, texte, cree_le, echec")
@@ -175,7 +237,9 @@ export async function proposerBrouillon(conversationId: string): Promise<{ ok: b
         brouillon_le: new Date().toISOString(),
       })
       .eq("id", conversationId);
-    return { ok: true, detail: "brouillon prêt" };
+
+    if (!envoyer || !(await envoiAutoActif())) return { ok: true, detail: "brouillon prêt" };
+    return await envoyerSeul(conversationId, conv, (dernier as { id: string }).id, p);
   } catch (e) {
     const detail =
       e instanceof Error && e.name === "TimeoutError" ? "DeepSeek n'a pas répondu à temps" : e instanceof Error ? e.message : "erreur inconnue";
