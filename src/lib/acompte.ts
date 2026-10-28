@@ -81,16 +81,29 @@ export async function initierAcompte(p: {
 
   const { data: enCours } = await admin
     .from("paiements_acompte")
-    .select("id")
+    .select("order_id, operateur, lien_paiement")
     .eq("rendez_vous_id", rdv.id)
     .eq("statut", "en_attente")
     .gte("created_at", new Date(Date.now() - DELAI_TENTATIVE_MS).toISOString())
+    .order("created_at", { ascending: false })
     .limit(1);
-  if (enCours?.length) {
-    return {
-      ok: false,
-      erreur: "Un paiement est déjà en cours pour ce rendez-vous. Valide-le sur ton téléphone, ou réessaie dans quelques minutes.",
-    };
+  const tentative = enCours?.[0];
+  if (tentative) {
+    // Avant de bloquer, on demande à AfribaPay : une tentative déjà échouée
+    // ne doit pas empêcher d'en refaire une.
+    const etat = await etatAcompte(tentative.order_id);
+    if (etat === "reussi") return { ok: false, erreur: "L'acompte de ce rendez-vous est déjà réglé." };
+    if (etat === "en_attente") {
+      // Même opérateur, page Wave fermée trop tôt : on rend le même lien plutôt
+      // que de bloquer la cliente dix minutes (Carine Camara, 28 octobre).
+      if (tentative.operateur === p.operateur && tentative.lien_paiement) {
+        return { ok: true, orderId: tentative.order_id, etat, lien: tentative.lien_paiement };
+      }
+      return {
+        ok: false,
+        erreur: "Un paiement est déjà en cours pour ce rendez-vous. Valide-le sur ton téléphone, ou réessaie dans quelques minutes.",
+      };
+    }
   }
 
   const orderId = nouvelOrderId();
