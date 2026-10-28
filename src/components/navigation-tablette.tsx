@@ -30,6 +30,7 @@ const ENTREES: Entree[] = [
 const ENTREES_CAISSE: Entree[] = [
   { href: "/caisse", libelle: "À facturer", exact: true, icone: "M4 4h16v16H4zM8 9h8M8 13h8M8 17h5" },
   { href: "/caisse/factures", libelle: "Factures", icone: "M6 2h9l5 5v15H6zM14 2v6h6M9 13h6M9 17h6" },
+  { href: "/caisse/boutique", libelle: "Boutique", icone: "M5 8h14l-1.2 11.1a1 1 0 0 1-1 .9H7.2a1 1 0 0 1-1-.9L5 8zM9 8V6a3 3 0 0 1 6 0v2" },
   { href: "/caisse/stock", libelle: "Stock", icone: "M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8" },
   { href: "/caisse/cloture", libelle: "Clôture", icone: "M4 20V10M10 20V4M16 20v-7M22 20H2" },
 ];

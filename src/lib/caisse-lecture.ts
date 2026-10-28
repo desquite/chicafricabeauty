@@ -97,9 +97,15 @@ export const stockBas = (p: Pick<Produit, "stock" | "seuil">) => p.stock <= p.se
 
 /** Pastilles du volet Caisse : rendez-vous à facturer, produits en stock bas. */
 export async function pastillesCaisse(supabase: Client) {
-  const [aFacturer, produits] = await Promise.all([lireAFacturer(supabase), lireProduits(supabase)]);
+  const [aFacturer, produits, { count: aEnvoyer }] = await Promise.all([
+    lireAFacturer(supabase),
+    lireProduits(supabase),
+    // Commandes de la boutique payées, pas encore parties.
+    supabase.from("commandes").select("id", { count: "exact", head: true }).eq("statut", "payee"),
+  ]);
   return {
     "/caisse": aFacturer.length,
+    "/caisse/boutique": aEnvoyer ?? 0,
     "/caisse/stock": produits.filter(stockBas).length,
   };
 }

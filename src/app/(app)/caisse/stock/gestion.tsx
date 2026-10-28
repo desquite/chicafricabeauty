@@ -9,7 +9,7 @@ import { creerProduit, modifierProduit, mouvement, type Retour } from "./actions
 export type Mouvement = {
   id: string;
   quantite: number;
-  type: "vente" | "reception" | "cabine" | "inventaire" | "annulation";
+  type: "vente" | "reception" | "cabine" | "inventaire" | "annulation" | "boutique";
   note: string | null;
   created_at: string;
   produits: { nom: string } | null;
@@ -28,7 +28,8 @@ const LIBELLE_MVT: Record<Mouvement["type"], string> = {
   reception: "Réception",
   cabine: "Utilisé en cabine",
   inventaire: "Inventaire",
-  annulation: "Facture annulée, remis en stock",
+  annulation: "Annulé, remis en stock",
+  boutique: "Vendu en ligne",
 };
 
 const etat = (p: Produit) =>
