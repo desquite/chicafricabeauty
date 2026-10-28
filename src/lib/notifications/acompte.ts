@@ -2,7 +2,7 @@ import "server-only";
 import { adressePublique } from "@/lib/adresse";
 import { envoyerEmail } from "@/lib/notifications/email";
 import { fenetreOuverte, journaliserSortant } from "@/lib/messagerie";
-import { envoyerModeleWhatsapp, envoyerTexteWhatsapp } from "@/lib/notifications/whatsapp";
+import { envoyerModeleWhatsapp, envoyerTexteWhatsapp, envoyerWhatsapp } from "@/lib/notifications/whatsapp";
 import { LANGUE_MODELES } from "@/lib/notifications/modeles";
 import type { PrixSoin } from "@/lib/disponibilites";
 import {
@@ -31,7 +31,7 @@ const ADRESSE = INSTITUT.adresse;
  *                       {{5}} jour limite {{6}} lien
  *   acompte_lien_tardif {{1}} prénom {{2}} soin {{3}} quand {{4}} montant
  *                       {{5}} jour et heure limites {{6}} lien
- *                       (réservé après la veille 18h : acompte_lien annonce
+ *                       (en attente de validation ; réservé après la veille 18h : acompte_lien annonce
  *                       « à 18h », ce qui serait faux)
  *   acompte_rappel      {{1}} prénom {{2}} soin {{3}} quand {{4}} jour limite
  *                       {{5}} lien
@@ -220,33 +220,25 @@ export async function envoyerMessageAcompte(
   }
 
   // Réservation tardive : l'échéance n'est pas « la veille à 18h ». Si la
-  // cliente a écrit dans les 24 h, un message libre porte la bonne heure ;
-  // sinon le modèle acompte_lien_tardif.
+  // cliente a écrit dans les 24 h, un message libre Infobip porte la bonne
+  // heure ; sinon, le même texte par WasenderAPI.
+  // PROVISOIRE : en attendant la validation Meta du modèle
+  // acompte_lien_tardif ({{1}} prénom {{2}} soin {{3}} quand {{4}} montant
+  // {{5}} jour et heure limites {{6}} lien), qui remplacera WasenderAPI ici.
   const tardif = type === "lien" && rdv.source === "en_ligne" && paiementImmediat(rdv);
   const whatsapp = await uneFois("infobip", async () => {
     if (!tardif) return envoyerModeleWhatsapp(cliente.telephone, MODELES[type], placeholders[type], LANGUE_MODELES);
-    if (await fenetreOuverte(cliente.telephone)) {
-      const texte =
-        `Bonjour ${prenom} 🌸
-
-Votre rendez-vous chez Chic Africa Beauty est bien enregistré : ${soin}, le ${quand}.
-
-` +
-        `Pour le confirmer, merci de régler l'acompte de ${montantTexte} F CFA au plus tard le ${heureLimite}, depuis ce lien :
-${lien}
-
-` +
-        "Sans acompte à cette heure-là, le rendez-vous sera annulé automatiquement.";
-      const r = await envoyerTexteWhatsapp(cliente.telephone, texte);
-      await journaliserSortant({ telephone: cliente.telephone, texte, sens: "sortant", echec: r.ok ? null : r.erreur });
-      return r;
-    }
-    return envoyerModeleWhatsapp(
-      cliente.telephone,
-      "acompte_lien_tardif",
-      [prenom, soin, quand, montantTexte, heureLimite, lien],
-      LANGUE_MODELES,
-    );
+    const texte = [
+      `Bonjour ${prenom} 🌸`,
+      `Votre rendez-vous chez Chic Africa Beauty est bien enregistré : ${soin}, le ${quand}.`,
+      `Pour le confirmer, merci de régler l'acompte de ${montantTexte} F CFA au plus tard le ${heureLimite}, depuis ce lien :\n${lien}`,
+      "Sans acompte à cette heure-là, le rendez-vous sera annulé automatiquement.",
+    ].join("\n\n");
+    const r = (await fenetreOuverte(cliente.telephone))
+      ? await envoyerTexteWhatsapp(cliente.telephone, texte)
+      : await envoyerWhatsapp(cliente.telephone, texte);
+    await journaliserSortant({ telephone: cliente.telephone, texte, sens: "sortant", echec: r.ok ? null : r.erreur });
+    return r;
   });
   const pieces =
     AVEC_AGENDA.includes(type) && rdv.heure_rdv
