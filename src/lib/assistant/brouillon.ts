@@ -1,6 +1,4 @@
 import "server-only";
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { CONNAISSANCES } from "@/lib/assistant/connaissances";
 import { contexteEnDirect } from "@/lib/assistant/contexte";
@@ -9,26 +7,27 @@ import { createAdminClient } from "@/lib/supabase/admin";
 /**
  * Brouillon de réponse de l'assistant IA (mode brouillon).
  *
- * Après chaque message d'une cliente, Claude propose une réponse à partir de
- * la base de connaissances (fixe, mise en cache) et de l'état de
+ * Après chaque message d'une cliente, DeepSeek propose une réponse à partir
+ * de la base de connaissances (fixe, mise en cache) et de l'état de
  * l'application lu en direct (prix, horaires, créneaux, situation de la
  * cliente). La gérante l'envoie, la modifie ou l'ignore : rien ne part
  * sans elle.
  */
 
-export const assistantConfigure = () => Boolean(process.env.ANTHROPIC_API_KEY);
+export const assistantConfigure = () => Boolean(process.env.DEEPSEEK_API_KEY);
 
-const MODELE = "claude-opus-5-5";
+const API = "https://api.deepseek.com/chat/completions";
+const MODELE = "deepseek-flash";
 
 const Proposition = z.object({
-  reponse: z.string().describe("Le message WhatsApp à envoyer à la cliente, en français, aéré : paragraphes courts séparés par une ligne vide, listes à tirets."),
-  passer_la_main: z.boolean().describe("Vrai si la gérante doit traiter elle-même cette conversation."),
-  raison: z.string().describe("Pourquoi passer la main, en une phrase courte ; chaîne vide sinon."),
+  reponse: z.string(),
+  passer_la_main: z.boolean(),
+  raison: z.string(),
 });
 export type Proposition = z.infer<typeof Proposition>;
 
-// Bloc fixe en tête de requête : identique d'un appel à l'autre, il est mis
-// en cache. Rien de variable (date, cliente) ne doit y entrer.
+// Bloc fixe en tête de requête : identique d'un appel à l'autre, DeepSeek le
+// met en cache (par préfixe). Rien de variable (date, cliente) ne doit y entrer.
 const CONSIGNES = `Tu rédiges les réponses WhatsApp de l'institut de beauté Chic Africa Beauty, à Abidjan, au nom de l'institut.
 Chaque réponse est un BROUILLON : la gérante, Blanche, le relit avant de l'envoyer.
 
@@ -47,6 +46,12 @@ Règles :
   - pas de Markdown (ni astérisques doubles, ni titres).
 - Quand la base de connaissances dit de passer la main, ou en cas de doute : passer_la_main = vrai, une raison courte pour la gérante, et comme réponse un message d'attente courtois qui ne promet rien de précis.
 - Si le dernier message n'appelle pas de réponse (simple « merci », émoji), propose une réponse très brève.
+
+Format de sortie : un objet JSON seul, sans texte autour, avec exactement ces trois champs :
+- "reponse" : le message WhatsApp à envoyer, les sauts de ligne écrits \\n ;
+- "passer_la_main" : true si la gérante doit traiter elle-même la conversation, false sinon ;
+- "raison" : pourquoi passer la main, en une phrase courte ; "" sinon.
+Exemple : {"reponse": "Bonjour ma Chic,\\n\\nOui, nous sommes ouverts samedi de 9h à 19h.\\n\\nSouhaitez-vous réserver un créneau ?", "passer_la_main": false, "raison": ""}
 
 BASE DE CONNAISSANCES
 ${CONNAISSANCES}`;
@@ -80,7 +85,21 @@ function transcrire(lignes: Ligne[]) {
     .join("\n");
 }
 
-let client: Anthropic | null = null;
+type ReponseDeepseek = {
+  choices?: { message?: { content?: string | null }; finish_reason?: string }[];
+  usage?: { prompt_cache_hit_tokens?: number; prompt_cache_miss_tokens?: number; completion_tokens?: number };
+};
+
+/** Lit l'objet JSON renvoyé ; null s'il est vide, tronqué ou mal formé. */
+function lireProposition(texte: string | null | undefined): Proposition | null {
+  if (!texte?.trim()) return null;
+  try {
+    const p = Proposition.safeParse(JSON.parse(texte));
+    return p.success && p.data.reponse.trim() ? p.data : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Prépare et enregistre la proposition pour une conversation, si son dernier
@@ -88,7 +107,7 @@ let client: Anthropic | null = null;
  * la conversation sans brouillon.
  */
 export async function proposerBrouillon(conversationId: string): Promise<{ ok: boolean; detail: string }> {
-  if (!assistantConfigure()) return { ok: false, detail: "ANTHROPIC_API_KEY manquante" };
+  if (!assistantConfigure()) return { ok: false, detail: "DEEPSEEK_API_KEY manquante" };
   const admin = createAdminClient();
   try {
     const [{ data: conv }, { data: recents }] = await Promise.all([
@@ -107,24 +126,35 @@ export async function proposerBrouillon(conversationId: string): Promise<{ ok: b
     if (dernier.sens !== "entrant") return { ok: false, detail: "pas de message de la cliente à traiter" };
 
     const contexte = await contexteEnDirect(conv.cliente_id);
-    client ??= new Anthropic();
-    const reponse = await client.beta.messages.parse({
-      model: MODELE,
-      max_tokens: 4000,
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      system: [{ type: "text", text: CONSIGNES, cache_control: { type: "ephemeral" } }],
-      messages: [
-        {
-          role: "user",
-          content: `Données de l'application (à jour) :\n${contexte}\n\nConversation (du plus ancien au plus récent) :\n${transcrire(fil)}\n\nPropose la réponse au dernier message de la cliente.`,
-        },
-      ],
-      output_config: { effort: "low", format: betaZodOutputFormat(Proposition) },
+    const r = await fetch(API, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: MODELE,
+        max_tokens: 2000,
+        thinking: { type: "disabled" },
+        response_format: { type: "json_object" },
+        messages: [
+          { role: "system", content: CONSIGNES },
+          {
+            role: "user",
+            content: `Données de l'application (à jour) :\n${contexte}\n\nConversation (du plus ancien au plus récent) :\n${transcrire(fil)}\n\nPropose la réponse au dernier message de la cliente, en JSON.`,
+          },
+        ],
+      }),
+      signal: AbortSignal.timeout(60_000),
     });
+    if (!r.ok) {
+      const detail =
+        r.status === 401 ? "clé API DeepSeek refusée" : r.status === 402 ? "solde DeepSeek épuisé" : r.status === 429 ? "limite d'appels atteinte" : `erreur API ${r.status}`;
+      console.error(`Assistant : pas de brouillon (${detail}) ${(await r.text()).slice(0, 300)}`);
+      return { ok: false, detail };
+    }
+    const reponse = (await r.json()) as ReponseDeepseek;
+    const choix = reponse.choices?.[0];
 
-    let p: Proposition | null = reponse.parsed_output ?? null;
-    if (reponse.stop_reason === "refusal" || !p) {
+    let p = choix?.finish_reason === "length" ? null : lireProposition(choix?.message?.content);
+    if (!p) {
       p = {
         reponse: "Merci pour votre message ma Chic, je transmets à Blanche qui vous répond très vite.",
         passer_la_main: true,
@@ -132,7 +162,7 @@ export async function proposerBrouillon(conversationId: string): Promise<{ ok: b
       };
     }
     console.info(
-      `Assistant : brouillon prêt (entrée ${reponse.usage.input_tokens}, cache ${reponse.usage.cache_read_input_tokens ?? 0}, sortie ${reponse.usage.output_tokens})`,
+      `Assistant : brouillon prêt (entrée ${reponse.usage?.prompt_cache_miss_tokens ?? 0}, cache ${reponse.usage?.prompt_cache_hit_tokens ?? 0}, sortie ${reponse.usage?.completion_tokens ?? 0})`,
     );
 
     await admin
@@ -148,15 +178,7 @@ export async function proposerBrouillon(conversationId: string): Promise<{ ok: b
     return { ok: true, detail: "brouillon prêt" };
   } catch (e) {
     const detail =
-      e instanceof Anthropic.AuthenticationError
-        ? "clé API Anthropic refusée"
-        : e instanceof Anthropic.RateLimitError
-          ? "limite d'appels atteinte"
-          : e instanceof Anthropic.APIError
-            ? `erreur API ${e.status}`
-            : e instanceof Error
-              ? e.message
-              : "erreur inconnue";
+      e instanceof Error && e.name === "TimeoutError" ? "DeepSeek n'a pas répondu à temps" : e instanceof Error ? e.message : "erreur inconnue";
     console.error(`Assistant : pas de brouillon (${detail})`);
     return { ok: false, detail };
   }

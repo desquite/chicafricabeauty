@@ -252,7 +252,7 @@ export default async function PageMessages({
               <strong className="block text-brand-700">Assistant IA · mode brouillon</strong>
               {assistant
                 ? "Après chaque message, il propose une réponse : rien ne part sans vous."
-                : "Pas encore activé : la clé ANTHROPIC_API_KEY manque dans Vercel."}
+                : "Pas encore activé : la clé DEEPSEEK_API_KEY manque dans Vercel."}
             </div>
           </aside>
         </div>
