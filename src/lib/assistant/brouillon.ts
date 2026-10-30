@@ -26,6 +26,7 @@ const Proposition = z.object({
   reponse: z.string(),
   passer_la_main: z.boolean(),
   raison: z.string(),
+  cloture: z.boolean().default(false),
 });
 export type Proposition = z.infer<typeof Proposition>;
 
@@ -44,18 +45,22 @@ Règles :
 - Présentation aérée, comme un message WhatsApp agréable à lire :
   - des paragraphes courts (1 à 2 phrases), séparés par une ligne vide ;
   - une salutation (« Bonjour ma Chic », « Bonsoir ma Chic ») une seule fois par échange, seule sur sa première ligne, puis une ligne vide. Si l'Institut a déjà écrit à la cliente dans les 6 dernières heures de la conversation, pas de nouvelle salutation : la réponse enchaîne directement, comme dans une discussion qui continue ;
+  - « ma Chic » deux fois au plus dans tout l'échange : dans la salutation du premier message, et dans le message qui clôt la conversation (la cliente remercie, dit au revoir, ou tout est réglé). Jamais dans les messages du milieu : ni « Oui ma Chic », ni « Merci ma Chic », ni « …, ma Chic ». La chaleur passe par le ton et un émoji, pas par la répétition ;
   - dès qu'il y a plusieurs soins, prix, produits ou créneaux, une liste avec un élément par ligne, chaque ligne commençant par « - » (par exemple « - Soin du visage classique : 15 000 F ») ;
   - la question ou l'invitation finale seule dans son dernier paragraphe ;
   - pas de Markdown (ni astérisques doubles, ni titres).
 - Quand la base de connaissances dit de passer la main, ou en cas de doute : passer_la_main = vrai, une raison courte pour la gérante, et comme réponse un message d'attente courtois qui ne promet rien de précis.
 - Si le dernier message n'appelle pas de réponse (simple « merci », émoji), propose une réponse très brève.
+- Jamais deux fois le même message : si l'Institut a déjà dit quelque chose (par exemple « Blanche revient vers vous ») et que la cliente relance (« Je suis là », « Eeee »), la réponse est différente et plus courte (« Elle arrive, merci pour votre patience 🙏 »), ou très brève.
 
-Format de sortie : un objet JSON seul, sans texte autour, avec exactement ces trois champs :
+Format de sortie : un objet JSON seul, sans texte autour, avec exactement ces quatre champs :
 - "reponse" : le message WhatsApp à envoyer, les sauts de ligne écrits \\n ;
 - "passer_la_main" : true si la gérante doit traiter elle-même la conversation, false sinon ;
-- "raison" : pourquoi passer la main, en une phrase courte ; "" sinon.
-Exemple : {"reponse": "Bonjour ma Chic,\\n\\nOui, nous sommes ouverts samedi de 9h à 19h.\\n\\nSouhaitez-vous réserver un créneau ?", "passer_la_main": false, "raison": ""}
-Exemple dans un échange déjà commencé : {"reponse": "Oui, il reste de la place samedi à 10h et à 14h30.\\n\\nLequel vous arrange ?", "passer_la_main": false, "raison": ""}
+- "raison" : pourquoi passer la main, en une phrase courte ; "" sinon ;
+- "cloture" : true si ce message clôt la conversation (remerciement final, au revoir, tout est réglé), false sinon.
+Exemple : {"reponse": "Bonjour ma Chic,\\n\\nOui, nous sommes ouverts samedi de 9h à 19h.\\n\\nSouhaitez-vous réserver un créneau ?", "passer_la_main": false, "raison": "", "cloture": false}
+Exemple dans un échange déjà commencé : {"reponse": "Oui, il reste de la place samedi à 10h et à 14h30.\\n\\nLequel vous arrange ?", "passer_la_main": false, "raison": "", "cloture": false}
+Exemple de fin d'échange : {"reponse": "Avec plaisir ma Chic 🌸 À très vite chez Chic Africa Beauty !", "passer_la_main": false, "raison": "", "cloture": true}
 
 BASE DE CONNAISSANCES
 ${CONNAISSANCES}`;
@@ -135,6 +140,22 @@ type ReponseDeepseek = {
   usage?: { prompt_cache_hit_tokens?: number; prompt_cache_miss_tokens?: number; completion_tokens?: number };
 };
 
+const SIX_HEURES = 6 * 3_600_000;
+const normaliser = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/**
+ * Retire « ma Chic » d'un message du milieu de l'échange, quand le modèle l'a
+ * mis malgré la consigne : « Oui ma Chic, Blanche… » devient « Oui, Blanche… ».
+ */
+export function sansMaChic(texte: string) {
+  return texte
+    .replace(/[ \t]*,?[ \t]*\bma chic\b/gi, "")
+    .replace(/^[ \t]*[,;:][ \t]*/gm, "")
+    .replace(/,([ \t]*[,.!?])/g, "$1")
+    .replace(/^(\p{Ll})/gmu, (l) => l.toUpperCase())
+    .trim();
+}
+
 /** Lit l'objet JSON renvoyé ; null s'il est vide, tronqué ou mal formé. */
 function lireProposition(texte: string | null | undefined): Proposition | null {
   if (!texte?.trim()) return null;
@@ -188,6 +209,16 @@ export async function proposerBrouillon(
     const dernier = fil[fil.length - 1];
     if (dernier.sens !== "entrant") return { ok: false, detail: "pas de message de la cliente à traiter" };
 
+    // Ce que l'Institut a déjà écrit dans l'échange en cours (6 dernières heures).
+    const depuis = Date.now() - SIX_HEURES;
+    const ecrits = fil.filter((m) => m.sens !== "entrant" && m.texte && new Date(m.cree_le).getTime() >= depuis).map((m) => m.texte!);
+    const maChicDite = ecrits.some((t) => /\bma chic\b/i.test(t));
+    const rappel = maChicDite
+      ? "« ma Chic » a déjà été dit dans cet échange : ne le redis pas, sauf si ce message clôt la conversation."
+      : ecrits.length
+        ? "L'échange est déjà commencé : pas de nouvelle salutation."
+        : "Premier message de l'échange : salutation avec « ma Chic ».";
+
     const contexte = await contexteEnDirect(conv.cliente_id);
     const r = await fetch(API, {
       method: "POST",
@@ -201,7 +232,7 @@ export async function proposerBrouillon(
           { role: "system", content: CONSIGNES },
           {
             role: "user",
-            content: `Données de l'application (à jour) :\n${contexte}\n\nConversation (du plus ancien au plus récent) :\n${transcrire(fil)}\n\nPropose la réponse au dernier message de la cliente, en JSON.`,
+            content: `Données de l'application (à jour) :\n${contexte}\n\nConversation (du plus ancien au plus récent) :\n${transcrire(fil)}\n\n${rappel}\nPropose la réponse au dernier message de la cliente, en JSON.`,
           },
         ],
       }),
@@ -222,8 +253,13 @@ export async function proposerBrouillon(
         reponse: "Merci pour votre message ma Chic, je transmets à Blanche qui vous répond très vite.",
         passer_la_main: true,
         raison: "L'assistant n'a pas pu proposer de réponse à ce message.",
+        cloture: false,
       };
     }
+    // Filet de sécurité : la consigne seule ne suffit pas toujours.
+    if (maChicDite && !p.cloture) p = { ...p, reponse: sansMaChic(p.reponse) };
+    // Un message déjà envoyé dans l'échange ne repart pas : il reste en brouillon.
+    const doublon = ecrits.some((t) => normaliser(t) === normaliser(p.reponse));
     console.info(
       `Assistant : brouillon prêt (entrée ${reponse.usage?.prompt_cache_miss_tokens ?? 0}, cache ${reponse.usage?.prompt_cache_hit_tokens ?? 0}, sortie ${reponse.usage?.completion_tokens ?? 0})`,
     );
@@ -240,6 +276,7 @@ export async function proposerBrouillon(
       .eq("id", conversationId);
 
     if (!envoyer || !(await envoiAutoActif())) return { ok: true, detail: "brouillon prêt" };
+    if (doublon) return { ok: true, detail: "brouillon prêt (déjà envoyé dans l'échange, rien renvoyé)" };
     return await envoyerSeul(conversationId, conv, (dernier as { id: string }).id, p);
   } catch (e) {
     const detail =
