@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { ProduitBoutique } from "@/lib/boutique";
-import { EnTete, PhotoProduit, prix, titre } from "./elements";
+import { BadgePromo, EnTete, PhotoProduit, Prix, titre } from "./elements";
 import { usePanier } from "./panier-etat";
 import { BarrePanier } from "./barre-panier";
 
@@ -66,12 +66,13 @@ export default function Catalogue({ sections }: { sections: Section[] }) {
                         Rupture
                       </span>
                     )}
+                    {p.prixAvant && <BadgePromo />}
                   </Link>
                   <div className="flex flex-1 flex-col gap-1.5 p-3">
                     <Link href={`/boutique/produit/${p.id}`} className="min-h-9 text-sm leading-snug font-bold text-brand-900">
                       {p.nom}
                     </Link>
-                    <span className="text-[15px] font-extrabold text-brand-600">{prix(p.prix)}</span>
+                    <Prix p={p} className="text-[15px] font-extrabold" />
                     {rupture ? (
                       <span className="mt-auto flex min-h-11 items-center justify-center rounded-full border border-brand-200 text-[13px] font-bold text-brand-700">
                         Bientôt de retour

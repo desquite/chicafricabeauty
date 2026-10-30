@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { couvre, type Abonnement } from "@/lib/abonnements";
 import { requireProfil } from "@/lib/auth";
 import { calculerFacture, MODES_PAIEMENT, type ModePaiement } from "@/lib/caisse";
+import { prixActuel } from "@/lib/caisse-lecture";
 import { prixDuJour, type PrixSoin } from "@/lib/disponibilites";
 import { envoyerRecuWhatsapp } from "@/lib/notifications/recu";
 import { createClient } from "@/lib/supabase/server";
@@ -164,14 +165,18 @@ async function enregistrer(supabase: Client, factureId: string, s: SaisieFacture
 
   const ids = [...new Set(s.produits.map((p) => p.produit_id))];
   const { data: produits } = ids.length
-    ? await supabase.from("produits").select("id, nom, prix_vente").in("id", ids).returns<{ id: string; nom: string; prix_vente: number }[]>()
+    ? await supabase
+        .from("produits")
+        .select("id, nom, prix_vente, prix_promo")
+        .in("id", ids)
+        .returns<{ id: string; nom: string; prix_vente: number; prix_promo: number | null }[]>()
     : { data: [] };
   const lignesProduits = s.produits
     .filter((l) => Number.isInteger(l.quantite) && l.quantite > 0 && l.quantite <= 99)
     .map((l, i) => {
       const p = (produits ?? []).find((x) => x.id === l.produit_id);
       return p
-        ? { type: "produit", produit_id: p.id, libelle: p.nom, quantite: l.quantite, prix_unitaire: p.prix_vente, ordre: 100 + i }
+        ? { type: "produit", produit_id: p.id, libelle: p.nom, quantite: l.quantite, prix_unitaire: prixActuel(p), ordre: 100 + i }
         : null;
     })
     .filter((x) => x !== null);

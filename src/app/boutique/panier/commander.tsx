@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import type { ProduitBoutique } from "@/lib/boutique";
 import { passerCommande } from "../actions";
-import { EnTete, PhotoProduit, prix, Quantite, titre } from "../elements";
+import { EnTete, PhotoProduit, Prix, prix, Quantite, titre } from "../elements";
 import { usePanier } from "../panier-etat";
 
 const COMMUNES = [
@@ -120,7 +120,7 @@ function Contenu({ produits }: { produits: ProduitBoutique[] }) {
             <PhotoProduit src={p.photos[0]} nom="" className="h-[72px] w-[72px] shrink-0 rounded-xl" />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <span className="text-sm font-bold">{p.nom}</span>
-              <span className="text-sm font-extrabold text-brand-600">{prix(p.prix)}</span>
+              <Prix p={p} className="text-sm font-extrabold" />
               {quantite < panier[p.id] && (
                 <span className="text-xs font-bold text-red-800">
                   {quantite === 0 ? "Épuisé entre-temps" : `Plus que ${quantite} en stock`}

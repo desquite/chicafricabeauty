@@ -51,11 +51,11 @@ export async function contexteEnDirect(clienteId: string | null, maintenant = ne
       .returns<Soin[]>(),
     admin
       .from("produits")
-      .select("id, nom, categorie, prix_vente, stock, actif, accroche, description")
+      .select("id, nom, categorie, prix_vente, prix_promo, stock, actif, accroche, description")
       .order("categorie")
       .order("nom")
       .returns<
-        { id: string; nom: string; categorie: string | null; prix_vente: number; stock: number; actif: boolean; accroche: string | null; description: string | null }[]
+        { id: string; nom: string; categorie: string | null; prix_vente: number; prix_promo: number | null; stock: number; actif: boolean; accroche: string | null; description: string | null }[]
       >(),
   ]);
 
@@ -95,7 +95,9 @@ export async function contexteEnDirect(clienteId: string | null, maintenant = ne
   for (const p of produits ?? []) {
     const dispo = p.actif && p.stock > 0 ? "en stock" : "rupture de stock";
     const texte = [p.accroche, p.description].filter(Boolean).join(" ").replace(/\s*\n+\s*/g, " ").replace(/\s+-\s+/g, " ; ").slice(0, 400);
-    lignes.push(`- ${p.nom} (${p.categorie ?? "divers"}) : ${f(p.prix_vente)}, ${dispo}, lien ${site}/boutique/produit/${p.id}${texte ? `. ${texte}` : ""}`);
+    const prix =
+      p.prix_promo !== null && p.prix_promo < p.prix_vente ? `${f(p.prix_promo)} en promotion (prix normal ${f(p.prix_vente)})` : f(p.prix_vente);
+    lignes.push(`- ${p.nom} (${p.categorie ?? "divers"}) : ${prix}, ${dispo}, lien ${site}/boutique/produit/${p.id}${texte ? `. ${texte}` : ""}`);
   }
 
   // Créneaux libres des 7 prochains jours, pour un soin d'1 h et un soin

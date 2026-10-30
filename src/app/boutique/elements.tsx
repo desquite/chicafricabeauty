@@ -8,6 +8,23 @@ export const titre = `${fraunces.className} font-medium text-brand-800`;
 
 export const prix = (n: number) => `${n.toLocaleString("fr-FR")} F`;
 
+/** Le prix d'un produit, avec l'ancien prix barré pendant une promotion. */
+export function Prix({ p, className }: { p: { prix: number; prixAvant: number | null }; className: string }) {
+  return (
+    <span className="flex flex-wrap items-baseline gap-x-2">
+      <span className={`${className} ${p.prixAvant ? "text-red-700" : "text-brand-600"}`}>{prix(p.prix)}</span>
+      {p.prixAvant && <s className="text-[13px] font-semibold text-brand-500">{prix(p.prixAvant)}</s>}
+    </span>
+  );
+}
+
+/** Pastille posée sur la photo d'un produit en promotion. */
+export function BadgePromo() {
+  return (
+    <span className="absolute top-2 right-2 rounded-full bg-red-700 px-2.5 py-1 text-[11px] font-extrabold text-white">Promo</span>
+  );
+}
+
 function IconePanier() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

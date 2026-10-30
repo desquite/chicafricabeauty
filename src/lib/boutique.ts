@@ -18,6 +18,8 @@ export type ProduitBoutique = {
   nom: string;
   categorie: string;
   prix: number;
+  /** Prix normal, barré, quand une promotion est en cours. */
+  prixAvant: number | null;
   accroche: string | null;
   description: string | null;
   photos: string[];
@@ -58,7 +60,7 @@ export function urlPhoto(chemin: string) {
 export async function catalogueBoutique(): Promise<ProduitBoutique[]> {
   const { data } = await createAdminClient()
     .from("produits")
-    .select("id, nom, categorie, prix_vente, stock, actif, accroche, description, photo, galerie")
+    .select("id, nom, categorie, prix_vente, prix_promo, stock, actif, accroche, description, photo, galerie")
     .gt("prix_vente", 0)
     .order("nom")
     .returns<
@@ -67,6 +69,7 @@ export async function catalogueBoutique(): Promise<ProduitBoutique[]> {
         nom: string;
         categorie: string | null;
         prix_vente: number;
+        prix_promo: number | null;
         stock: number;
         actif: boolean;
         accroche: string | null;
@@ -75,16 +78,20 @@ export async function catalogueBoutique(): Promise<ProduitBoutique[]> {
         galerie: string[];
       }[]
     >();
-  return (data ?? []).map((p) => ({
-    id: p.id,
-    nom: p.nom,
-    categorie: p.categorie && CATEGORIES.includes(p.categorie) ? p.categorie : "Corps",
-    prix: p.prix_vente,
-    accroche: p.accroche,
-    description: p.description,
-    photos: [p.photo, ...(p.galerie ?? [])].filter((x): x is string => Boolean(x)).map(urlPhoto),
-    disponible: p.actif ? Math.max(0, p.stock) : 0,
-  }));
+  return (data ?? []).map((p) => {
+    const promo = p.prix_promo !== null && p.prix_promo < p.prix_vente ? p.prix_promo : null;
+    return {
+      id: p.id,
+      nom: p.nom,
+      categorie: p.categorie && CATEGORIES.includes(p.categorie) ? p.categorie : "Corps",
+      prix: promo ?? p.prix_vente,
+      prixAvant: promo === null ? null : p.prix_vente,
+      accroche: p.accroche,
+      description: p.description,
+      photos: [p.photo, ...(p.galerie ?? [])].filter((x): x is string => Boolean(x)).map(urlPhoto),
+      disponible: p.actif ? Math.max(0, p.stock) : 0,
+    };
+  });
 }
 
 export async function lireCommande(code: string) {

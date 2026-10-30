@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { ProduitBoutique } from "@/lib/boutique";
 import { BarrePanier } from "../../barre-panier";
-import { EnTete, PhotoProduit, prix, Quantite, titre } from "../../elements";
+import { EnTete, PhotoProduit, Prix, Quantite, titre } from "../../elements";
 import { usePanier } from "../../panier-etat";
 
 /**
@@ -88,7 +88,7 @@ export default function Fiche({
         <h1 className={`${titre} text-[30px] leading-tight`}>{p.nom}</h1>
         {p.accroche && <p className="text-base font-bold text-brand-700">{p.accroche}</p>}
         <div className="mt-1 flex items-center justify-between">
-          <span className="text-2xl font-extrabold text-brand-600">{prix(p.prix)}</span>
+          <Prix p={p} className="text-2xl font-extrabold" />
           <span className={`text-[13px] font-bold ${p.disponible > 0 ? "text-[#2f6b3a]" : "text-brand-700"}`}>
             {p.disponible > 0 ? "En stock" : "Rupture de stock"}
           </span>
@@ -138,7 +138,9 @@ export default function Fiche({
               <Link key={s.id} href={`/boutique/produit/${s.id}`} className="flex flex-col overflow-hidden rounded-2xl bg-white">
                 <PhotoProduit src={s.photos[0]} nom="" className="h-32 w-full" />
                 <span className="px-3 pt-2.5 text-sm font-bold text-brand-900">{s.nom}</span>
-                <span className="px-3 pb-3 text-sm font-extrabold text-brand-600">{prix(s.prix)}</span>
+                <span className="px-3 pb-3">
+                  <Prix p={s} className="text-sm font-extrabold" />
+                </span>
               </Link>
             ))}
           </div>

@@ -20,6 +20,7 @@ export type SaisieProduit = {
   nom: string;
   categorie: string;
   prix_vente: string;
+  prix_promo: string;
   prix_achat: string;
   seuil: string;
 };
@@ -29,11 +30,16 @@ function valider(s: SaisieProduit) {
   if (nom.length < 2) return { erreur: "Indiquez le nom du produit." };
   const prix = entier(s.prix_vente);
   if (prix === null) return { erreur: "Le prix de vente est invalide." };
+  // Promotion : vide pour l'arrêter, sinon un prix inférieur au prix normal.
+  const promo = s.prix_promo.trim() ? entier(s.prix_promo, 1) : null;
+  if (s.prix_promo.trim() && (promo === null || promo >= prix)) {
+    return { erreur: "Le prix promo doit être inférieur au prix de vente (laissez vide pour arrêter la promotion)." };
+  }
   const achat = s.prix_achat.trim() ? entier(s.prix_achat) : null;
   if (s.prix_achat.trim() && achat === null) return { erreur: "Le prix d'achat est invalide." };
   const seuil = entier(s.seuil || "0");
   if (seuil === null) return { erreur: "Le seuil d'alerte est invalide." };
-  return { valeurs: { nom, categorie: s.categorie.trim() || null, prix_vente: prix, prix_achat: achat, seuil } };
+  return { valeurs: { nom, categorie: s.categorie.trim() || null, prix_vente: prix, prix_promo: promo, prix_achat: achat, seuil } };
 }
 
 export async function creerProduit(s: SaisieProduit & { stock: string }): Promise<Retour> {
@@ -50,6 +56,7 @@ export async function creerProduit(s: SaisieProduit & { stock: string }): Promis
     await supabase.rpc("mouvement_stock", { p_produit: data.id, p_quantite: stock, p_type: "reception", p_note: "Stock de départ" });
   }
   revalidatePath("/caisse", "layout");
+  revalidatePath("/boutique", "layout");
   return { ok: true, info: "Produit ajouté." };
 }
 
@@ -61,6 +68,7 @@ export async function modifierProduit(id: string, s: SaisieProduit & { actif: bo
   const { error } = await supabase.from("produits").update({ ...v.valeurs, actif: s.actif }).eq("id", id);
   if (error) return { ok: false, erreur: error.message };
   revalidatePath("/caisse", "layout");
+  revalidatePath("/boutique", "layout");
   return { ok: true, info: "Produit enregistré." };
 }
 
@@ -78,5 +86,6 @@ export async function mouvement(
   const { data, error } = await supabase.rpc("mouvement_stock", { p_produit: id, p_quantite: q, p_type: type, p_note: note });
   if (error) return { ok: false, erreur: error.message };
   revalidatePath("/caisse", "layout");
+  revalidatePath("/boutique", "layout");
   return { ok: true, info: `Stock mis à jour : ${data as number}.` };
 }

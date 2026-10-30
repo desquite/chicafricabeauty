@@ -118,7 +118,12 @@ export function GestionStock({ produits, mouvements }: { produits: Produit[]; mo
                   <span className="flex min-w-0 flex-1 flex-col">
                     <strong className="text-brand-900">{p.nom}</strong>
                     <span className="text-xs text-brand-500">
-                      {p.categorie ?? "Sans catégorie"} · {p.prix_vente ? f(p.prix_vente) : "offert"}
+                      {p.categorie ?? "Sans catégorie"} ·{" "}
+                      {p.prix_promo !== null && p.prix_promo < p.prix_vente
+                        ? `${f(p.prix_promo)} en promo, au lieu de ${f(p.prix_vente)}`
+                        : p.prix_vente
+                          ? f(p.prix_vente)
+                          : "offert"}
                     </span>
                   </span>
                   <span className="text-right">
@@ -247,12 +252,22 @@ function FicheProduit({
   produit?: Produit;
   enCours: boolean;
   onAnnuler: () => void;
-  onValider: (s: { nom: string; categorie: string; prix_vente: string; prix_achat: string; seuil: string; stock: string; actif?: boolean }) => void;
+  onValider: (s: {
+    nom: string;
+    categorie: string;
+    prix_vente: string;
+    prix_promo: string;
+    prix_achat: string;
+    seuil: string;
+    stock: string;
+    actif?: boolean;
+  }) => void;
 }) {
   const [s, setS] = useState({
     nom: produit?.nom ?? "",
     categorie: produit?.categorie ?? "",
     prix_vente: produit ? String(produit.prix_vente) : "",
+    prix_promo: produit?.prix_promo != null ? String(produit.prix_promo) : "",
     prix_achat: produit?.prix_achat != null ? String(produit.prix_achat) : "",
     seuil: produit ? String(produit.seuil) : "2",
     stock: "",
@@ -278,6 +293,10 @@ function FicheProduit({
       <label className="flex flex-col gap-1 text-sm font-semibold text-brand-800">
         Prix de vente (F)
         <input inputMode="numeric" value={s.prix_vente} onChange={(e) => maj("prix_vente", e.target.value)} className={champ} required />
+      </label>
+      <label className="flex flex-col gap-1 text-sm font-semibold text-brand-800">
+        Prix promo (F) <span className="font-normal text-brand-500">vide = pas de promotion</span>
+        <input inputMode="numeric" value={s.prix_promo} onChange={(e) => maj("prix_promo", e.target.value)} className={champ} />
       </label>
       <label className="flex flex-col gap-1 text-sm font-semibold text-brand-800">
         Prix d&apos;achat (F) <span className="font-normal text-brand-500">facultatif</span>

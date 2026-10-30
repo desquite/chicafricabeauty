@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { couvre, type Abonnement } from "@/lib/abonnements";
 import { requireProfil } from "@/lib/auth";
 import { chiffreAffaires } from "@/lib/caisse-ca";
-import { lireAFacturer, lireProduits } from "@/lib/caisse-lecture";
+import { lireAFacturer, lireProduits, prixActuel } from "@/lib/caisse-lecture";
 import { prixDuJour, type PrixSoin } from "@/lib/disponibilites";
 import { createClient } from "@/lib/supabase/server";
 import { ChiffreAffaires } from "./chiffre";
@@ -114,7 +114,7 @@ export default async function PageCaisse({ searchParams }: { searchParams: Promi
           libelle: couverts.includes(s.id) ? `${s.libelle} (abonnement)` : s.libelle,
           prix: couverts.includes(s.id) ? 0 : (prixDuJour(s, jour) ?? 0),
         })),
-        catalogueProduits: produits.map((p) => ({ id: p.id, nom: p.nom, prix: p.prix_vente, stock: p.stock })),
+        catalogueProduits: produits.map((p) => ({ id: p.id, nom: p.nom, prix: prixActuel(p), stock: p.stock })),
       };
     }
   }
