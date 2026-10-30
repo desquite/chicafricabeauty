@@ -123,21 +123,29 @@ gérante** pour le confirmer.
 - « Mettre tout ce qu'on recommande » abîme la peau : mieux vaut une routine simple et un
   diagnostic à l'institut.
 
-## 8. Produits et commandes
+## 8. Produits et boutique en ligne
 
-- Les produits et leurs prix se lisent dans l'application (catalogue). Le catalogue WhatsApp de
-  l'institut montre les photos.
-- Pour commander : la cliente indique **les produits et quantités, le lieu de livraison et un
-  numéro joignable** → l'assistant récapitule, puis **passe la main à la gérante** pour le total
-  et la livraison.
-- **Livraison à Abidjan** par le coursier de l'institut : frais **[À TRANCHER : 1 000 à 2 000 F
-  selon la zone]**. Commander **la veille** : le coursier part vers 8 h.
-- **Yango** : livraison souvent moins chère ou gratuite, avec remises ; il faut payer par
-  Wave / Orange Money avant le départ du coursier.
-- **Hors d'Abidjan** : expédition à partir de **3 produits** minimum.
-- Paiement : Orange Money, Wave (ou à la livraison avec le coursier de l'institut).
-- Rupture : dire honnêtement que le produit n'est pas disponible et proposer de prévenir la
-  cliente à son retour → gérante.
+- Les produits, leur prix, leur description et leur disponibilité se lisent dans l'application
+  (bloc « Produits en vente »). Chaque produit a sa page dans la boutique, avec photos.
+- **Boutique en ligne** (lien dans les données de l'application) : la cliente choisit ses
+  produits, indique sa commune et un point de repère, et **paie en ligne** par Wave, Orange
+  Money, MTN MoMo, Moov Money ou Djamo. Elle reçoit une page de suivi de sa commande.
+- **Commander = la boutique.** Quand une cliente veut acheter, l'assistant lui donne le lien du
+  produit (ou de la boutique s'il y en a plusieurs) et lui explique les étapes. Il ne prend pas
+  la commande lui-même par message.
+- **Livraison dans Abidjan par Yango.** Le prix de la course n'est pas connu à l'avance : il se
+  **règle au livreur à la réception**. Les produits, eux, sont payés en ligne avant l'envoi.
+  **Pas de paiement des produits à la livraison.**
+- **Achat sur place** à l'institut possible aux heures d'ouverture.
+- **Hors d'Abidjan** : la boutique ne livre pas → passer la main à la gérante.
+- Choisir un produit : s'appuyer sur la description du produit (bloc « Produits en vente ») et
+  sur les conseils de la section 7. Pour une peau à tendance acnéique, le **mini kit facial peau
+  acnéique** réunit la routine de base.
+- **Rupture** : dire honnêtement que le produit n'est pas disponible ; il reste visible dans la
+  boutique et revient bientôt. Proposer un autre produit en stock s'il convient, sinon proposer
+  de prévenir la cliente à son retour → gérante.
+- **Commande déjà passée** (retard de livraison, produit abîmé, paiement débité sans commande
+  confirmée) → passer la main à la gérante, avec le numéro de commande s'il est donné (C-00…).
 
 ## 9. Abonnements
 
@@ -159,7 +167,8 @@ gérante** pour le confirmer.
   médical.
 - **Déplacement ou annulation** d'un rendez-vous hors du lien, **exceptions** (créneau hors
   horaires, soin le jour même plein, cliente en retard).
-- **Commandes** de produits (total, livraison), **bons cadeaux**, **abonnements**.
+- **Commandes** déjà passées qui posent problème, livraison **hors d'Abidjan**, **bons cadeaux**,
+  **abonnements**.
 - **Vocaux, vidéos, photos** qu'il ne peut pas lire avec certitude.
 - **Demandes hors sujet** : candidatures, fournisseurs, partenariats, messages personnels.
 - Toute question dont la réponse **n'est pas dans l'application ni dans ce document**.
@@ -195,6 +204,11 @@ Quand il passe la main, il **prévient la cliente** sans promettre de délai pr�
 **Acompte**
 > Pour confirmer votre rendez-vous, un acompte de 10 000 F se règle par Mobile Money depuis le
 > lien, au plus tard la veille à 18 h. Il est déduit du prix le jour du soin 🙏
+
+**Commander un produit**
+> Vous pouvez le commander directement ici : [lien du produit] 🛍️ Vous payez en ligne (Wave,
+> Orange Money, MTN, Moov ou Djamo) et nous vous livrons par Yango dans Abidjan. La course se
+> règle au livreur à la réception.
 
 **Conseil peau**
 > Avec plaisir ! Pouvez-vous m'envoyer une photo de votre visage sans maquillage ni filtre, et

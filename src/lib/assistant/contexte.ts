@@ -49,9 +49,14 @@ export async function contexteEnDirect(clienteId: string | null, maintenant = ne
       .eq("actif", true)
       .order("ordre")
       .returns<Soin[]>(),
-    admin.from("produits").select("nom, prix_vente, stock").eq("actif", true).order("nom").returns<
-      { nom: string; prix_vente: number; stock: number }[]
-    >(),
+    admin
+      .from("produits")
+      .select("id, nom, categorie, prix_vente, stock, actif, accroche, description")
+      .order("categorie")
+      .order("nom")
+      .returns<
+        { id: string; nom: string; categorie: string | null; prix_vente: number; stock: number; actif: boolean; accroche: string | null; description: string | null }[]
+      >(),
   ]);
 
   const lignes: string[] = [];
@@ -59,6 +64,7 @@ export async function contexteEnDirect(clienteId: string | null, maintenant = ne
     `Nous sommes le ${jourLong(jour)} ${maintenant.getUTCFullYear()}, il est ${h(maintenant.toISOString().slice(11, 16))} à Abidjan.`,
   );
   lignes.push(`Lien de réservation : ${site}/rdv`);
+  lignes.push(`Boutique en ligne : ${site}/boutique`);
 
   lignes.push("", "HORAIRES D'OUVERTURE");
   for (const x of [...(horaires ?? [])].sort((a, b) => ((a.jour + 6) % 7) - ((b.jour + 6) % 7))) {
@@ -82,8 +88,15 @@ export async function contexteEnDirect(clienteId: string | null, maintenant = ne
     );
   }
 
-  lignes.push("", "PRODUITS EN VENTE");
-  for (const p of produits ?? []) lignes.push(`- ${p.nom} : ${f(p.prix_vente)}${p.stock > 0 ? "" : " (rupture de stock)"}`);
+  // Tous les produits de la boutique, ruptures comprises (elles y restent
+  // visibles), avec de quoi conseiller : l'accroche et la description, mise
+  // sur une ligne.
+  lignes.push("", "PRODUITS EN VENTE (boutique en ligne)");
+  for (const p of produits ?? []) {
+    const dispo = p.actif && p.stock > 0 ? "en stock" : "rupture de stock";
+    const texte = [p.accroche, p.description].filter(Boolean).join(" ").replace(/\s*\n+\s*/g, " ").replace(/\s+-\s+/g, " ; ").slice(0, 400);
+    lignes.push(`- ${p.nom} (${p.categorie ?? "divers"}) : ${f(p.prix_vente)}, ${dispo}, lien ${site}/boutique/produit/${p.id}${texte ? `. ${texte}` : ""}`);
+  }
 
   // Créneaux libres des 7 prochains jours, pour un soin d'1 h et un soin
   // d'1 h 30 : de quoi proposer des heures sans tout recalculer par soin.
