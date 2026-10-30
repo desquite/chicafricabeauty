@@ -139,7 +139,9 @@ async function annoncerCommande(id: string) {
 
   // Hors de la fenêtre de 24 h, seul un modèle approuvé peut partir : la
   // cliente garde alors la page de suivi, et l'institut la contacte.
-  if (await fenetreOuverte(c.telephone)) {
+  // La commande garde les 10 chiffres saisis ; WhatsApp veut l'indicatif.
+  const telephone = /^\d{10}$/.test(c.telephone) ? `225${c.telephone}` : c.telephone;
+  if (await fenetreOuverte(telephone)) {
     const texte = [
       `Merci ${c.nom.split(" ")[0]} 🌸`,
       `Votre commande ${c.numero} est bien payée (${F(c.montant)}) :\n${c.lignes_commande
@@ -147,7 +149,7 @@ async function annoncerCommande(id: string) {
         .join("\n")}`,
       `Livraison Yango à ${c.commune}. Le livreur vous appellera ; la course se règle à la réception.`,
     ].join("\n\n");
-    const r = await envoyerTexteWhatsapp(c.telephone, texte);
-    await journaliserSortant({ telephone: c.telephone, texte, sens: "sortant", echec: r.ok ? null : r.erreur });
+    const r = await envoyerTexteWhatsapp(telephone, texte);
+    await journaliserSortant({ telephone, texte, sens: "sortant", echec: r.ok ? null : r.erreur });
   }
 }
