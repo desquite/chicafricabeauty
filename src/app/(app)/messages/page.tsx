@@ -129,6 +129,10 @@ export default async function PageMessages({
       raccourcis.push(
         { libelle: "Lien de réservation", texte: `Vous pouvez réserver votre créneau ici : ${site}/rdv` },
         {
+          libelle: "Lien de la boutique",
+          texte: `Retrouvez nos produits ici : ${site}/boutique\n\nVous réglez en ligne, puis nous livrons par Yango dans Abidjan 🙏`,
+        },
+        {
           libelle: "Adresse et horaires",
           texte: `Nous sommes à ${INSTITUT.adresse}.${ouverts ? ` Nous vous accueillons ${ouverts}.` : ""} Tél. ${INSTITUT.telephone}.`,
         },
