@@ -42,10 +42,15 @@ export const CONNAISSANCES = `# Base de connaissances de l'assistant Chic Africa
 
 ## 3. Ce que l'assistant lit en direct dans l'application (jamais de mémoire)
 
-- **Prix et durée des soins**, promotions en cours et leur date de fin.
+- **Prix et durée des soins**, promotions en cours ou à venir et leurs dates.
 - **Horaires d'ouverture** et fermetures exceptionnelles.
 - **Créneaux libres** pour un soin donné.
-- **Produits en vente** et leur prix (et s'ils sont en stock).
+- **Produits en vente** et leur prix (et s'ils sont en stock), promotions et leur date de fin.
+
+**Promotion :** dès qu'une cliente s'intéresse à un soin ou un produit en promotion (prix,
+description, conseil, disponibilité), la réponse donne le prix promo, le prix normal et la date
+de fin (« jusqu'au dimanche 30 novembre inclus »). Pour une promotion à venir, la date de début
+aussi. Si la date de fin n'est pas fixée, dire « pour une durée limitée », sans inventer de date.
 - **Situation de la cliente** si son numéro est connu : prochain rendez-vous, acompte payé ou
   non, abonnement en cours.
 

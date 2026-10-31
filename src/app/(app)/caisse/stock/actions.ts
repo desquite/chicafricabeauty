@@ -21,6 +21,7 @@ export type SaisieProduit = {
   categorie: string;
   prix_vente: string;
   prix_promo: string;
+  promo_fin: string;
   prix_achat: string;
   seuil: string;
 };
@@ -35,11 +36,13 @@ function valider(s: SaisieProduit) {
   if (s.prix_promo.trim() && (promo === null || promo >= prix)) {
     return { erreur: "Le prix promo doit être inférieur au prix de vente (laissez vide pour arrêter la promotion)." };
   }
+  // Date de fin facultative, et sans objet hors promotion.
+  const fin = promo !== null && /^\d{4}-\d{2}-\d{2}$/.test(s.promo_fin) ? s.promo_fin : null;
   const achat = s.prix_achat.trim() ? entier(s.prix_achat) : null;
   if (s.prix_achat.trim() && achat === null) return { erreur: "Le prix d'achat est invalide." };
   const seuil = entier(s.seuil || "0");
   if (seuil === null) return { erreur: "Le seuil d'alerte est invalide." };
-  return { valeurs: { nom, categorie: s.categorie.trim() || null, prix_vente: prix, prix_promo: promo, prix_achat: achat, seuil } };
+  return { valeurs: { nom, categorie: s.categorie.trim() || null, prix_vente: prix, prix_promo: promo, promo_fin: fin, prix_achat: achat, seuil } };
 }
 
 export async function creerProduit(s: SaisieProduit & { stock: string }): Promise<Retour> {

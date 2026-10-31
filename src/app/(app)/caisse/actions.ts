@@ -167,9 +167,9 @@ async function enregistrer(supabase: Client, factureId: string, s: SaisieFacture
   const { data: produits } = ids.length
     ? await supabase
         .from("produits")
-        .select("id, nom, prix_vente, prix_promo")
+        .select("id, nom, prix_vente, prix_promo, promo_fin")
         .in("id", ids)
-        .returns<{ id: string; nom: string; prix_vente: number; prix_promo: number | null }[]>()
+        .returns<{ id: string; nom: string; prix_vente: number; prix_promo: number | null; promo_fin: string | null }[]>()
     : { data: [] };
   const lignesProduits = s.produits
     .filter((l) => Number.isInteger(l.quantite) && l.quantite > 0 && l.quantite <= 99)

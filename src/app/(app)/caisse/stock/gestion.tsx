@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Rouet } from "@/components/attente";
 import type { Produit } from "@/lib/caisse-lecture";
+import { promoProduit } from "@/lib/promo-produit";
 import { creerProduit, modifierProduit, mouvement, type Retour } from "./actions";
 
 export type Mouvement = {
@@ -17,6 +18,8 @@ export type Mouvement = {
 };
 
 const f = (n: number) => `${n.toLocaleString("fr-FR")} F`;
+const jourMois = (iso: string) =>
+  new Date(`${iso}T00:00:00Z`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" });
 const champ = "h-11 rounded-xl border border-brand-200 bg-white px-3 text-base";
 const bouton =
   "flex h-11 items-center justify-center gap-2 rounded-xl border border-brand-200 bg-white px-4 text-sm font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50";
@@ -119,8 +122,8 @@ export function GestionStock({ produits, mouvements }: { produits: Produit[]; mo
                     <strong className="text-brand-900">{p.nom}</strong>
                     <span className="text-xs text-brand-500">
                       {p.categorie ?? "Sans catégorie"} ·{" "}
-                      {p.prix_promo !== null && p.prix_promo < p.prix_vente
-                        ? `${f(p.prix_promo)} en promo, au lieu de ${f(p.prix_vente)}`
+                      {promoProduit(p) !== null
+                        ? `${f(p.prix_promo!)} en promo, au lieu de ${f(p.prix_vente)}${p.promo_fin ? `, jusqu'au ${jourMois(p.promo_fin)}` : ""}`
                         : p.prix_vente
                           ? f(p.prix_vente)
                           : "offert"}
@@ -257,6 +260,7 @@ function FicheProduit({
     categorie: string;
     prix_vente: string;
     prix_promo: string;
+    promo_fin: string;
     prix_achat: string;
     seuil: string;
     stock: string;
@@ -268,6 +272,7 @@ function FicheProduit({
     categorie: produit?.categorie ?? "",
     prix_vente: produit ? String(produit.prix_vente) : "",
     prix_promo: produit?.prix_promo != null ? String(produit.prix_promo) : "",
+    promo_fin: produit?.promo_fin ?? "",
     prix_achat: produit?.prix_achat != null ? String(produit.prix_achat) : "",
     seuil: produit ? String(produit.seuil) : "2",
     stock: "",
@@ -298,6 +303,12 @@ function FicheProduit({
         Prix promo (F) <span className="font-normal text-brand-500">vide = pas de promotion</span>
         <input inputMode="numeric" value={s.prix_promo} onChange={(e) => maj("prix_promo", e.target.value)} className={champ} />
       </label>
+      {s.prix_promo.trim() && (
+        <label className="flex flex-col gap-1 text-sm font-semibold text-brand-800">
+          Fin de la promo <span className="font-normal text-brand-500">dernier jour inclus ; vide = jusqu&apos;à nouvel ordre</span>
+          <input type="date" value={s.promo_fin} onChange={(e) => maj("promo_fin", e.target.value)} className={champ} />
+        </label>
+      )}
       <label className="flex flex-col gap-1 text-sm font-semibold text-brand-800">
         Prix d&apos;achat (F) <span className="font-normal text-brand-500">facultatif</span>
         <input inputMode="numeric" value={s.prix_achat} onChange={(e) => maj("prix_achat", e.target.value)} className={champ} />

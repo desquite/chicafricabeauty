@@ -1,4 +1,5 @@
 import "server-only";
+import { promoProduit, type PrixProduit } from "@/lib/promo-produit";
 import type { createClient } from "@/lib/supabase/server";
 
 type Client = Awaited<ReturnType<typeof createClient>>;
@@ -82,6 +83,8 @@ export type Produit = {
   prix_vente: number;
   /** Prix réduit pendant une promotion ; null hors promotion. */
   prix_promo: number | null;
+  /** Dernier jour de la promotion ; null si elle dure jusqu'à nouvel ordre. */
+  promo_fin: string | null;
   prix_achat: number | null;
   stock: number;
   seuil: number;
@@ -89,8 +92,7 @@ export type Produit = {
 };
 
 /** Prix encaissé aujourd'hui : la promotion si elle baisse le prix. */
-export const prixActuel = (p: Pick<Produit, "prix_vente" | "prix_promo">) =>
-  p.prix_promo !== null && p.prix_promo < p.prix_vente ? p.prix_promo : p.prix_vente;
+export const prixActuel = (p: PrixProduit) => promoProduit(p) ?? p.prix_vente;
 
 export async function lireProduits(supabase: Client, actifsSeulement = true): Promise<Produit[]> {
   let q = supabase.from("produits").select("*").order("nom");

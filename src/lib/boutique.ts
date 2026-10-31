@@ -3,6 +3,7 @@ import { statutPaiementJeko } from "@/lib/jeko";
 import { fenetreOuverte, journaliserSortant } from "@/lib/messagerie";
 import { alerterGerantes } from "@/lib/notifications/gerantes";
 import { envoyerTexteWhatsapp } from "@/lib/notifications/whatsapp";
+import { promoProduit } from "@/lib/promo-produit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -60,7 +61,7 @@ export function urlPhoto(chemin: string) {
 export async function catalogueBoutique(): Promise<ProduitBoutique[]> {
   const { data } = await createAdminClient()
     .from("produits")
-    .select("id, nom, categorie, prix_vente, prix_promo, stock, actif, accroche, description, photo, galerie")
+    .select("id, nom, categorie, prix_vente, prix_promo, promo_fin, stock, actif, accroche, description, photo, galerie")
     .gt("prix_vente", 0)
     .order("nom")
     .returns<
@@ -70,6 +71,7 @@ export async function catalogueBoutique(): Promise<ProduitBoutique[]> {
         categorie: string | null;
         prix_vente: number;
         prix_promo: number | null;
+        promo_fin: string | null;
         stock: number;
         actif: boolean;
         accroche: string | null;
@@ -79,7 +81,7 @@ export async function catalogueBoutique(): Promise<ProduitBoutique[]> {
       }[]
     >();
   return (data ?? []).map((p) => {
-    const promo = p.prix_promo !== null && p.prix_promo < p.prix_vente ? p.prix_promo : null;
+    const promo = promoProduit(p);
     return {
       id: p.id,
       nom: p.nom,

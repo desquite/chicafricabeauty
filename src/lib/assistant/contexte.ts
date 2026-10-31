@@ -1,7 +1,8 @@
 import "server-only";
 import { finAbonnement, situationPaiement, type Abonnement } from "@/lib/abonnements";
 import { adressePublique } from "@/lib/adresse";
-import { prixDuJour, type PrixSoin } from "@/lib/disponibilites";
+import { etatPromo, prixDuJour, type PrixSoin } from "@/lib/disponibilites";
+import { promoProduit } from "@/lib/promo-produit";
 import { creneauxLibres } from "@/lib/reservation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { nomChaleureux } from "@/lib/types";
@@ -51,11 +52,11 @@ export async function contexteEnDirect(clienteId: string | null, maintenant = ne
       .returns<Soin[]>(),
     admin
       .from("produits")
-      .select("id, nom, categorie, prix_vente, prix_promo, stock, actif, accroche, description")
+      .select("id, nom, categorie, prix_vente, prix_promo, promo_fin, stock, actif, accroche, description")
       .order("categorie")
       .order("nom")
       .returns<
-        { id: string; nom: string; categorie: string | null; prix_vente: number; prix_promo: number | null; stock: number; actif: boolean; accroche: string | null; description: string | null }[]
+        { id: string; nom: string; categorie: string | null; prix_vente: number; prix_promo: number | null; promo_fin: string | null; stock: number; actif: boolean; accroche: string | null; description: string | null }[]
       >(),
   ]);
 
@@ -82,7 +83,14 @@ export async function contexteEnDirect(clienteId: string | null, maintenant = ne
   lignes.push("", "SOINS (prix du jour)");
   for (const s of soins ?? []) {
     const prix = prixDuJour(s, jour) ?? s.prix ?? 0;
-    const promo = prix !== s.prix && s.promo_fin ? ` (promotion jusqu'au ${jourLong(s.promo_fin)}, prix normal ${f(s.prix ?? 0)})` : "";
+    // Une promotion qui commence bientôt s'annonce aussi, avec ses dates.
+    const etat = etatPromo(s, jour);
+    const promo =
+      etat === "en_cours" && s.promo_fin
+        ? ` (promotion jusqu'au ${jourLong(s.promo_fin)} inclus, prix normal ${f(s.prix ?? 0)})`
+        : etat === "a_venir" && s.promo_debut && s.promo_fin
+          ? ` (promotion à ${f(s.prix_promo ?? 0)} du ${jourLong(s.promo_debut)} au ${jourLong(s.promo_fin)} inclus)`
+          : "";
     lignes.push(
       `- ${s.libelle_public || s.libelle} : ${f(prix)}${promo}${s.duree_std ? `, ${s.duree_std} min` : ""}${s.en_ligne ? "" : ", réservation par la gérante seulement"}`,
     );
@@ -95,8 +103,11 @@ export async function contexteEnDirect(clienteId: string | null, maintenant = ne
   for (const p of produits ?? []) {
     const dispo = p.actif && p.stock > 0 ? "en stock" : "rupture de stock";
     const texte = [p.accroche, p.description].filter(Boolean).join(" ").replace(/\s*\n+\s*/g, " ").replace(/\s+-\s+/g, " ; ").slice(0, 400);
+    const promo = promoProduit(p, jour);
     const prix =
-      p.prix_promo !== null && p.prix_promo < p.prix_vente ? `${f(p.prix_promo)} en promotion (prix normal ${f(p.prix_vente)})` : f(p.prix_vente);
+      promo === null
+        ? f(p.prix_vente)
+        : `${f(promo)} en promotion (prix normal ${f(p.prix_vente)}, ${p.promo_fin ? `jusqu'au ${jourLong(p.promo_fin)} inclus` : "date de fin non fixée"})`;
     lignes.push(`- ${p.nom} (${p.categorie ?? "divers"}) : ${prix}, ${dispo}, lien ${site}/boutique/produit/${p.id}${texte ? `. ${texte}` : ""}`);
   }
 
