@@ -52,7 +52,7 @@ export default async function PagePaiementAbonnement({
   const { code } = await params;
   const invalide = (
     <Cadre>
-      <p className="text-lg text-brand-800">Ce lien n&apos;est pas valable. Vérifie qu&apos;il a été copié en entier.</p>
+      <p className="text-lg text-brand-800">Ce lien n&apos;est pas valable. Vérifiez qu&apos;il a été copié en entier.</p>
     </Cadre>
   );
   if (!/^[0-9a-f]{12}$/.test(code)) return invalide;
@@ -116,7 +116,7 @@ export default async function PagePaiementAbonnement({
 
       {situation.reste === 0 ? (
         <p className="rounded-2xl bg-[#e5f0e6] px-4 py-3 font-semibold text-[#2f5d3a]">
-          Ton abonnement est entièrement réglé. Merci !
+          Votre abonnement est entièrement réglé. Merci !
         </p>
       ) : peutPayer ? (
         <div className="w-full text-left">
@@ -129,11 +129,11 @@ export default async function PagePaiementAbonnement({
           />
         </div>
       ) : (
-        <p className="text-brand-700">Le paiement en ligne est momentanément indisponible : règle à l&apos;institut.</p>
+        <p className="text-brand-700">Le paiement en ligne est momentanément indisponible : réglez à l&apos;institut.</p>
       )}
 
       <p className="text-[13px] text-brand-600">
-        Une question ? Appelle-nous au{" "}
+        Une question ? Appelez-nous au{" "}
         <a href={INSTITUT.telephoneLien} className="font-semibold underline">
           {INSTITUT.telephone}
         </a>

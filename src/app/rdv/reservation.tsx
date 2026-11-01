@@ -257,7 +257,7 @@ export default function Reservation({
       if (date && choixHeure) {
         const libres = liste.find((j) => j.date === date)?.creneaux ?? [];
         if (!libres.includes(choixHeure)) {
-          setErreur(`Le créneau de ${heure(choixHeure)} vient d'être réservé. Choisis-en un autre.`);
+          setErreur(`Le créneau de ${heure(choixHeure)} vient d'être réservé. Choisissez-en un autre.`);
           setChoixHeure("");
         }
       }
@@ -374,7 +374,7 @@ export default function Reservation({
         <div className="-mt-10 flex flex-col items-center gap-2 px-6 text-center">
           <Logo className="h-[72px] w-[72px] rounded-full ring-4 ring-creme" />
           <h1 className={`${titre} mt-1 text-[28px]`}>{INSTITUT.nom}</h1>
-          <p className="text-[15px] text-brand-700">Bienvenue ma Chic ! Réserve ton moment.</p>
+          <p className="text-[15px] text-brand-700">Bienvenue ma Chic ! Réservez votre moment.</p>
           <p className="flex items-start gap-1.5 text-[13px] leading-snug text-brand-600/90">
             <IconeLieu />
             Angré nouveau CHU, ruelle de la pharmacie Kabod
@@ -406,7 +406,7 @@ export default function Reservation({
           </h2>
           {prestations.length === 0 && (
             <p className="mx-1 text-brand-600">
-              Aucune prestation n&apos;est proposée en ligne pour le moment. Appelle-nous au{" "}
+              Aucune prestation n&apos;est proposée en ligne pour le moment. Appelez-nous au{" "}
               <a href={INSTITUT.telephoneLien} className="font-semibold underline">
                 {INSTITUT.telephone}
               </a>
@@ -415,7 +415,7 @@ export default function Reservation({
           )}
           {prestations.length > 0 && (
             <p className="mx-1 -mt-2 mb-1 text-sm text-brand-600">
-              Touche une catégorie pour voir ses soins.
+              Touchez une catégorie pour voir ses soins.
             </p>
           )}
           {groupes.map((g) => {
@@ -557,8 +557,8 @@ export default function Reservation({
         p={paiement}
         invitation={
           recap.acompteRequis
-            ? `Acompte de ${(recap.acompte || montantSoin).toLocaleString("fr-FR")} F à régler ${limiteTexte}. Tu peux le payer maintenant.`
-            : "Acompte non réglé : tu peux le payer maintenant, ou à l'institut."
+            ? `Acompte de ${(recap.acompte || montantSoin).toLocaleString("fr-FR")} F à régler ${limiteTexte}. Vous pouvez le payer maintenant.`
+            : "Acompte non réglé : vous pouvez le payer maintenant, ou à l'institut."
         }
       />
     );
@@ -589,15 +589,15 @@ export default function Reservation({
         <p className="text-center text-[15px] leading-relaxed text-brand-700">
           {enSuspens && recap.acompteRequis ? (
             <>
-              Ton créneau est retenu. Règle l&apos;acompte {limiteTexte} pour le confirmer : sans
+              Votre créneau est retenu. Réglez l&apos;acompte {limiteTexte} pour le confirmer : sans
               acompte, le rendez-vous est annulé automatiquement.
-              {" Le lien de paiement t'est aussi envoyé sur WhatsApp."}
+              {" Le lien de paiement vous est aussi envoyé sur WhatsApp."}
             </>
           ) : enSuspens ? (
-            <>Ton créneau est retenu. Termine le paiement de l&apos;acompte pour le confirmer.</>
+            <>Votre créneau est retenu. Terminez le paiement de l&apos;acompte pour le confirmer.</>
           ) : (
             <>
-              À très vite{recap.prenom ? `, ${recap.prenom}` : ""}. Garde bien ce
+              À très vite{recap.prenom ? `, ${recap.prenom}` : ""}. Gardez bien ce
               récapitulatif.
             </>
           )}
@@ -644,7 +644,7 @@ export default function Reservation({
             </p>
           )}
           <p className="mt-2 text-center text-[13px] text-brand-600">
-            Un empêchement ? Appelle-nous au{" "}
+            Un empêchement ? Appelez-nous au{" "}
             <a href={INSTITUT.telephoneLien} className="font-semibold underline">
               {INSTITUT.telephone}
             </a>
@@ -842,7 +842,7 @@ export default function Reservation({
           >
             {date && choixHeure
               ? `${dateCourte(date)} à ${heure(choixHeure)} — Continuer`
-              : "Choisis un jour et une heure"}
+              : "Choisissez un jour et une heure"}
           </BoutonPrincipal>
         </Pied>
       </main>
@@ -868,12 +868,12 @@ export default function Reservation({
             <>
               <h2 className={`${titre} mx-1 text-2xl leading-tight`}>Régler l&apos;acompte</h2>
               <p className="mx-1 text-sm leading-relaxed text-brand-600">
-                L&apos;acompte de {montant} confirme ton rendez-vous. Il est déduit du prix le jour du
+                L&apos;acompte de {montant} confirme votre rendez-vous. Il est déduit du prix le jour du
                 soin.
               </p>
               {immediat && (
                 <p className="rounded-2xl bg-brand-100 px-4 py-3 text-sm leading-relaxed text-brand-800">
-                  Ton rendez-vous est très proche : l&apos;acompte est à régler au plus tard le{" "}
+                  Votre rendez-vous est très proche : l&apos;acompte est à régler au plus tard le{" "}
                   {limite}. Sans paiement à cette heure-là, le créneau est libéré.
                 </p>
               )}
@@ -881,10 +881,10 @@ export default function Reservation({
           ) : (
             <>
               <h2 className={`${titre} mx-1 text-2xl leading-tight`}>
-                Veux-tu régler l&apos;acompte maintenant ?
+                Voulez-vous régler l&apos;acompte maintenant ?
               </h2>
               <p className="mx-1 text-sm leading-relaxed text-brand-600">
-                {montant}, déduits du prix le jour du soin. C&apos;est facultatif : ton rendez-vous
+                {montant}, déduits du prix le jour du soin. C&apos;est facultatif : votre rendez-vous
                 est réservé dans les deux cas.
               </p>
             </>
@@ -932,8 +932,8 @@ export default function Reservation({
                 </span>
                 <span className="text-[13px] leading-snug text-brand-600">
                   {obligatoire
-                    ? `Tu reçois le lien de paiement sur WhatsApp. À régler au plus tard le ${limite}, sinon le rendez-vous est annulé automatiquement.`
-                    : "Tu pourras régler l'acompte à l'institut."}
+                    ? `Vous recevez le lien de paiement sur WhatsApp. À régler au plus tard le ${limite}, sinon le rendez-vous est annulé automatiquement.`
+                    : "Vous pourrez régler l'acompte à l'institut."}
                 </span>
               </span>
             </label>
@@ -991,9 +991,9 @@ export default function Reservation({
           if (coordonneesPretes) suite();
         }}
       >
-        <h2 className={`${titre} mx-1 text-[22px]`}>Tes coordonnées</h2>
+        <h2 className={`${titre} mx-1 text-[22px]`}>Vos coordonnées</h2>
         <p className="mx-1 -mt-2.5 text-sm leading-relaxed text-brand-600">
-          Commence par ton numéro : si tu es déjà cliente, on te reconnaît.
+          Commencez par votre numéro : si vous êtes déjà cliente, nous vous reconnaîtrons.
         </p>
 
         {/* Deux champs, l'indicatif et le numero : un div, pas un label qui ne
@@ -1044,14 +1044,14 @@ export default function Reservation({
             />
           </span>
           <span className="text-[13px] font-normal text-brand-600">
-            C&apos;est ici que l&apos;institut te contactera.
+            C&apos;est ici que l&apos;institut vous contactera.
           </span>
         </div>
 
 
         {recherche && (
           <p className="mx-1 flex items-center gap-2 text-sm text-brand-600" role="status">
-            <Rouet /> On vérifie ton numéro…
+            <Rouet /> Nous vérifions votre numéro…
           </p>
         )}
 
@@ -1062,7 +1062,7 @@ export default function Reservation({
           >
             <span className={`${titre} text-[20px]`}>Bonjour {connue.salut} !</span>
             <span className="text-sm text-brand-700">
-              On t&apos;a reconnue, le rendez-vous sera à ton nom.
+              Nous vous avons reconnue, le rendez-vous sera à votre nom.
             </span>
             <button
               type="button"
@@ -1098,7 +1098,7 @@ export default function Reservation({
 
         {recoActuelle?.etat === "limite" && (
           <p className="mx-1 text-[13px] text-brand-600">
-            Trop de numéros essayés depuis cet appareil : indique ton nom pour continuer.
+            Trop de numéros essayés depuis cet appareil : indiquez votre nom pour continuer.
           </p>
         )}
 
@@ -1110,7 +1110,7 @@ export default function Reservation({
               type="email"
               inputMode="email"
               autoComplete="email"
-              placeholder="toi@exemple.com"
+              placeholder="vous@exemple.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />

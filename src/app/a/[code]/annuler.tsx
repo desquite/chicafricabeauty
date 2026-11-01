@@ -27,7 +27,7 @@ export default function AnnulerRdv({ code }: { code: string }) {
   return (
     <div className="flex w-full flex-col gap-3 rounded-2xl bg-white p-4 text-left">
       <p className="text-sm text-brand-800">
-        Tu confirmes l&apos;annulation ? Le créneau sera libéré pour une autre cliente.
+        Vous confirmez l&apos;annulation ? Le créneau sera libéré pour une autre cliente.
       </p>
       {erreur && (
         <p role="alert" className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-800">

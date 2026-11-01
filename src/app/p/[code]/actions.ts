@@ -21,13 +21,13 @@ export async function payerAbonnement(saisie: {
 }): Promise<ResultatInitiation> {
   if (!CODE.test(saisie.code)) return { ok: false, erreur: "Abonnement introuvable." };
   if (!OPERATEURS.includes(saisie.operateur as Operateur)) {
-    return { ok: false, erreur: "Choisis ton opérateur Mobile Money." };
+    return { ok: false, erreur: "Choisissez votre opérateur Mobile Money." };
   }
   const telephone = chiffresIvoiriens(saisie.telephone);
   if (!telephone) return { ok: false, erreur: "Le numéro qui paie doit compter 10 chiffres." };
   const otp = saisie.otp.replace(/\D/g, "");
   if (saisie.operateur === "orange" && !/^\d{4,8}$/.test(otp)) {
-    return { ok: false, erreur: "Indique le code de paiement Orange Money reçu sur ton téléphone." };
+    return { ok: false, erreur: "Indiquez le code de paiement Orange Money reçu sur votre téléphone." };
   }
   return initierVersement({
     code: saisie.code,

@@ -160,7 +160,7 @@ export async function reserver(saisie: {
     console.warn(`Réservation : champ piège rempli (${saisie.site.slice(0, 40)}), réservation poursuivie`);
   }
   if (!UUID.test(saisie.soinId) || !DATE.test(saisie.date) || !HEURE.test(saisie.heure)) {
-    return { ok: false, erreur: "Choisis une prestation, un jour et une heure." };
+    return { ok: false, erreur: "Choisissez une prestation, un jour et une heure." };
   }
 
   const nomSaisi = saisie.nom.trim().replace(/\s+/g, " ");
@@ -187,11 +187,11 @@ export async function reserver(saisie: {
   const connue = await trouverCliente(numero.international);
   const ficheExistante = "cliente" in connue ? connue.cliente : null;
   if (!ficheExistante && nomSaisi.length < 2) {
-    return { ok: false, erreur: "Indique ton nom et tes prénoms." };
+    return { ok: false, erreur: "Indiquez votre nom et vos prénoms." };
   }
   const nom = ficheExistante && !saisie.pourAutre ? ficheExistante.nom_complet : nomSaisi;
   if (saisie.pourAutre && nomSaisi.length < 2) {
-    return { ok: false, erreur: "Indique le nom de la personne qui vient." };
+    return { ok: false, erreur: "Indiquez le nom de la personne qui vient." };
   }
 
   const cliente = await clientePourReservation({
@@ -204,7 +204,7 @@ export async function reserver(saisie: {
     console.error(`Réservation : fiche cliente impossible (${numero.affiche}) : ${cliente.erreur}`);
     return {
       ok: false,
-      erreur: `Ta fiche n'a pas pu être enregistrée. Réessaie dans un instant, ou appelle l'institut au ${INSTITUT.telephone}.`,
+      erreur: `Votre fiche n'a pas pu être enregistrée. Réessayez dans un instant, ou appelez l'institut au ${INSTITUT.telephone}.`,
     };
   }
 
@@ -227,7 +227,7 @@ export async function reserver(saisie: {
     console.error(`Réservation : enregistrement impossible (${error.code ?? "?"}) : ${error.message}`);
     return {
       ok: false,
-      erreur: `Le rendez-vous n'a pas pu être enregistré. Réessaie dans un instant, ou appelle l'institut au ${INSTITUT.telephone}.`,
+      erreur: `Le rendez-vous n'a pas pu être enregistré. Réessayez dans un instant, ou appelez l'institut au ${INSTITUT.telephone}.`,
     };
   }
 
@@ -244,7 +244,7 @@ export async function reserver(saisie: {
     if (resultat.erreur === "trop") {
       return {
         ok: false,
-        erreur: `Tu as déjà 3 rendez-vous à venir. Pour en prendre un autre, appelle l'institut au ${INSTITUT.telephone}.`,
+        erreur: `Vous avez déjà 3 rendez-vous à venir. Pour en prendre un autre, appelez l'institut au ${INSTITUT.telephone}.`,
       };
     }
     if (resultat.erreur === "soin") {
@@ -256,8 +256,8 @@ export async function reserver(saisie: {
       ok: false,
       erreur:
         resultat.erreur === "pris"
-          ? "Ce créneau vient d'être réservé par une autre cliente. Choisis-en un autre."
-          : "Ce créneau n'est plus disponible. Choisis-en un autre.",
+          ? "Ce créneau vient d'être réservé par une autre cliente. Choisissez-en un autre."
+          : "Ce créneau n'est plus disponible. Choisissez-en un autre.",
       creneaux: await creneauxLibres(saisie.soinId),
     };
   }
@@ -367,7 +367,7 @@ export async function payerAcompte(saisie: {
 }): Promise<ResultatInitiation> {
   if (!CODE.test(saisie.code)) return { ok: false, erreur: "Rendez-vous introuvable." };
   if (!OPERATEURS.includes(saisie.operateur as Operateur)) {
-    return { ok: false, erreur: "Choisis ton opérateur Mobile Money." };
+    return { ok: false, erreur: "Choisissez votre opérateur Mobile Money." };
   }
   const telephone = chiffresIvoiriens(saisie.telephone);
   if (!telephone) {
@@ -375,7 +375,7 @@ export async function payerAcompte(saisie: {
   }
   const otp = saisie.otp.replace(/\D/g, "");
   if (saisie.operateur === "orange" && !/^\d{4,8}$/.test(otp)) {
-    return { ok: false, erreur: "Indique le code de paiement Orange Money reçu sur ton téléphone." };
+    return { ok: false, erreur: "Indiquez le code de paiement Orange Money reçu sur votre téléphone." };
   }
 
   const r = await initierAcompte({

@@ -59,9 +59,9 @@ export default function PayerAbonnement({
         montant={montant}
         ussdOrange={ussdOrange}
         p={paiement}
-        invitation="Choisis ton opérateur Mobile Money."
+        invitation="Choisissez votre opérateur Mobile Money."
         libelle="Abonnement"
-        note="pour ton abonnement"
+        note="pour votre abonnement"
       />
     </div>
   );

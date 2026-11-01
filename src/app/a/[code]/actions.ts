@@ -33,12 +33,12 @@ export async function annulerParCliente(code: string): Promise<{ ok: boolean; er
     return { ok: false, erreur: "Ce rendez-vous n'est plus prévu." };
   }
   if (rdv.acompte_paye_le) {
-    return { ok: false, erreur: "Un acompte a été versé : appelle l'institut pour annuler ou déplacer." };
+    return { ok: false, erreur: "Un acompte a été versé : appelez l'institut pour annuler ou déplacer." };
   }
   if (!annulable(rdv.date_rdv, rdv.heure_rdv)) {
     return {
       ok: false,
-      erreur: `L'annulation en ligne n'est plus possible à moins de ${DELAI_ANNULATION_H} h du rendez-vous : appelle l'institut.`,
+      erreur: `L'annulation en ligne n'est plus possible à moins de ${DELAI_ANNULATION_H} h du rendez-vous : appelez l'institut.`,
     };
   }
 

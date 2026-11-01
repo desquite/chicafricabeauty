@@ -4,7 +4,7 @@ import { mulish } from "./polices";
 export const metadata: Metadata = {
   title: "Réserver — Chic Africa Beauty",
   description:
-    "Réserve ton soin à l'institut Chic Africa Beauty, Angré nouveau CHU, en quelques secondes.",
+    "Réservez votre soin à l'institut Chic Africa Beauty, Angré nouveau CHU, en quelques secondes.",
 };
 
 export default function LayoutRdv({ children }: { children: React.ReactNode }) {

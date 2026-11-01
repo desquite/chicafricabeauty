@@ -20,7 +20,7 @@ export default function PayerAcompte({
       montant={montant}
       ussdOrange={ussdOrange}
       p={paiement}
-      invitation="Choisis ton opérateur Mobile Money."
+      invitation="Choisissez votre opérateur Mobile Money."
     />
   );
 }

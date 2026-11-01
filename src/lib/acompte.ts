@@ -101,7 +101,7 @@ export async function initierAcompte(p: {
       }
       return {
         ok: false,
-        erreur: "Un paiement est déjà en cours pour ce rendez-vous. Valide-le sur ton téléphone, ou réessaie dans quelques minutes.",
+        erreur: "Un paiement est déjà en cours pour ce rendez-vous. Validez-le sur votre téléphone, ou réessayez dans quelques minutes.",
       };
     }
   }
@@ -136,8 +136,8 @@ export async function initierAcompte(p: {
     return {
       ok: false,
       erreur: r.acces
-        ? "Le paiement en ligne est momentanément indisponible. Ton créneau reste retenu : réessaie un peu plus tard, ou règle l'acompte à l'institut."
-        : "Le paiement n'a pas pu démarrer. Vérifie le numéro et l'opérateur, puis réessaie.",
+        ? "Le paiement en ligne est momentanément indisponible. Votre créneau reste retenu : réessayez un peu plus tard, ou réglez l'acompte à l'institut."
+        : "Le paiement n'a pas pu démarrer. Vérifiez le numéro et l'opérateur, puis réessayez.",
     };
   }
 

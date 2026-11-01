@@ -157,11 +157,11 @@ export function ChoixPaiement({
           <span className="leading-snug font-normal text-brand-600">
             {ussdOrange ? (
               <>
-                Compose <strong className="font-bold">{ussdOrange}</strong> sur ce numéro pour obtenir
-                ton code, puis saisis-le ici.
+                Composez <strong className="font-bold">{ussdOrange}</strong> sur ce numéro pour obtenir
+                votre code, puis saisissez-le ici.
               </>
             ) : (
-              "Génère un code de paiement depuis ton menu Orange Money, puis saisis-le ici."
+              "Générez un code de paiement depuis votre menu Orange Money, puis saisissez-le ici."
             )}
           </span>
           <input
@@ -233,16 +233,16 @@ export function SuiviPaiement({
             Payer avec Wave
           </a>
         ) : paiement.operateur === "orange" ? (
-          <p className="text-brand-600">Orange Money valide ton code, un instant.</p>
+          <p className="text-brand-600">Orange Money valide votre code, un instant.</p>
         ) : (
           <p className="text-brand-600">
-            Une demande de paiement arrive sur ton téléphone : valide-la avec ton code secret.
+            Une demande de paiement arrive sur votre téléphone : validez-la avec votre code secret.
           </p>
         )}
         {p.attenteLongue && (
           <p className="text-brand-600">
-            La confirmation tarde. Si tu as payé, elle arrivera d&apos;elle-même et tu recevras un
-            message. Sinon, réessaie depuis le lien reçu sur WhatsApp.
+            La confirmation tarde. Si vous avez payé, elle arrivera d&apos;elle-même et vous recevrez un
+            message. Sinon, réessayez depuis le lien reçu sur WhatsApp.
           </p>
         )}
       </div>
@@ -255,7 +255,7 @@ export function SuiviPaiement({
         <p role="alert" className="rounded-xl bg-red-50 px-3.5 py-2.5 text-red-800">
           {paiement.etat === "erreur"
             ? paiement.erreur
-            : "Le paiement n'a pas abouti. Tu peux réessayer."}
+            : "Le paiement n'a pas abouti. Vous pouvez réessayer."}
         </p>
       ) : (
         <p className="text-brand-600">{invitation}</p>

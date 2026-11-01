@@ -66,7 +66,7 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
   if (!/^[0-9a-f]{12}$/.test(code)) {
     return (
       <Cadre>
-        <p className="text-lg text-brand-800">Ce lien n&apos;est pas valable. Vérifie qu&apos;il a été copié en entier.</p>
+        <p className="text-lg text-brand-800">Ce lien n&apos;est pas valable. Vérifiez qu&apos;il a été copié en entier.</p>
       </Cadre>
     );
   }
@@ -87,13 +87,13 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
   if (!rdv) {
     return (
       <Cadre>
-        <p className="text-lg text-brand-800">Ce lien n&apos;est pas valable. Vérifie qu&apos;il a été copié en entier.</p>
+        <p className="text-lg text-brand-800">Ce lien n&apos;est pas valable. Vérifiez qu&apos;il a été copié en entier.</p>
       </Cadre>
     );
   }
 
   const prenom = rdv.clientes ? nomChaleureux(rdv.clientes) : "";
-  const soin = rdv.soins_catalogue?.libelle_public || rdv.soins_catalogue?.libelle || "Ton soin";
+  const soin = rdv.soins_catalogue?.libelle_public || rdv.soins_catalogue?.libelle || "Votre soin";
   const quand = quandLisible(rdv.date_rdv, rdv.heure_rdv);
   const aujourdhui = new Date().toISOString().slice(0, 10);
   const recap = (
@@ -113,7 +113,7 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
     return (
       <Cadre>
         <h1 className={`${titre} text-[26px]`}>Ce rendez-vous n&apos;est plus prévu</h1>
-        <p className="text-brand-700">Il a été annulé ou déplacé. Tu peux reprendre rendez-vous à tout moment.</p>
+        <p className="text-brand-700">Il a été annulé ou déplacé. Vous pouvez reprendre rendez-vous à tout moment.</p>
         {recap}
         {reprendre}
       </Cadre>
@@ -139,7 +139,7 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
       <p className="text-xs text-brand-500">Possible jusqu&apos;à {DELAI_ANNULATION_H} h avant le rendez-vous.</p>
     </div>
   ) : (
-    <p className="text-sm text-brand-600">Un empêchement ? Appelle-nous au {appeler}.</p>
+    <p className="text-sm text-brand-600">Un empêchement ? Appelez-nous au {appeler}.</p>
   );
 
   if (rdv.acompte_paye_le) {
@@ -152,7 +152,7 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
         </p>
         {recap}
         <p className="text-sm text-brand-600">
-          Pour annuler ou déplacer ce rendez-vous, appelle-nous au {appeler}.
+          Pour annuler ou déplacer ce rendez-vous, appelez-nous au {appeler}.
         </p>
       </Cadre>
     );
@@ -163,7 +163,7 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
       <Cadre>
         <h1 className={`${titre} text-[26px]`}>Le délai est dépassé</h1>
         <p className="text-brand-700">
-          L&apos;acompte n&apos;a pas été réglé à temps : ce rendez-vous va être annulé. Tu peux en
+          L&apos;acompte n&apos;a pas été réglé à temps : ce rendez-vous va être annulé. Vous pouvez en
           reprendre un nouveau à tout moment.
         </p>
         {recap}
@@ -190,7 +190,7 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
   if (!rdv.acompte_requis) {
     return (
       <Cadre>
-        <h1 className={`${titre} text-[28px]`}>Ton rendez-vous</h1>
+        <h1 className={`${titre} text-[28px]`}>Votre rendez-vous</h1>
         <p className="text-brand-700">
           Il est bien confirmé{prenom ? `, ${prenom}` : ""}. À très vite chez Chic Africa Beauty !
         </p>
@@ -198,7 +198,7 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
         {formulaire && (
           <>
             <p className="text-sm text-brand-600">
-              Tu peux régler dès maintenant l&apos;acompte de {montant.toLocaleString("fr-FR")} F CFA,
+              Vous pouvez régler dès maintenant l&apos;acompte de {montant.toLocaleString("fr-FR")} F CFA,
               déduit du prix le jour du soin.
             </p>
             {formulaire}
@@ -213,7 +213,7 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
     return (
       <Cadre>
         <p className="text-brand-800">
-          Le paiement en ligne est momentanément indisponible. Appelle-nous au {appeler}.
+          Le paiement en ligne est momentanément indisponible. Appelez-nous au {appeler}.
         </p>
         {recap}
       </Cadre>
@@ -230,7 +230,7 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
       <h1 className={`${titre} text-[28px]`}>Régler l&apos;acompte</h1>
       <p className="text-[15px] leading-relaxed text-brand-700">
         {prenom ? `${prenom}, l` : "L"}&apos;acompte de {montant.toLocaleString("fr-FR")} F CFA confirme
-        ton rendez-vous
+        votre rendez-vous
         {limite ? `. À régler au plus tard le ${limite}, sinon le rendez-vous est annulé automatiquement.` : "."}
       </p>
       {recap}
