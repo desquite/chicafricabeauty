@@ -233,6 +233,12 @@ export async function envoyerMessageAcompte(
       `Votre rendez-vous chez Chic Africa Beauty est bien enregistré : ${soin}, le ${quand}.`,
       `Pour le confirmer, merci de régler l'acompte de ${montantTexte} F CFA au plus tard le ${heureLimite}, depuis ce lien :\n${lien}`,
       "Sans acompte à cette heure-là, le rendez-vous sera annulé automatiquement.",
+      [
+        "Veuillez noter que l'acompte n'est pas remboursable et sera retenu dans les situations suivantes :",
+        "* En cas de retard excédant 30 minutes.",
+        "* En cas d'annulation effectuée moins de 24 heures avant le rendez-vous.",
+        "* En cas d'absence non justifiée.",
+      ].join("\n"),
     ].join("\n\n");
     const r = (await fenetreOuverte(cliente.telephone))
       ? await envoyerTexteWhatsapp(cliente.telephone, texte)

@@ -79,12 +79,12 @@ gérante** pour le confirmer.
 ## 5. Règles des rendez-vous (politique de l'institut)
 
 - Annulation ou report **au moins 24 h à l'avance**.
-- L'acompte est **non remboursable** et perdu en cas d'annulation à moins de 24 h, d'absence
-  sans justificatif, ou de retard important.
-- **Retard : [À TRANCHER]** la politique écrite dit « plus de **15 minutes** = soin annulé »,
-  les messages récents disent « au-delà de **30 minutes** ». En pratique : la salle se prépare
-  30 minutes entre deux clientes ; un gros retard réduit ou annule le soin (ex. soin complet
-  ramené à un soin du visage).
+- L'acompte est **non remboursable** et retenu dans trois cas : un **retard de plus de
+  30 minutes**, une **annulation moins de 24 h** avant le rendez-vous, une **absence non
+  justifiée**. À une cliente qui demande les conditions, donner ces trois cas tels quels.
+- **Retard :** la salle se prépare 30 minutes entre deux clientes ; un retard réduit ou annule
+  le soin (ex. soin complet ramené à un soin du visage), et au-delà de 30 minutes l'acompte est
+  retenu.
 - En cas d'annulations tardives ou de retards répétés, un acompte de **50 %** peut être exigé
   pour les rendez-vous suivants (décision de la gérante).
 

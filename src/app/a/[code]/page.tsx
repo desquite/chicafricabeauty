@@ -41,6 +41,20 @@ function Cadre({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Politique de l'acompte, lue avant de payer ; même texte que le message d'acompte. */
+function ConditionsAcompte() {
+  return (
+    <div className="mt-4 rounded-xl bg-brand-50 px-4 py-3 text-[13px] leading-snug text-brand-700">
+      <p>Veuillez noter que l&apos;acompte n&apos;est pas remboursable et sera retenu dans les situations suivantes :</p>
+      <ul className="mt-1.5 flex list-disc flex-col gap-0.5 pl-5">
+        <li>En cas de retard excédant 30 minutes.</li>
+        <li>En cas d&apos;annulation effectuée moins de 24 heures avant le rendez-vous.</li>
+        <li>En cas d&apos;absence non justifiée.</li>
+      </ul>
+    </div>
+  );
+}
+
 /**
  * Lien de paiement de l'acompte, envoyé à la cliente par WhatsApp et e-mail.
  *
@@ -168,6 +182,7 @@ export default async function PageAcompte({ params }: { params: Promise<{ code: 
   const formulaire = paiementPossible && (
     <div className="w-full rounded-[20px] bg-white p-5 text-left shadow-[0_4px_14px_rgba(74,35,28,0.06)]">
       <PayerAcompte code={code} montant={montant} ussdOrange={await codeUssdOrange()} telephone={telephone} />
+      <ConditionsAcompte />
     </div>
   );
 
