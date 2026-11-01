@@ -4,8 +4,17 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Rouet } from "@/components/attente";
 import type { Produit } from "@/lib/caisse-lecture";
+import { compresserPhoto } from "@/lib/image";
 import { promoProduit } from "@/lib/promo-produit";
-import { creerProduit, modifierProduit, mouvement, type Retour } from "./actions";
+import {
+  ajouterPhotoProduit,
+  creerProduit,
+  modifierProduit,
+  mouvement,
+  photoPrincipale,
+  retirerPhotoProduit,
+  type Retour,
+} from "./actions";
 
 export type Mouvement = {
   id: string;
@@ -137,6 +146,12 @@ export function GestionStock({ produits, mouvements }: { produits: Produit[]; mo
                 </button>
                 {ouvert === p.id && (
                   <div className="flex flex-col gap-3 border-t border-brand-100 pt-3">
+                    <PhotosProduit
+                      produit={p}
+                      enCours={enCours}
+                      onErreur={(erreur) => setMessage({ erreur })}
+                      agir={(action) => agir(action)}
+                    />
                     <Mouvements
                       enCours={enCours}
                       onMouvement={(type, q, note) => agir(() => mouvement(p.id, type, q, note))}
@@ -183,6 +198,120 @@ export function GestionStock({ produits, mouvements }: { produits: Produit[]; mo
           ))}
         </ul>
       </section>
+    </div>
+  );
+}
+
+const urlPhoto = (chemin: string) =>
+  `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/produits/${chemin}`;
+
+/**
+ * Photo réduite avant l'envoi : 1600 px suffisent à la boutique, et l'envoi
+ * doit rester sous la limite d'une action serveur (1 Mo).
+ */
+async function preparerPhoto(fichier: File) {
+  for (const [px, qualite] of [
+    [1600, 0.85],
+    [1400, 0.75],
+    [1100, 0.7],
+  ] as const) {
+    const blob = await compresserPhoto(fichier, px, qualite);
+    if (blob.size < 950 * 1024) return blob;
+  }
+  return null;
+}
+
+/** Photos de la boutique : la première est la principale. */
+function PhotosProduit({
+  produit: p,
+  enCours,
+  onErreur,
+  agir,
+}: {
+  produit: Produit;
+  enCours: boolean;
+  onErreur: (erreur: string) => void;
+  agir: (action: () => Promise<Retour>) => void;
+}) {
+  const [preparation, setPreparation] = useState(false);
+  const photos = [p.photo, ...(p.galerie ?? [])].filter((x): x is string => Boolean(x));
+  const occupe = enCours || preparation;
+
+  const choisir = async (fichier: File | undefined) => {
+    if (!fichier) return;
+    setPreparation(true);
+    const blob = await preparerPhoto(fichier).catch(() => null);
+    setPreparation(false);
+    if (!blob) return onErreur("Cette photo n'a pas pu être lue. Essayez-en une autre.");
+    const donnees = new FormData();
+    donnees.append("photo", new File([blob], "photo.jpg", { type: "image/jpeg" }));
+    agir(() => ajouterPhotoProduit(p.id, donnees));
+  };
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-sm font-semibold text-brand-800">
+        Photos de la boutique <span className="font-normal text-brand-500">la première est la photo principale</span>
+      </span>
+      <div className="flex flex-wrap gap-2">
+        {photos.map((chemin, i) => (
+          <div key={chemin} className="flex w-28 flex-col gap-1">
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={urlPhoto(chemin)}
+                alt={`Photo ${i + 1} de ${p.nom}`}
+                className={`aspect-square w-28 rounded-xl object-cover ${i === 0 ? "ring-2 ring-brand-600" : ""}`}
+              />
+              {i === 0 && (
+                <span className="absolute top-1 left-1 rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                  Principale
+                </span>
+              )}
+            </div>
+            {i > 0 && (
+              <button
+                type="button"
+                disabled={occupe}
+                onClick={() => agir(() => photoPrincipale(p.id, chemin))}
+                className="h-8 rounded-lg border border-brand-200 bg-white text-xs font-semibold text-brand-700 disabled:opacity-50"
+              >
+                Mettre en principale
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={occupe}
+              onClick={() => {
+                if (confirm("Retirer cette photo de la boutique ?")) agir(() => retirerPhotoProduit(p.id, chemin));
+              }}
+              className="h-8 rounded-lg border border-red-200 bg-white text-xs font-semibold text-red-700 disabled:opacity-50"
+            >
+              Retirer
+            </button>
+          </div>
+        ))}
+        {photos.length < 6 && (
+          <label
+            className={`flex aspect-square w-28 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-brand-300 bg-white text-center text-xs font-semibold text-brand-700 ${
+              occupe ? "pointer-events-none opacity-50" : ""
+            }`}
+          >
+            {occupe ? <Rouet /> : <span className="text-2xl leading-none">+</span>}
+            {preparation ? "Préparation…" : "Ajouter une photo"}
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              disabled={occupe}
+              onChange={(e) => {
+                void choisir(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        )}
+      </div>
     </div>
   );
 }

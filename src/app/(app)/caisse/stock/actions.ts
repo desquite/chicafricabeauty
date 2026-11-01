@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireProfil } from "@/lib/auth";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export type Retour = { ok: boolean; erreur?: string; info?: string };
@@ -91,4 +92,80 @@ export async function mouvement(
   revalidatePath("/caisse", "layout");
   revalidatePath("/boutique", "layout");
   return { ok: true, info: `Stock mis à jour : ${data as number}.` };
+}
+
+/* --------------------------------------------------------------- Photos */
+
+// Le bucket « produits » est public en lecture, mais seule la clé de service
+// y écrit : la photo passe par ici, après le contrôle du rôle.
+const BUCKET = "produits";
+const TYPES_PHOTO: Record<string, string> = { "image/jpeg": "jpg", "image/webp": "webp", "image/png": "png" };
+
+async function lirePhotos(id: string) {
+  const { data } = await createAdminClient()
+    .from("produits")
+    .select("photo, galerie")
+    .eq("id", id)
+    .maybeSingle<{ photo: string | null; galerie: string[] | null }>();
+  return data ? [data.photo, ...(data.galerie ?? [])].filter((x): x is string => Boolean(x)) : null;
+}
+
+/** La première photo est la principale : celle des listes de la boutique. */
+async function enregistrerPhotos(id: string, photos: string[]) {
+  const { error } = await createAdminClient()
+    .from("produits")
+    .update({ photo: photos[0] ?? null, galerie: photos.slice(1) })
+    .eq("id", id);
+  revalidatePath("/caisse/stock");
+  revalidatePath("/boutique", "layout");
+  return error;
+}
+
+/** Ajoute une photo, déjà réduite par le navigateur, après les autres. */
+export async function ajouterPhotoProduit(id: string, donnees: FormData): Promise<Retour> {
+  await exigerGerante();
+  const fichier = donnees.get("photo");
+  if (!(fichier instanceof File) || !TYPES_PHOTO[fichier.type]) return { ok: false, erreur: "Choisissez une photo (JPEG, PNG ou WebP)." };
+  if (fichier.size > 5 * 1024 * 1024) return { ok: false, erreur: "Cette photo est trop lourde (5 Mo au plus)." };
+  const photos = await lirePhotos(id);
+  if (!photos) return { ok: false, erreur: "Produit introuvable." };
+  if (photos.length >= 6) return { ok: false, erreur: "Six photos au plus par produit : retirez-en une d'abord." };
+
+  const chemin = `${id}/${Date.now().toString(36)}.${TYPES_PHOTO[fichier.type]}`;
+  const admin = createAdminClient();
+  const { error: envoi } = await admin.storage
+    .from(BUCKET)
+    .upload(chemin, fichier, { contentType: fichier.type, cacheControl: "31536000" });
+  if (envoi) return { ok: false, erreur: "La photo n'a pas pu être envoyée. Réessayez." };
+
+  if (await enregistrerPhotos(id, [...photos, chemin])) {
+    await admin.storage.from(BUCKET).remove([chemin]);
+    return { ok: false, erreur: "La photo n'a pas pu être enregistrée." };
+  }
+  return { ok: true, info: photos.length ? "Photo ajoutée." : "Photo ajoutée : c'est la photo principale." };
+}
+
+/** Passe une photo en principale. */
+export async function photoPrincipale(id: string, chemin: string): Promise<Retour> {
+  await exigerGerante();
+  const photos = await lirePhotos(id);
+  if (!photos?.includes(chemin)) return { ok: false, erreur: "Photo introuvable." };
+  if (await enregistrerPhotos(id, [chemin, ...photos.filter((p) => p !== chemin)])) {
+    return { ok: false, erreur: "Modification impossible." };
+  }
+  return { ok: true, info: "Photo principale changée." };
+}
+
+/** Retire une photo ; si c'était la principale, la suivante prend sa place. */
+export async function retirerPhotoProduit(id: string, chemin: string): Promise<Retour> {
+  await exigerGerante();
+  const photos = await lirePhotos(id);
+  if (!photos?.includes(chemin)) return { ok: false, erreur: "Photo introuvable." };
+  if (await enregistrerPhotos(id, photos.filter((p) => p !== chemin))) {
+    return { ok: false, erreur: "Suppression impossible." };
+  }
+  // Le fichier part après la fiche : un échec ne laisse qu'un fichier orphelin,
+  // jamais une photo cassée dans la boutique.
+  await createAdminClient().storage.from(BUCKET).remove([chemin]);
+  return { ok: true, info: "Photo retirée." };
 }

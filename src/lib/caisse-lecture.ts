@@ -85,6 +85,9 @@ export type Produit = {
   prix_promo: number | null;
   /** Dernier jour de la promotion ; null si elle dure jusqu'à nouvel ordre. */
   promo_fin: string | null;
+  /** Chemins dans le bucket « produits » : la principale, puis les suivantes. */
+  photo: string | null;
+  galerie: string[];
   prix_achat: number | null;
   stock: number;
   seuil: number;
