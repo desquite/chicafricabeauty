@@ -230,7 +230,29 @@ export default async function PageMessages({
             brouillon={brouillon}
             assistant={assistant && derniere?.sens === "entrant"}
           />
-          <aside className="flex flex-col gap-3 rounded-2xl border border-brand-100 bg-white p-4 xl:w-[290px] xl:shrink-0">
+          {/* Écran de portable (entre lg et xl) : la page a une hauteur fixe et
+              le panneau complet, empilé sous la conversation, écrasait les
+              messages. Une bande d'une ligne le remplace. */}
+          <div className="hidden shrink-0 items-center gap-3 rounded-2xl border border-brand-100 bg-white px-4 py-2.5 lg:flex xl:hidden">
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-brand-900">
+                {ouverte.clientes?.nom_complet ?? "Numéro inconnu"}
+                {fiche?.abonnee && <span className="ml-2 text-xs font-bold text-[#6e5114]">★ {fiche.abonnee}</span>}
+              </p>
+              <p className="truncate text-xs text-brand-500">
+                {fiche
+                  ? fiche.lignes.map(([titre, valeur]) => `${titre} : ${valeur}`).join(" · ")
+                  : "Ce numéro n'est dans aucune fiche cliente."}
+              </p>
+            </div>
+            <Link
+              href={fiche ? `/clientes/${ouverte.cliente_id}` : "/fiche/nouvelle"}
+              className="flex h-9 shrink-0 items-center rounded-xl bg-brand-600 px-3 text-sm font-bold text-white"
+            >
+              {fiche ? "Ouvrir la fiche" : "Créer la fiche"}
+            </Link>
+          </div>
+          <aside className="flex flex-col gap-3 rounded-2xl border border-brand-100 bg-white p-4 lg:hidden xl:flex xl:w-[290px] xl:shrink-0">
             <h2 className="text-lg font-semibold text-brand-800">{ouverte.clientes?.nom_complet ?? "Numéro inconnu"}</h2>
             {fiche ? (
               <>
