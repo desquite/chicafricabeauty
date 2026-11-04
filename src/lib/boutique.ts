@@ -2,7 +2,8 @@ import "server-only";
 import { statutPaiementJeko } from "@/lib/jeko";
 import { fenetreOuverte, journaliserSortant } from "@/lib/messagerie";
 import { alerterGerantes } from "@/lib/notifications/gerantes";
-import { envoyerTexteWhatsapp } from "@/lib/notifications/whatsapp";
+import { LANGUE_MODELES } from "@/lib/notifications/modeles";
+import { envoyerModeleWhatsapp, envoyerTexteWhatsapp } from "@/lib/notifications/whatsapp";
 import { promoProduit } from "@/lib/promo-produit";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -153,5 +154,32 @@ async function annoncerCommande(id: string) {
     ].join("\n\n");
     const r = await envoyerTexteWhatsapp(telephone, texte);
     await journaliserSortant({ telephone, texte, sens: "sortant", echec: r.ok ? null : r.erreur });
+  }
+}
+
+/**
+ * Commande remise au coursier : la cliente est prévenue que le livreur va
+ * l'appeler. Dans la fenêtre de 24 h, un texte libre ; au-delà, le modèle
+ * commande_expediee, refusé sans bruit tant que Meta ne l'a pas approuvé
+ * (la page de suivi reste alors la seule information).
+ */
+export async function annoncerEnvoi(id: string) {
+  const { data: c } = await createAdminClient()
+    .from("commandes")
+    .select(CHAMPS_COMMANDE)
+    .eq("id", id)
+    .maybeSingle<Commande>();
+  if (!c || c.statut !== "expediee") return;
+  const telephone = /^\d{10}$/.test(c.telephone) ? `225${c.telephone}` : c.telephone;
+  const prenom = c.nom.split(" ")[0];
+  if (await fenetreOuverte(telephone)) {
+    const texte = [
+      `Bonne nouvelle ${prenom} 🛵`,
+      `Votre commande ${c.numero} vient d'être remise au coursier Yango. Il va vous appeler pour la livraison à ${c.commune} ; la course se règle à la réception.`,
+    ].join("\n\n");
+    const r = await envoyerTexteWhatsapp(telephone, texte);
+    await journaliserSortant({ telephone, texte, sens: "sortant", echec: r.ok ? null : r.erreur });
+  } else {
+    await envoyerModeleWhatsapp(telephone, "commande_expediee", [prenom, c.numero], LANGUE_MODELES);
   }
 }

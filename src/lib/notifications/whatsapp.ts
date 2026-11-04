@@ -33,6 +33,7 @@ const LIBELLES_MODELES: Record<string, string> = {
   abonnement_rappel: "Rappel d'échéance d'abonnement envoyé",
   abonnement_recu: "Reçu de versement d'abonnement envoyé",
   recu_facture: "Reçu de passage envoyé",
+  commande_expediee: "Avis de remise au coursier Yango envoyé",
 };
 /** Messages aux gérantes : pas de conversation à créer pour eux. */
 const MODELES_INTERNES = ["alerte_gerante", "alerte_reservation_gerante", "recapitulatif_gerante"];
