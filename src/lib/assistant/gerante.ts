@@ -34,7 +34,16 @@ export async function gerantePour(telephone: string): Promise<Gerante | null> {
     .eq("role", "gerante")
     .not("telephone", "is", null)
     .returns<{ id: string; nom: string; telephone: string }[]>();
-  return (data ?? []).find((g) => chiffresInternationaux(g.telephone) === numero) ?? null;
+  // Un compte WhatsApp ouvert avant 2021 envoie encore l'ancien numéro
+  // ivoirien à 8 chiffres (225 09 64 60 96 pour 225 07 09 64 60 96) : en
+  // Côte d'Ivoire, les 8 derniers chiffres suffisent, comme pour les conversations.
+  const meme = (fiche: string) => {
+    const f = chiffresInternationaux(fiche);
+    return f === numero || (f.startsWith("225") && numero.startsWith("225") && f.slice(-8) === numero.slice(-8));
+  };
+  const g = (data ?? []).find((x) => meme(x.telephone));
+  // La réponse repart vers le numéro qui a écrit, sous la forme que WhatsApp connaît.
+  return g ? { ...g, telephone: numero } : null;
 }
 
 const CONSIGNES = `Tu es l'assistant interne des gérantes de l'institut Chic Africa Beauty, à Abidjan. Tu leur réponds sur WhatsApp et tu fais pour elles des actions dans l'application de l'institut.
