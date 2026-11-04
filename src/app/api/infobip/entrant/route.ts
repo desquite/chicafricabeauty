@@ -1,7 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { after, NextResponse } from "next/server";
 import { assistantConfigure, proposerBrouillon } from "@/lib/assistant/brouillon";
-import { enregistrerEntrant } from "@/lib/messagerie";
+import { gerantePour, traiterMessageGerante, type Gerante } from "@/lib/assistant/gerante";
+import { enregistrerEntrant, lireEntrant } from "@/lib/messagerie";
 
 /**
  * Messages WhatsApp reçus par le numéro de l'institut, transmis par Infobip.
@@ -13,7 +14,7 @@ import { enregistrerEntrant } from "@/lib/messagerie";
  * Corps : { results: [ { from, receivedAt, messageId, contact, message } ] }.
  */
 // Le brouillon de l'assistant se prépare après la réponse : il lui faut du temps.
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 function cleValide(fournie: string | null) {
   const attendue = process.env.INFOBIP_WEBHOOK_SECRET;
@@ -34,8 +35,17 @@ export async function POST(requete: Request) {
     return NextResponse.json({ erreur: "corps illisible" }, { status: 400 });
   }
   const aTraiter = new Set<string>();
+  // Les messages des gérantes vont à leur assistant, pas dans la boîte des clientes.
+  const pourGerantes: { g: Gerante; texte: string | null; type: string; infobipId: string | null }[] = [];
   for (const r of corps.results ?? []) {
     try {
+      const resultat = r as Parameters<typeof enregistrerEntrant>[0];
+      const g = resultat.from ? await gerantePour(resultat.from) : null;
+      if (g) {
+        const { type, texte } = lireEntrant(resultat);
+        pourGerantes.push({ g, texte, type, infobipId: resultat.messageId ?? null });
+        continue;
+      }
       const conversation = await enregistrerEntrant(r as Parameters<typeof enregistrerEntrant>[0]);
       if (conversation) aTraiter.add(conversation);
     } catch (e) {
@@ -48,6 +58,11 @@ export async function POST(requete: Request) {
   if (assistantConfigure() && aTraiter.size) {
     after(async () => {
       for (const id of aTraiter) await proposerBrouillon(id, { envoyer: true });
+    });
+  }
+  if (pourGerantes.length) {
+    after(async () => {
+      for (const m of pourGerantes) await traiterMessageGerante(m.g, m);
     });
   }
   // Toujours 200 une fois la clé vérifiée : un refus ferait renvoyer le
