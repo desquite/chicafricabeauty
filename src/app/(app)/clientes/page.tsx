@@ -58,6 +58,12 @@ export default async function PageClientes({
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-3xl font-semibold text-brand-800">Clientes</h1>
         <div className="flex flex-wrap gap-3">
+          <Link
+            href="/abonnements"
+            className="flex h-touch items-center rounded-xl border border-brand-200 bg-white px-5 font-semibold text-brand-700 hover:bg-brand-50"
+          >
+            Abonnements
+          </Link>
           <BoutonExport href="/api/export/clientes" />
           <BoutonLienFiche />
           <Link
