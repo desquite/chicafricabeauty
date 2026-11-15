@@ -38,7 +38,10 @@ export default async function LayoutApplication({
   };
 
   return (
-    <div className="flex min-h-full flex-1">
+    // L'écran tient exactement dans la fenêtre et seule la zone de contenu
+    // défile, comme dans une application : le menu du bas ne bouge plus
+    // avec la barre d'adresse ni avec une page trop large.
+    <div className="flex h-dvh overflow-hidden print:h-auto print:overflow-visible">
       {/* useSearchParams impose une frontière Suspense. */}
       <Suspense fallback={null}>
         <BarreChargement />
@@ -46,7 +49,7 @@ export default async function LayoutApplication({
 
       {/* Rail latéral : en paysage sur tablette, c'est la disposition qui laisse
           le plus de hauteur utile aux formulaires de saisie. */}
-      <aside className="no-print hidden w-64 shrink-0 flex-col border-r border-brand-100 bg-white md:flex">
+      <aside className="no-print hidden w-64 shrink-0 flex-col overflow-y-auto border-r border-brand-100 bg-white md:flex">
         <div className="flex items-center gap-3 px-5 py-6">
           <Logo className="h-10 w-10" />
           <div className="leading-tight">
@@ -75,15 +78,20 @@ export default async function LayoutApplication({
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {/* En bas, la place du menu figé : sans elle, il masquerait la fin
-            de la page. */}
-        <main className="flex-1 p-6 pb-[calc(var(--spacing-touch)+env(safe-area-inset-bottom)+1.5rem)] md:p-8">
+      <div className="flex min-w-0 flex-1 flex-col print:block">
+        {/* En haut, l'heure et la batterie de l'application installée
+            recouvrent la page : on lui laisse leur place. */}
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-6 pt-[max(1.5rem,env(safe-area-inset-top))] md:p-8 print:overflow-visible">
           {children}
         </main>
-        {/* En portrait, la navigation reste figée en bas de l'écran : le pouce
-            y accède seul, sans descendre jusqu'au bas de la page. */}
-        <NavigationTablette variante="basse" pastilles={pastilles} gerante={gerante} />
+        {/* Sur téléphone, la navigation est sous la zone qui défile : le
+            pouce y accède seul, sans descendre jusqu'au bas de la page. */}
+        <NavigationTablette
+          variante="basse"
+          pastilles={pastilles}
+          gerante={gerante}
+          profil={{ nom: profil.nom, role: profil.role }}
+        />
       </div>
     </div>
   );
