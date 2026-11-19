@@ -1,6 +1,6 @@
 import "server-only";
 import { LANGUE_MODELES } from "@/lib/notifications/modeles";
-import { envoyerModeleWhatsapp, envoyerWhatsapp } from "@/lib/notifications/whatsapp";
+import { envoyerModeleWhatsapp, envoyerTexteWhatsapp, envoyerWhatsapp } from "@/lib/notifications/whatsapp";
 import { quandLisible } from "@/lib/regles-acompte";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -8,7 +8,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * Alerte immédiate aux gérantes : une réservation ou une annulation en ligne.
  *
  * Même canal que le récapitulatif du matin : texte libre par WasenderAPI,
- * ou modèle Infobip pour les gérantes basculées (notifications_infobip).
+ * ou Infobip pour les gérantes basculées (notifications_infobip) — texte
+ * libre si elle a écrit à l'assistant dans les 24 h, modèle sinon.
  *
  *   alerte_gerante (Utilitaire)  {{1}} prénom de la gérante  {{2}} l'alerte
  *
@@ -43,20 +44,40 @@ export async function alerterGerantes(alerte: string) {
   const admin = createAdminClient();
   const { data: gerantes } = await admin
     .from("profiles")
-    .select("nom, telephone, notifications_infobip")
+    .select("id, nom, telephone, notifications_infobip")
     .eq("actif", true)
     .eq("notifications_whatsapp", true)
     .not("telephone", "is", null)
-    .returns<{ nom: string; telephone: string; notifications_infobip: boolean }[]>();
+    .returns<{ id: string; nom: string; telephone: string; notifications_infobip: boolean }[]>();
 
   const ligne = alerte.replace(/\s+/g, " ").trim();
   const jour = new Date().toISOString().slice(0, 10);
+  const depuis = new Date(Date.now() - 24 * 3600_000).toISOString();
 
   for (const g of gerantes ?? []) {
     const prenom = g.nom.split(" ")[0] || g.nom;
-    const r = g.notifications_infobip
-      ? await envoyerModeleWhatsapp(g.telephone, "alerte_gerante", [prenom, ligne], LANGUE_MODELES)
-      : await envoyerWhatsapp(g.telephone, `Chic Africa Online\n\n${ligne}`);
+    // La gérante a écrit à l'assistant dans les 24 h : l'alerte part en texte
+    // libre, sans la phrase imposée du modèle, et l'assistant la retrouve dans
+    // son historique si elle y répond.
+    const { data: recent } = g.notifications_infobip
+      ? await admin
+          .from("echanges_gerante")
+          .select("id")
+          .eq("profil_id", g.id)
+          .eq("role", "gerante")
+          .gt("cree_le", depuis)
+          .limit(1)
+      : { data: null };
+    let r = recent?.length
+      ? await envoyerTexteWhatsapp(g.telephone, `🔔 ${ligne}`)
+      : { ok: false };
+    if (r.ok) {
+      await admin.from("echanges_gerante").insert({ profil_id: g.id, role: "assistant", texte: `🔔 ${ligne}` });
+    } else {
+      r = g.notifications_infobip
+        ? await envoyerModeleWhatsapp(g.telephone, "alerte_gerante", [prenom, ligne], LANGUE_MODELES)
+        : await envoyerWhatsapp(g.telephone, `Chic Africa Online\n\n${ligne}`);
+    }
     await admin.from("notifications_envoyees").insert({
       type: "alerte_gerante",
       cle_jour: jour,
