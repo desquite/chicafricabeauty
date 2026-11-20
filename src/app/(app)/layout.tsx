@@ -1,5 +1,7 @@
 import { Suspense } from "react";
+import { after } from "next/server";
 import { requireProfil } from "@/lib/auth";
+import { rattraperPaiementsEnAttente } from "@/lib/paiements-en-attente";
 import { createClient } from "@/lib/supabase/server";
 import { BarreChargement } from "@/components/attente";
 import { NavigationTablette } from "@/components/navigation-tablette";
@@ -13,6 +15,9 @@ export default async function LayoutApplication({
   children: React.ReactNode;
 }) {
   const profil = await requireProfil();
+  // Un paiement dont la confirmation d'AfribaPay s'est perdue est rattrapé
+  // dès qu'une gérante ouvre l'application, après la réponse.
+  after(() => rattraperPaiementsEnAttente().catch(() => 0));
 
   // Rendez-vous encore attendus aujourd'hui, en pastille dans le menu : une
   // seule lecture comptee, legere a chaque navigation.
