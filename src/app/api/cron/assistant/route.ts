@@ -19,7 +19,20 @@ export async function GET(requete: Request) {
     return NextResponse.json({ erreur: "Non autorisé" }, { status: 401 });
   }
   try {
-    const ligne = await compteRendu(new Date());
+    // Pile à l'heure, la base refuse parfois la première lecture (« JWT
+    // issued at future » : horloges décalées d'une fraction de seconde).
+    // Le compte rendu n'a qu'un passage : on réessaie avant d'abandonner.
+    const maintenant = new Date();
+    let ligne = "";
+    for (let essai = 1; ; essai++) {
+      try {
+        ligne = await compteRendu(maintenant);
+        break;
+      } catch (e) {
+        if (essai >= 3) throw e;
+        await new Promise((r) => setTimeout(r, 5000));
+      }
+    }
     if (new URL(requete.url).searchParams.get("apercu") !== "1") await alerterGerantes(ligne);
     return NextResponse.json({ ligne });
   } catch (e) {
