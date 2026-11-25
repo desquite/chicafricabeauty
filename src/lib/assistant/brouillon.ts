@@ -2,9 +2,8 @@ import "server-only";
 import { z } from "zod";
 import { CONNAISSANCES } from "@/lib/assistant/connaissances";
 import { contexteEnDirect } from "@/lib/assistant/contexte";
-import { journaliserSortant } from "@/lib/messagerie";
+import { envoyerDansConversation, LIBELLES_CANAL, type Canal } from "@/lib/conversation-envoi";
 import { alerterGerantes } from "@/lib/notifications/gerantes";
-import { envoyerTexteWhatsapp } from "@/lib/notifications/whatsapp";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
@@ -101,7 +100,7 @@ function transcrire(lignes: Ligne[]) {
  */
 async function envoyerSeul(
   conversationId: string,
-  conv: { telephone: string; nom_contact: string | null; clientes: { nom_complet: string } | null },
+  conv: { id: string; telephone: string; canal: Canal | null; nom_contact: string | null; clientes: { nom_complet: string } | null },
   pour: string,
   p: Proposition,
 ): Promise<{ ok: boolean; detail: string }> {
@@ -117,15 +116,15 @@ async function envoyerSeul(
   if (plusRecent?.id !== pour) return { ok: true, detail: "brouillon prêt (conversation avancée, rien envoyé)" };
 
   const texte = p.reponse.trim();
-  const r = await envoyerTexteWhatsapp(conv.telephone, texte);
-  await journaliserSortant({ telephone: conv.telephone, texte, sens: "sortant", echec: r.ok ? null : r.erreur, parAssistant: true });
+  const r = await envoyerDansConversation(conv, texte, { parAssistant: true });
   if (!r.ok) return { ok: true, detail: `brouillon prêt, envoi automatique échoué : ${r.erreur}` };
 
   if (p.passer_la_main) {
     // Le message d'attente est parti ; la vraie réponse revient à la gérante.
     await admin.from("conversations").update({ brouillon: null, brouillon_pour: null, statut: "a_traiter" }).eq("id", conversationId);
     const qui = conv.clientes?.nom_complet ?? conv.nom_contact ?? conv.telephone;
-    await alerterGerantes(`Assistant : ${qui} attend votre réponse (${p.raison.trim() || "à reprendre"})`);
+    const sur = conv.canal && conv.canal !== "whatsapp" ? ` sur ${LIBELLES_CANAL[conv.canal]}` : "";
+    await alerterGerantes(`Assistant : ${qui} attend votre réponse${sur} (${p.raison.trim() || "à reprendre"})`);
     return { ok: true, detail: "message d'attente envoyé, gérantes alertées" };
   }
   await admin
@@ -193,9 +192,16 @@ export async function proposerBrouillon(
     const [{ data: conv }, { data: recents }] = await Promise.all([
       admin
         .from("conversations")
-        .select("id, cliente_id, telephone, nom_contact, clientes(nom_complet)")
+        .select("id, cliente_id, telephone, canal, nom_contact, clientes(nom_complet)")
         .eq("id", conversationId)
-        .maybeSingle<{ id: string; cliente_id: string | null; telephone: string; nom_contact: string | null; clientes: { nom_complet: string } | null }>(),
+        .maybeSingle<{
+          id: string;
+          cliente_id: string | null;
+          telephone: string;
+          canal: Canal | null;
+          nom_contact: string | null;
+          clientes: { nom_complet: string } | null;
+        }>(),
       admin
         .from("messages")
         .select("id, sens, type, texte, cree_le, echec")
@@ -220,6 +226,12 @@ export async function proposerBrouillon(
         : "Premier message de l'échange : salutation avec « ma Chic ».";
 
     const contexte = await contexteEnDirect(conv.cliente_id);
+    // Messenger et Instagram : mêmes règles, mais la personne n'a pas de
+    // fiche ; pour réserver, c'est le lien.
+    const surMeta =
+      conv.canal && conv.canal !== "whatsapp"
+        ? `\n\nCanal : cette conversation a lieu sur ${LIBELLES_CANAL[conv.canal]}, pas sur WhatsApp. Même ton et mêmes règles ; écris « message » plutôt que « WhatsApp ». La personne n'est rattachée à aucune fiche : pour réserver, donne le lien de réservation.`
+        : "";
     const r = await fetch(API, {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.DEEPSEEK_API_KEY}`, "Content-Type": "application/json" },
@@ -232,7 +244,7 @@ export async function proposerBrouillon(
           { role: "system", content: CONSIGNES },
           {
             role: "user",
-            content: `Données de l'application (à jour) :\n${contexte}\n\nConversation (du plus ancien au plus récent) :\n${transcrire(fil)}\n\n${rappel}\nPropose la réponse au dernier message de la cliente, en JSON.`,
+            content: `Données de l'application (à jour) :\n${contexte}${surMeta}\n\nConversation (du plus ancien au plus récent) :\n${transcrire(fil)}\n\n${rappel}\nPropose la réponse au dernier message de la cliente, en JSON.`,
           },
         ],
       }),

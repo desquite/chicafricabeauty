@@ -16,11 +16,13 @@ export async function GET(_requete: Request, { params }: { params: Promise<{ id:
     .eq("id", id)
     .maybeSingle<{ media_url: string | null }>();
   const url = message?.media_url;
-  if (!url || !/^https:\/\/[a-z0-9.-]*infobip\.com\//i.test(url)) return new Response("Introuvable", { status: 404 });
+  // Messenger et Instagram : une adresse signée de Meta, lisible sans clé.
+  const meta = Boolean(url && /^https:\/\/([a-z0-9-]+\.)*(fbcdn\.net|fbsbx\.com|cdninstagram\.com)\//i.test(url));
+  if (!url || (!meta && !/^https:\/\/[a-z0-9.-]*infobip\.com\//i.test(url))) return new Response("Introuvable", { status: 404 });
 
   const cle = process.env.INFOBIP_API_KEY;
-  if (!cle) return new Response("Indisponible", { status: 503 });
-  const reponse = await fetch(url, { headers: { Authorization: `App ${cle}` } });
+  if (!meta && !cle) return new Response("Indisponible", { status: 503 });
+  const reponse = await fetch(url, meta ? {} : { headers: { Authorization: `App ${cle}` } });
   if (!reponse.ok || !reponse.body) return new Response("Indisponible", { status: 502 });
   return new Response(reponse.body, {
     headers: {

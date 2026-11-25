@@ -3,7 +3,8 @@ import { trouverCliente } from "@/lib/reservation";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Boîte de réception WhatsApp : conversations et messages, côté serveur.
+ * Boîte de réception : conversations et messages, côté serveur. WhatsApp
+ * d'abord ; Messenger et Instagram en fin de fichier.
  *
  * Une conversation par numéro, en chiffres internationaux (2250701020304),
  * rattachée à la fiche cliente quand le numéro est connu. Les messages
@@ -32,6 +33,7 @@ export async function fenetreOuverte(telephone: string) {
   const { data } = await createAdminClient()
     .from("conversations")
     .select("derniere_entree_le")
+    .eq("canal", "whatsapp")
     .like("telephone", `%${fin}`)
     .returns<{ derniere_entree_le: string | null }[]>();
   const depuis = Date.now() - FENETRE_MS;
@@ -48,6 +50,7 @@ async function conversationPour(telephone: string, nom: string | null) {
   const { data: candidates } = await admin
     .from("conversations")
     .select("id, telephone, cliente_id, nom_contact")
+    .eq("canal", "whatsapp")
     .like("telephone", `%${fin}`)
     .returns<{ id: string; telephone: string; cliente_id: string | null; nom_contact: string | null }[]>();
   const existante =
@@ -80,6 +83,7 @@ async function conversationPour(telephone: string, nom: string | null) {
     const { data } = await admin
       .from("conversations")
       .select("id")
+      .eq("canal", "whatsapp")
       .like("telephone", `%${fin}`)
       .limit(1)
       .maybeSingle<{ id: string }>();
@@ -196,8 +200,19 @@ export async function journaliserSortant(p: {
   parAssistant?: boolean;
 }) {
   try {
+    await journaliserDans(await conversationPour(p.telephone, null), p);
+  } catch (e) {
+    console.error(`Journal de conversation : ${e instanceof Error ? e.message : e}`);
+  }
+}
+
+/** Trace un message parti dans une conversation donnée, quel que soit son canal. */
+export async function journaliserDans(
+  conversationId: string,
+  p: { texte: string; sens: "sortant" | "auto"; auteur?: string | null; echec?: string | null; parAssistant?: boolean },
+) {
+  try {
     const admin = createAdminClient();
-    const conversationId = await conversationPour(p.telephone, null);
     await admin.from("messages").insert({
       conversation_id: conversationId,
       sens: p.sens,
@@ -216,4 +231,72 @@ export async function journaliserSortant(p: {
   } catch (e) {
     console.error(`Journal de conversation : ${e instanceof Error ? e.message : e}`);
   }
+}
+
+/* -------------------------------------------------- Messenger et Instagram */
+
+export type CanalMeta = "messenger" | "instagram";
+
+/** Clé de la conversation Meta dans la colonne telephone : « messenger:<id> ». */
+export const cleMeta = (canal: CanalMeta, id: string) => `${canal}:${id}`;
+
+/**
+ * Enregistre un message privé reçu sur Messenger ou Instagram ; un même
+ * message reçu deux fois ne compte qu'une. Rend la conversation, ou null si
+ * rien de neuf.
+ */
+export async function enregistrerEntrantMeta(m: {
+  canal: CanalMeta;
+  expediteur: string;
+  metaId: string;
+  type: TypeMessage;
+  texte: string | null;
+  media: string | null;
+  quand: string;
+  /** Nom lu chez Meta, seulement pour une nouvelle conversation. */
+  nom?: () => Promise<string | null>;
+}): Promise<string | null> {
+  const admin = createAdminClient();
+  const cle = cleMeta(m.canal, m.expediteur);
+  const { data: existante } = await admin.from("conversations").select("id, non_lus").eq("telephone", cle).maybeSingle<{ id: string; non_lus: number }>();
+  let conversationId = existante?.id;
+  if (!conversationId) {
+    const nom = (await m.nom?.().catch(() => null)) ?? null;
+    const { data: creee, error } = await admin
+      .from("conversations")
+      .insert({ telephone: cle, canal: m.canal, nom_contact: nom })
+      .select("id")
+      .single<{ id: string }>();
+    if (creee) conversationId = creee.id;
+    else if (error?.code === "23505") {
+      const { data } = await admin.from("conversations").select("id").eq("telephone", cle).single<{ id: string }>();
+      conversationId = data?.id;
+    }
+    if (!conversationId) throw new Error(`Conversation impossible : ${error?.message}`);
+  }
+
+  const { error } = await admin.from("messages").insert({
+    conversation_id: conversationId,
+    sens: "entrant",
+    type: m.type,
+    texte: m.texte,
+    media_url: m.media,
+    meta_id: m.metaId,
+    cree_le: m.quand,
+  });
+  if (error?.code === "23505") return null; // déjà reçu
+  if (error) throw new Error(error.message);
+
+  const { data: c } = await admin.from("conversations").select("non_lus").eq("id", conversationId).single<{ non_lus: number }>();
+  await admin
+    .from("conversations")
+    .update({
+      statut: "a_traiter",
+      non_lus: (c?.non_lus ?? 0) + 1,
+      dernier_message_le: m.quand,
+      dernier_apercu: apercu(m.type, m.texte),
+      derniere_entree_le: m.quand,
+    })
+    .eq("id", conversationId);
+  return conversationId;
 }

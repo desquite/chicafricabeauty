@@ -148,6 +148,22 @@ Le cron a un effet de bord utile : cet appel quotidien touche la base et
 empêche le projet Supabase du plan gratuit de se mettre en pause. Il ne
 dispense pas de passer en Pro, mais il limite le risque.
 
+## Messenger et Instagram
+
+Les messages privés de la page Facebook et du compte Instagram professionnel
+relié à la page arrivent par Meta sur `/api/meta/webhook`, et s'affichent dans
+l'écran Messages à côté de WhatsApp. L'assistant y répond avec les mêmes
+règles, dans la même fenêtre de 24 h.
+
+- Une conversation Meta n'a pas de numéro : `conversations.telephone` porte
+  `messenger:<id>` ou `instagram:<id>`, et `canal` dit lequel.
+- Variables Vercel : `META_APP_SECRET` (clé secrète de l'application, qui
+  signe les notifications), `META_VERIFY_TOKEN` (mot de passe de branchement,
+  16 caractères au moins), `META_PAGE_TOKEN` (jeton de la page, sans
+  expiration ; il sert aussi pour Instagram).
+- Abonnements de l'application : `messages` et `messaging_postbacks` pour la
+  page et pour Instagram.
+
 ## Avancement
 
 | Lot | Contenu | État |

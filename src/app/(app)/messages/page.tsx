@@ -3,6 +3,7 @@ import { requireProfil } from "@/lib/auth";
 import { pastillesAbonnees } from "@/lib/abonnements-lecture";
 import { adressePublique } from "@/lib/adresse";
 import { assistantConfigure, envoiAutoActif } from "@/lib/assistant/brouillon";
+import { LIBELLES_CANAL, type Canal } from "@/lib/conversation-envoi";
 import { FENETRE_MS } from "@/lib/messagerie";
 import { createClient } from "@/lib/supabase/server";
 import { INSTITUT } from "@/app/rdv/institut";
@@ -15,6 +16,7 @@ export const metadata = { title: "Messages — Chic Africa Beauty Online" };
 type Conversation = {
   id: string;
   telephone: string;
+  canal: Canal | null;
   cliente_id: string | null;
   nom_contact: string | null;
   statut: "a_traiter" | "reglee";
@@ -38,8 +40,9 @@ const jourLong = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
 
 /**
- * Boîte de réception WhatsApp : les messages des clientes au numéro de
- * l'institut, la réponse de la gérante, et la fiche de la cliente à côté.
+ * Boîte de réception : les messages des clientes au numéro WhatsApp de
+ * l'institut, sur Messenger et sur Instagram, la réponse de la gérante, et
+ * la fiche de la cliente à côté.
  */
 export default async function PageMessages({
   searchParams,
@@ -60,9 +63,13 @@ export default async function PageMessages({
   if (filtre === "reglees") requete = requete.eq("statut", "reglee");
   const { data: conversations } = await requete.returns<Conversation[]>();
 
-  const nom = (c: Conversation) => c.clientes?.nom_complet ?? c.nom_contact ?? `+${c.telephone}`;
+  const nom = (c: Conversation) =>
+    c.clientes?.nom_complet ??
+    c.nom_contact ??
+    (c.canal && c.canal !== "whatsapp" ? `Contact ${LIBELLES_CANAL[c.canal]}` : `+${c.telephone}`);
   const liste: ConversationVue[] = (conversations ?? []).map((c) => ({
     id: c.id,
+    canal: c.canal ?? "whatsapp",
     nom: nom(c),
     connue: Boolean(c.cliente_id),
     apercu: c.dernier_apercu ?? "",
@@ -197,6 +204,7 @@ export default async function PageMessages({
     }
   }
 
+  const meta = Boolean(ouverte?.canal && ouverte.canal !== "whatsapp");
   const fenetreOuverte = Boolean(ouverte?.derniere_entree_le && dansLaFenetre(ouverte.derniere_entree_le));
   // La proposition ne vaut que pour le dernier message de la cliente : une
   // nouvelle entrée, ou une réponse déjà partie, la rend caduque.
@@ -221,6 +229,7 @@ export default async function PageMessages({
             id={ouverte.id}
             nom={nom(ouverte)}
             telephone={ouverte.telephone}
+            canal={ouverte.canal ?? "whatsapp"}
             statut={ouverte.statut}
             nonLus={ouverte.non_lus}
             messages={ouverte.messages}
@@ -236,13 +245,15 @@ export default async function PageMessages({
           <div className="hidden shrink-0 items-center gap-3 rounded-2xl border border-brand-100 bg-white px-4 py-2.5 lg:flex xl:hidden">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-brand-900">
-                {ouverte.clientes?.nom_complet ?? "Numéro inconnu"}
+                {ouverte.clientes?.nom_complet ?? (meta ? nom(ouverte) : "Numéro inconnu")}
                 {fiche?.abonnee && <span className="ml-2 text-xs font-bold text-[#6e5114]">★ {fiche.abonnee}</span>}
               </p>
               <p className="truncate text-xs text-brand-500">
                 {fiche
                   ? fiche.lignes.map(([titre, valeur]) => `${titre} : ${valeur}`).join(" · ")
-                  : "Ce numéro n'est dans aucune fiche cliente."}
+                  : meta
+                    ? `Contact ${LIBELLES_CANAL[ouverte.canal!]} : pas de numéro, donc pas de fiche rattachée.`
+                    : "Ce numéro n'est dans aucune fiche cliente."}
               </p>
             </div>
             <Link
@@ -253,7 +264,7 @@ export default async function PageMessages({
             </Link>
           </div>
           <aside className="flex flex-col gap-3 rounded-2xl border border-brand-100 bg-white p-4 lg:hidden xl:flex xl:w-[290px] xl:shrink-0">
-            <h2 className="text-lg font-semibold text-brand-800">{ouverte.clientes?.nom_complet ?? "Numéro inconnu"}</h2>
+            <h2 className="text-lg font-semibold text-brand-800">{ouverte.clientes?.nom_complet ?? (meta ? nom(ouverte) : "Numéro inconnu")}</h2>
             {fiche ? (
               <>
                 {fiche.abonnee && (
@@ -271,7 +282,11 @@ export default async function PageMessages({
               </>
             ) : (
               <>
-                <p className="text-sm text-brand-600">Ce numéro n&apos;est dans aucune fiche cliente.</p>
+                <p className="text-sm text-brand-600">
+                  {meta
+                    ? `Contact ${LIBELLES_CANAL[ouverte.canal!]} : pas de numéro, donc pas de fiche rattachée. Demandez-lui son numéro pour la retrouver.`
+                    : "Ce numéro n'est dans aucune fiche cliente."}
+                </p>
                 <Link href="/fiche/nouvelle" className="flex h-11 items-center justify-center rounded-xl bg-brand-600 text-sm font-bold text-white">
                   Créer la fiche
                 </Link>

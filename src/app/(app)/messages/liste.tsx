@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 export type ConversationVue = {
   id: string;
+  canal: "whatsapp" | "messenger" | "instagram";
   nom: string;
   connue: boolean;
   apercu: string;
@@ -28,6 +29,12 @@ const quandCourt = (iso: string | null) => {
     ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })
     : d.toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
 };
+
+/** Pastille du canal, sur l'avatar : Messenger en bleu, Instagram en rose. */
+const PASTILLE_CANAL = {
+  messenger: { lettre: "M", couleur: "bg-[#1877f2]", libelle: "Messenger" },
+  instagram: { lettre: "IG", couleur: "bg-[#d62976]", libelle: "Instagram" },
+} as const;
 
 const initiales = (nom: string) =>
   nom.startsWith("+")
@@ -65,7 +72,7 @@ export function ListeConversations({
         <h1 id="t-messages" className="text-2xl font-semibold text-brand-800">
           Messages
         </h1>
-        <span className="text-xs text-brand-500">WhatsApp de l&apos;institut</span>
+        <span className="text-xs text-brand-500">WhatsApp, Messenger, Instagram</span>
       </div>
       <input
         value={recherche}
@@ -107,11 +114,18 @@ export function ListeConversations({
             >
               <span
                 aria-hidden="true"
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${
+                className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white ${
                   c.connue ? "bg-brand-500" : "bg-brand-300"
                 }`}
               >
                 {initiales(c.nom)}
+                {c.canal !== "whatsapp" && (
+                  <span
+                    className={`absolute -right-1 -bottom-1 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[9px] font-bold ring-2 ring-white ${PASTILLE_CANAL[c.canal].couleur}`}
+                  >
+                    {PASTILLE_CANAL[c.canal].lettre}
+                  </span>
+                )}
               </span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="flex items-baseline gap-2">
@@ -127,7 +141,11 @@ export function ListeConversations({
                   )}
                 </span>
                 {c.pourGerante && <span className="text-[11px] font-bold text-[#9a4b12]">à traiter par vous</span>}
-                {!c.connue && <span className="text-[11px] font-bold text-[#2c4a8a]">pas de fiche</span>}
+                {c.canal !== "whatsapp" ? (
+                  <span className="text-[11px] font-bold text-[#2c4a8a]">{PASTILLE_CANAL[c.canal].libelle}</span>
+                ) : (
+                  !c.connue && <span className="text-[11px] font-bold text-[#2c4a8a]">pas de fiche</span>
+                )}
               </span>
             </Link>
           </li>

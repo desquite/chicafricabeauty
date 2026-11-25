@@ -50,6 +50,7 @@ export function Discussion({
   id,
   nom,
   telephone,
+  canal,
   statut,
   nonLus,
   messages,
@@ -62,6 +63,8 @@ export function Discussion({
   id: string;
   nom: string;
   telephone: string;
+  /** Messenger et Instagram : pas de numéro, la colonne porte « canal:<id> ». */
+  canal: "whatsapp" | "messenger" | "instagram";
   statut: "a_traiter" | "reglee";
   nonLus: number;
   messages: MessageVue[];
@@ -74,6 +77,8 @@ export function Discussion({
   assistant: boolean;
 }) {
   const router = useRouter();
+  const whatsapp = canal === "whatsapp";
+  const libelleCanal = { whatsapp: "WhatsApp", messenger: "Messenger", instagram: "Instagram" }[canal];
   const [texte, setTexte] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const [enCours, demarrer] = useTransition();
@@ -104,11 +109,13 @@ export function Discussion({
         </Link>
         <div className="min-w-0 flex-1">
           <p className="truncate font-bold text-brand-900">{nom}</p>
-          <p className="text-xs text-brand-500">+{telephone}</p>
+          <p className="text-xs text-brand-500">{whatsapp ? `+${telephone}` : `Message ${libelleCanal}`}</p>
         </div>
-        <a href={`tel:+${telephone}`} className="flex h-10 items-center rounded-xl border border-brand-200 px-3 text-sm font-semibold text-brand-700">
-          Appeler
-        </a>
+        {whatsapp && (
+          <a href={`tel:+${telephone}`} className="flex h-10 items-center rounded-xl border border-brand-200 px-3 text-sm font-semibold text-brand-700">
+            Appeler
+          </a>
+        )}
         <button
           type="button"
           disabled={enCours}
@@ -265,8 +272,8 @@ export function Discussion({
           </>
         ) : (
           <p className="rounded-xl bg-brand-50 px-3 py-2.5 text-sm text-brand-700">
-            Plus de 24 h depuis le dernier message de la cliente : WhatsApp n&apos;autorise plus de réponse libre. Appelez-la, ou
-            attendez qu&apos;elle écrive à nouveau.
+            Plus de 24 h depuis le dernier message de la cliente : {libelleCanal} n&apos;autorise plus de réponse libre.{" "}
+            {whatsapp ? "Appelez-la, ou attendez" : "Attendez"} qu&apos;elle écrive à nouveau.
           </p>
         )}
         {erreur && (

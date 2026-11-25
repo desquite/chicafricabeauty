@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { proposerBrouillon } from "@/lib/assistant/brouillon";
 import { requireProfil } from "@/lib/auth";
-import { FENETRE_MS, journaliserSortant } from "@/lib/messagerie";
-import { envoyerTexteWhatsapp } from "@/lib/notifications/whatsapp";
+import { envoyerDansConversation, LIBELLES_CANAL, type Canal } from "@/lib/conversation-envoi";
+import { FENETRE_MS } from "@/lib/messagerie";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -20,19 +20,22 @@ export async function repondre(conversationId: string, texte: string): Promise<R
   const supabase = await createClient();
   const { data: c } = await supabase
     .from("conversations")
-    .select("telephone, derniere_entree_le")
+    .select("id, telephone, canal, derniere_entree_le")
     .eq("id", conversationId)
-    .maybeSingle<{ telephone: string; derniere_entree_le: string | null }>();
+    .maybeSingle<{ id: string; telephone: string; canal: Canal | null; derniere_entree_le: string | null }>();
   if (!c) return { ok: false, erreur: "Conversation introuvable." };
   if (!c.derniere_entree_le || Date.now() - Date.parse(c.derniere_entree_le) > FENETRE_MS) {
+    const canal = LIBELLES_CANAL[c.canal ?? "whatsapp"];
     return {
       ok: false,
-      erreur: "Plus de 24 h depuis le dernier message de la cliente : WhatsApp n'autorise qu'un modèle validé. Appelez-la, ou attendez qu'elle écrive.",
+      erreur:
+        c.canal && c.canal !== "whatsapp"
+          ? `Plus de 24 h depuis le dernier message de la personne : ${canal} n'autorise plus de réponse. Attendez qu'elle écrive à nouveau.`
+          : "Plus de 24 h depuis le dernier message de la cliente : WhatsApp n'autorise qu'un modèle validé. Appelez-la, ou attendez qu'elle écrive.",
     };
   }
 
-  const r = await envoyerTexteWhatsapp(c.telephone, message);
-  await journaliserSortant({ telephone: c.telephone, texte: message, sens: "sortant", auteur: profil.id, echec: r.ok ? null : r.erreur });
+  const r = await envoyerDansConversation(c, message, { auteur: profil.id });
   // Répondre, c'est traiter : la conversation passe en réglée.
   if (r.ok) {
     await supabase
