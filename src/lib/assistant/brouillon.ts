@@ -122,8 +122,11 @@ async function envoyerSeul(
   if (p.passer_la_main) {
     // Le message d'attente est parti ; la vraie réponse revient à la gérante.
     await admin.from("conversations").update({ brouillon: null, brouillon_pour: null, statut: "a_traiter" }).eq("id", conversationId);
-    const qui = conv.clientes?.nom_complet ?? conv.nom_contact ?? conv.telephone;
-    const sur = conv.canal && conv.canal !== "whatsapp" ? ` sur ${LIBELLES_CANAL[conv.canal]}` : "";
+    // Sur Messenger et Instagram, la colonne téléphone porte un identifiant
+    // illisible : jamais dans l'alerte.
+    const meta = conv.canal && conv.canal !== "whatsapp" ? conv.canal : null;
+    const qui = conv.clientes?.nom_complet ?? conv.nom_contact ?? (meta ? "Un contact" : conv.telephone);
+    const sur = meta ? ` sur ${LIBELLES_CANAL[meta]}` : "";
     await alerterGerantes(`Assistant : ${qui} attend votre réponse${sur} (${p.raison.trim() || "à reprendre"})`);
     return { ok: true, detail: "message d'attente envoyé, gérantes alertées" };
   }

@@ -258,8 +258,17 @@ export async function enregistrerEntrantMeta(m: {
 }): Promise<string | null> {
   const admin = createAdminClient();
   const cle = cleMeta(m.canal, m.expediteur);
-  const { data: existante } = await admin.from("conversations").select("id, non_lus").eq("telephone", cle).maybeSingle<{ id: string; non_lus: number }>();
+  const { data: existante } = await admin
+    .from("conversations")
+    .select("id, non_lus, nom_contact")
+    .eq("telephone", cle)
+    .maybeSingle<{ id: string; non_lus: number; nom_contact: string | null }>();
   let conversationId = existante?.id;
+  // Nom pas trouvé à la création : on retente au message suivant.
+  if (existante && !existante.nom_contact) {
+    const nom = (await m.nom?.().catch(() => null)) ?? null;
+    if (nom) await admin.from("conversations").update({ nom_contact: nom }).eq("id", existante.id);
+  }
   if (!conversationId) {
     const nom = (await m.nom?.().catch(() => null)) ?? null;
     const { data: creee, error } = await admin

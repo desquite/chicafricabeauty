@@ -101,9 +101,23 @@ export async function nomMeta(canal: CanalMeta, id: string): Promise<string | nu
     headers: { Authorization: `Bearer ${jeton}` },
     signal: AbortSignal.timeout(8000),
   });
-  if (!reponse.ok) return null;
-  const p = (await reponse.json()) as { name?: string; username?: string; first_name?: string; last_name?: string };
-  const nom = canal === "instagram" ? p.name || (p.username ? `@${p.username}` : "") : [p.first_name, p.last_name].filter(Boolean).join(" ");
+  if (reponse.ok) {
+    const p = (await reponse.json()) as { name?: string; username?: string; first_name?: string; last_name?: string };
+    const nom = canal === "instagram" ? p.name || (p.username ? `@${p.username}` : "") : [p.first_name, p.last_name].filter(Boolean).join(" ");
+    if (nom.trim()) return nom.trim();
+  }
+  // Sans l'accès avancé, Meta refuse la lecture du profil ; les participants
+  // de la conversation, eux, donnent le nom (Messenger) ou le pseudo (Instagram).
+  return nomParConversation(canal, id, jeton);
+}
+
+async function nomParConversation(canal: CanalMeta, id: string, jeton: string): Promise<string | null> {
+  const url = `${GRAPH}/me/conversations?platform=${canal}&user_id=${encodeURIComponent(id)}&fields=participants`;
+  const reponse = await fetch(url, { headers: { Authorization: `Bearer ${jeton}` }, signal: AbortSignal.timeout(8000) }).catch(() => null);
+  if (!reponse?.ok) return null;
+  const j = (await reponse.json()) as { data?: { participants?: { data?: { id?: string; name?: string; username?: string }[] } }[] };
+  const p = j.data?.[0]?.participants?.data?.find((x) => x.id === id);
+  const nom = p?.name || (p?.username ? `@${p.username}` : "");
   return nom.trim() || null;
 }
 
