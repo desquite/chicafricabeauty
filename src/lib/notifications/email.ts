@@ -55,7 +55,7 @@ export async function envoyerEmail(p: {
     ...p.paragraphes,
     ...(p.bouton ? [`${p.bouton.libelle} : ${p.bouton.url}`] : []),
     "",
-    "Chic Africa Beauty — Angré nouveau CHU, ruelle de la pharmacie Kabod — 01 72 70 37 38",
+    "Chic Africa Beauty — Angré nouveau CHU, ruelle de la pharmacie Kabod — 07 09 80 49 06",
   ].join("\n\n");
 
   // Mise en page volontairement simple : tableaux et styles en ligne, la seule
@@ -72,7 +72,7 @@ ${
     : ""
 }
 </td></tr>
-<tr><td style="padding:0 24px 22px;font-size:12px;color:#8a6a58">Angré nouveau CHU, ruelle de la pharmacie Kabod · 01 72 70 37 38</td></tr>
+<tr><td style="padding:0 24px 22px;font-size:12px;color:#8a6a58">Angré nouveau CHU, ruelle de la pharmacie Kabod · 07 09 80 49 06</td></tr>
 </table></td></tr></table></body></html>`;
 
   try {

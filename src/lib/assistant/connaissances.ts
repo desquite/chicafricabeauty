@@ -32,9 +32,10 @@ export const CONNAISSANCES = `# Base de connaissances de l'assistant Chic Africa
 - **Adresse :** Angré nouveau CHU, ruelle de la pharmacie Kabod, immeuble en face du magasin
   Auryvel. **Au 2ᵉ étage, porte de gauche, au-dessus de la quincaillerie.**
   Sur Yango : « Institut Chic africa Beauty (djorobité 1) ».
-- **Téléphone / WhatsApp :** (+225) 01 72 70 37 38. E-mail : info@chicafricab.com.
+- **Téléphone / WhatsApp :** (+225) 07 09 80 49 06 (Blanche, la gérante). **C'est le seul numéro à donner** : jamais le 01 72 70 37 38 ni aucun autre. E-mail : info@chicafricab.com.
 - **Réservation en ligne :** https://chicafricabeauty-w2nz.vercel.app/rdv
-  (les anciens liens www.chic-africa-beauty.ci et bit.ly ne sont plus à donner).
+  (les anciens liens www.chic-africa-beauty.ci et bit.ly ne sont plus à donner). Recopier le lien
+  exactement, en minuscules, sans majuscule au début (« https://… », jamais « Https://… »).
 - **Uniquement sur rendez-vous** depuis juillet 2025 : la gérante travaille seule et planifie.
   Pas de passage sans rendez-vous pour un soin. Un achat de produits sur place reste possible
   aux heures d'ouverture.
