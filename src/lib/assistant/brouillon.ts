@@ -53,7 +53,7 @@ Règles :
 - Jamais deux fois le même message : si l'Institut a déjà dit quelque chose (par exemple « Blanche revient vers vous ») et que la cliente relance (« Je suis là », « Eeee »), la réponse est différente et plus courte (« Elle arrive, merci pour votre patience 🙏 »), ou très brève.
 
 Format de sortie : un objet JSON seul, sans texte autour, avec exactement ces quatre champs :
-- "reponse" : le message WhatsApp à envoyer, les sauts de ligne écrits \\n ;
+- "reponse" : le message WhatsApp à envoyer, les sauts de ligne écrits \\n. Il part tel quel chez la cliente : il s'adresse À ELLE, au « vous ». Jamais d'indication pour la gérante ou pour toi-même dans ce champ (pas de « la cliente », « propose-lui », « dis-lui », « demande-lui ») : ce qui est pour la gérante va dans "raison" ;
 - "passer_la_main" : true si la gérante doit traiter elle-même la conversation, false sinon ;
 - "raison" : pourquoi passer la main, en une phrase courte ; "" sinon ;
 - "cloture" : true si ce message clôt la conversation (remerciement final, au revoir, tout est réglé), false sinon.
@@ -144,6 +144,14 @@ type ReponseDeepseek = {
 
 const SIX_HEURES = 6 * 3_600_000;
 const normaliser = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/**
+ * Une consigne de travail plutôt qu'un message : elle parle de « la cliente »
+ * à la troisième personne, ou dit quoi lui répondre (« propose-lui »).
+ */
+export function estUneConsigne(texte: string) {
+  return /\bla cliente\b|\b(propose|dis|demande|réponds|reponds|indique|explique|rappelle|précise|precise|envoie|donne|écris|ecris)-lui\b/i.test(texte);
+}
 
 /**
  * Retire « ma Chic » d'un message du milieu de l'échange, quand le modèle l'a
@@ -268,6 +276,17 @@ export async function proposerBrouillon(
         reponse: "Merci pour votre message ma Chic, je transmets à Blanche qui vous répond très vite.",
         passer_la_main: true,
         raison: "L'assistant n'a pas pu proposer de réponse à ce message.",
+        cloture: false,
+      };
+    }
+    // Le modèle écrit parfois une consigne (« Si la cliente…, propose-lui… »)
+    // au lieu du message : elle ne part jamais chez la cliente.
+    if (estUneConsigne(p.reponse)) {
+      console.warn(`Assistant : consigne écartée au lieu d'un message : ${p.reponse.slice(0, 200)}`);
+      p = {
+        reponse: "Merci pour votre message, je transmets à Blanche qui vous répond très vite 🙏",
+        passer_la_main: true,
+        raison: [p.raison.trim(), `proposition écartée : ${p.reponse.trim().slice(0, 300)}`].filter(Boolean).join(" — "),
         cloture: false,
       };
     }
